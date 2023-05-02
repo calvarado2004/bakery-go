@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package  bread;
+
+option go_package = "github.com/calvarado2004/bakery-go/bread";
+
+service RequestBread {
+    rpc GetBread(BreadRequest) returns (BreadResponse) {}
+}
+
+service AddClientToQueue {
+  rpc AddClient(ClientsInQueue) returns (ClientsInQueue) {}
+}
+
+service GetBreadList {
+  rpc GetBreadList(BreadList) returns (BreadList) {}
+}
+
+service DeleteClientFromQueue {
+  rpc DeleteClient(ClientsInQueue) returns (ClientsInQueue) {}
+}
+
+service ShowWaitingQueue {
+  rpc ShowQueue(ClientsInQueue) returns (ClientsInQueue) {}
+}
+
+message BreadRequest {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    string message = 4;
+}
+
+message BreadResponse {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message CakesRequest {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    string message = 4;
+}
+
+message CakesResponse {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message CookiesRequest {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    string message = 4;
+}
+
+message CookiesResponse {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message ClientsInQueue {
+    int64 clients = 1;
+}
+
+
+message Bread {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message Cakes {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message Cookies {
+    string name = 1;
+    string type = 2;
+    int64 quantity = 3;
+    int64 price = 4;
+    string message = 5;
+    string error = 6;
+}
+
+message BreadList {
+    repeated Bread breads = 1;
+    repeated Cakes cakes = 2;
+    repeated Cookies cookies = 3;
+
+}
+
+message BakeryRequestList {
+    repeated BreadRequest breads = 1;
+
+}
+
+message BakeryResponseList {
+    repeated BreadResponse breads = 1;
+}
+
+
+message CakesRequestList {
+    repeated CakesRequest cakes = 1;
+
+}
+
+message CakesResponseList {
+    repeated CakesResponse cakes = 1;
+}
+
+message CookiesRequestList {
+    repeated CookiesRequest cookies = 1;
+
+}
+
+message CookiesResponseList {
+    repeated CookiesResponse cookies = 1;
+}
