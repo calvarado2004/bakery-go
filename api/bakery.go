@@ -1,12 +1,9 @@
 package api
 
-const (
-	port = ":50051"
-)
+import pb "calvarado2004/bakery-go/proto"
 
-type RequestBreadServer struct {
-}
-
-func main() {
-
+type Offerings struct {
+	pb.Bread
+	pb.Cakes
+	pb.Cookies
 }

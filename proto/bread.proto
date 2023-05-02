@@ -4,6 +4,30 @@ package  bread;
 
 option go_package = "github.com/calvarado2004/bakery-go/bread";
 
+service BakeryManagement {
+    rpc AddClientToQueue(ClientsInQueue) returns (ClientsInQueue) {}
+    rpc GetBread(BreadRequest) returns (BreadResponse) {}
+    rpc GetCakes(CakesRequest) returns (CakesResponse) {}
+    rpc GetCookies(CookiesRequest) returns (CookiesResponse) {}
+    rpc GetBreadList(BreadList) returns (BreadList) {}
+    rpc GetCakesList(BreadList) returns (BreadList) {}
+    rpc GetCookiesList(BreadList) returns (BreadList) {}
+    rpc ShowWaitingQueue(ClientsInQueue) returns (ClientsInQueue) {}
+    rpc DeleteClientFromQueue(ClientsInQueue) returns (ClientsInQueue) {}
+}
+
+service MakeBread {
+    rpc MakeBread(BreadRequest) returns (BreadResponse) {}
+}
+
+service MakeCakes {
+    rpc MakeCakes(CakesRequest) returns (CakesResponse) {}
+}
+
+service MakeCookies {
+    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {}
+}
+
 service RequestBread {
     rpc GetBread(BreadRequest) returns (BreadResponse) {}
 }
