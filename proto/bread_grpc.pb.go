@@ -18,6 +18,488 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
+// BreadClient is the client API for Bread service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BreadClient interface {
+	AddClientToQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error)
+	GetBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error)
+	GetCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error)
+	GetCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error)
+	GetBreadList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error)
+	GetCakesList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error)
+	GetCookiesList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error)
+	ShowWaitingQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error)
+	DeleteClientFromQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error)
+	MakeBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error)
+	MakeCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error)
+	MakeCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error)
+}
+
+type breadClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBreadClient(cc grpc.ClientConnInterface) BreadClient {
+	return &breadClient{cc}
+}
+
+func (c *breadClient) AddClientToQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error) {
+	out := new(ClientsInQueue)
+	err := c.cc.Invoke(ctx, "/bread.bread/AddClientToQueue", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error) {
+	out := new(BreadResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetBread", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error) {
+	out := new(CakesResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetCakes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error) {
+	out := new(CookiesResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetCookies", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetBreadList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error) {
+	out := new(BreadList)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetBreadList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetCakesList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error) {
+	out := new(BreadList)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetCakesList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) GetCookiesList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error) {
+	out := new(BreadList)
+	err := c.cc.Invoke(ctx, "/bread.bread/GetCookiesList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) ShowWaitingQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error) {
+	out := new(ClientsInQueue)
+	err := c.cc.Invoke(ctx, "/bread.bread/ShowWaitingQueue", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) DeleteClientFromQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error) {
+	out := new(ClientsInQueue)
+	err := c.cc.Invoke(ctx, "/bread.bread/DeleteClientFromQueue", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) MakeBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error) {
+	out := new(BreadResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/MakeBread", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) MakeCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error) {
+	out := new(CakesResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/MakeCakes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *breadClient) MakeCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error) {
+	out := new(CookiesResponse)
+	err := c.cc.Invoke(ctx, "/bread.bread/MakeCookies", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BreadServer is the server API for Bread service.
+// All implementations must embed UnimplementedBreadServer
+// for forward compatibility
+type BreadServer interface {
+	AddClientToQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error)
+	GetBread(context.Context, *BreadRequest) (*BreadResponse, error)
+	GetCakes(context.Context, *CakesRequest) (*CakesResponse, error)
+	GetCookies(context.Context, *CookiesRequest) (*CookiesResponse, error)
+	GetBreadList(context.Context, *BreadList) (*BreadList, error)
+	GetCakesList(context.Context, *BreadList) (*BreadList, error)
+	GetCookiesList(context.Context, *BreadList) (*BreadList, error)
+	ShowWaitingQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error)
+	DeleteClientFromQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error)
+	MakeBread(context.Context, *BreadRequest) (*BreadResponse, error)
+	MakeCakes(context.Context, *CakesRequest) (*CakesResponse, error)
+	MakeCookies(context.Context, *CookiesRequest) (*CookiesResponse, error)
+	mustEmbedUnimplementedBreadServer()
+}
+
+// UnimplementedBreadServer must be embedded to have forward compatible implementations.
+type UnimplementedBreadServer struct {
+}
+
+func (UnimplementedBreadServer) AddClientToQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddClientToQueue not implemented")
+}
+func (UnimplementedBreadServer) GetBread(context.Context, *BreadRequest) (*BreadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBread not implemented")
+}
+func (UnimplementedBreadServer) GetCakes(context.Context, *CakesRequest) (*CakesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCakes not implemented")
+}
+func (UnimplementedBreadServer) GetCookies(context.Context, *CookiesRequest) (*CookiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCookies not implemented")
+}
+func (UnimplementedBreadServer) GetBreadList(context.Context, *BreadList) (*BreadList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBreadList not implemented")
+}
+func (UnimplementedBreadServer) GetCakesList(context.Context, *BreadList) (*BreadList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCakesList not implemented")
+}
+func (UnimplementedBreadServer) GetCookiesList(context.Context, *BreadList) (*BreadList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCookiesList not implemented")
+}
+func (UnimplementedBreadServer) ShowWaitingQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ShowWaitingQueue not implemented")
+}
+func (UnimplementedBreadServer) DeleteClientFromQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteClientFromQueue not implemented")
+}
+func (UnimplementedBreadServer) MakeBread(context.Context, *BreadRequest) (*BreadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeBread not implemented")
+}
+func (UnimplementedBreadServer) MakeCakes(context.Context, *CakesRequest) (*CakesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeCakes not implemented")
+}
+func (UnimplementedBreadServer) MakeCookies(context.Context, *CookiesRequest) (*CookiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeCookies not implemented")
+}
+func (UnimplementedBreadServer) mustEmbedUnimplementedBreadServer() {}
+
+// UnsafeBreadServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BreadServer will
+// result in compilation errors.
+type UnsafeBreadServer interface {
+	mustEmbedUnimplementedBreadServer()
+}
+
+func RegisterBreadServer(s grpc.ServiceRegistrar, srv BreadServer) {
+	s.RegisterService(&Bread_ServiceDesc, srv)
+}
+
+func _Bread_AddClientToQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientsInQueue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).AddClientToQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/AddClientToQueue",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).AddClientToQueue(ctx, req.(*ClientsInQueue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetBread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetBread(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetBread",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetBread(ctx, req.(*BreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetCakes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CakesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetCakes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetCakes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetCakes(ctx, req.(*CakesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetCookies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CookiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetCookies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetCookies",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetCookies(ctx, req.(*CookiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetBreadList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadList)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetBreadList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetBreadList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetBreadList(ctx, req.(*BreadList))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetCakesList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadList)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetCakesList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetCakesList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetCakesList(ctx, req.(*BreadList))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_GetCookiesList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadList)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).GetCookiesList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/GetCookiesList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).GetCookiesList(ctx, req.(*BreadList))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_ShowWaitingQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientsInQueue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).ShowWaitingQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/ShowWaitingQueue",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).ShowWaitingQueue(ctx, req.(*ClientsInQueue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_DeleteClientFromQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientsInQueue)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).DeleteClientFromQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/DeleteClientFromQueue",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).DeleteClientFromQueue(ctx, req.(*ClientsInQueue))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_MakeBread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).MakeBread(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/MakeBread",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).MakeBread(ctx, req.(*BreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_MakeCakes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CakesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).MakeCakes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/MakeCakes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).MakeCakes(ctx, req.(*CakesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bread_MakeCookies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CookiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BreadServer).MakeCookies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.bread/MakeCookies",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BreadServer).MakeCookies(ctx, req.(*CookiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Bread_ServiceDesc is the grpc.ServiceDesc for Bread service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Bread_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.bread",
+	HandlerType: (*BreadServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AddClientToQueue",
+			Handler:    _Bread_AddClientToQueue_Handler,
+		},
+		{
+			MethodName: "GetBread",
+			Handler:    _Bread_GetBread_Handler,
+		},
+		{
+			MethodName: "GetCakes",
+			Handler:    _Bread_GetCakes_Handler,
+		},
+		{
+			MethodName: "GetCookies",
+			Handler:    _Bread_GetCookies_Handler,
+		},
+		{
+			MethodName: "GetBreadList",
+			Handler:    _Bread_GetBreadList_Handler,
+		},
+		{
+			MethodName: "GetCakesList",
+			Handler:    _Bread_GetCakesList_Handler,
+		},
+		{
+			MethodName: "GetCookiesList",
+			Handler:    _Bread_GetCookiesList_Handler,
+		},
+		{
+			MethodName: "ShowWaitingQueue",
+			Handler:    _Bread_ShowWaitingQueue_Handler,
+		},
+		{
+			MethodName: "DeleteClientFromQueue",
+			Handler:    _Bread_DeleteClientFromQueue_Handler,
+		},
+		{
+			MethodName: "MakeBread",
+			Handler:    _Bread_MakeBread_Handler,
+		},
+		{
+			MethodName: "MakeCakes",
+			Handler:    _Bread_MakeCakes_Handler,
+		},
+		{
+			MethodName: "MakeCookies",
+			Handler:    _Bread_MakeCookies_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/bread.proto",
+}
+
 // BakeryManagementClient is the client API for BakeryManagement service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
@@ -31,6 +513,9 @@ type BakeryManagementClient interface {
 	GetCookiesList(ctx context.Context, in *BreadList, opts ...grpc.CallOption) (*BreadList, error)
 	ShowWaitingQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error)
 	DeleteClientFromQueue(ctx context.Context, in *ClientsInQueue, opts ...grpc.CallOption) (*ClientsInQueue, error)
+	MakeBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error)
+	MakeCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error)
+	MakeCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error)
 }
 
 type bakeryManagementClient struct {
@@ -122,6 +607,33 @@ func (c *bakeryManagementClient) DeleteClientFromQueue(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *bakeryManagementClient) MakeBread(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error) {
+	out := new(BreadResponse)
+	err := c.cc.Invoke(ctx, "/bread.BakeryManagement/MakeBread", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bakeryManagementClient) MakeCakes(ctx context.Context, in *CakesRequest, opts ...grpc.CallOption) (*CakesResponse, error) {
+	out := new(CakesResponse)
+	err := c.cc.Invoke(ctx, "/bread.BakeryManagement/MakeCakes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bakeryManagementClient) MakeCookies(ctx context.Context, in *CookiesRequest, opts ...grpc.CallOption) (*CookiesResponse, error) {
+	out := new(CookiesResponse)
+	err := c.cc.Invoke(ctx, "/bread.BakeryManagement/MakeCookies", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BakeryManagementServer is the server API for BakeryManagement service.
 // All implementations must embed UnimplementedBakeryManagementServer
 // for forward compatibility
@@ -135,6 +647,9 @@ type BakeryManagementServer interface {
 	GetCookiesList(context.Context, *BreadList) (*BreadList, error)
 	ShowWaitingQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error)
 	DeleteClientFromQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error)
+	MakeBread(context.Context, *BreadRequest) (*BreadResponse, error)
+	MakeCakes(context.Context, *CakesRequest) (*CakesResponse, error)
+	MakeCookies(context.Context, *CookiesRequest) (*CookiesResponse, error)
 	mustEmbedUnimplementedBakeryManagementServer()
 }
 
@@ -168,6 +683,15 @@ func (UnimplementedBakeryManagementServer) ShowWaitingQueue(context.Context, *Cl
 }
 func (UnimplementedBakeryManagementServer) DeleteClientFromQueue(context.Context, *ClientsInQueue) (*ClientsInQueue, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClientFromQueue not implemented")
+}
+func (UnimplementedBakeryManagementServer) MakeBread(context.Context, *BreadRequest) (*BreadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeBread not implemented")
+}
+func (UnimplementedBakeryManagementServer) MakeCakes(context.Context, *CakesRequest) (*CakesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeCakes not implemented")
+}
+func (UnimplementedBakeryManagementServer) MakeCookies(context.Context, *CookiesRequest) (*CookiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeCookies not implemented")
 }
 func (UnimplementedBakeryManagementServer) mustEmbedUnimplementedBakeryManagementServer() {}
 
@@ -344,6 +868,60 @@ func _BakeryManagement_DeleteClientFromQueue_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BakeryManagement_MakeBread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BakeryManagementServer).MakeBread(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.BakeryManagement/MakeBread",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BakeryManagementServer).MakeBread(ctx, req.(*BreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BakeryManagement_MakeCakes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CakesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BakeryManagementServer).MakeCakes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.BakeryManagement/MakeCakes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BakeryManagementServer).MakeCakes(ctx, req.(*CakesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BakeryManagement_MakeCookies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CookiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BakeryManagementServer).MakeCookies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.BakeryManagement/MakeCookies",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BakeryManagementServer).MakeCookies(ctx, req.(*CookiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BakeryManagement_ServiceDesc is the grpc.ServiceDesc for BakeryManagement service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -386,6 +964,18 @@ var BakeryManagement_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClientFromQueue",
 			Handler:    _BakeryManagement_DeleteClientFromQueue_Handler,
+		},
+		{
+			MethodName: "MakeBread",
+			Handler:    _BakeryManagement_MakeBread_Handler,
+		},
+		{
+			MethodName: "MakeCakes",
+			Handler:    _BakeryManagement_MakeCakes_Handler,
+		},
+		{
+			MethodName: "MakeCookies",
+			Handler:    _BakeryManagement_MakeCookies_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

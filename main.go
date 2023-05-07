@@ -1,6 +1,7 @@
 package main
 
 import (
+	"calvarado2004/bakery-go/api"
 	pb "calvarado2004/bakery-go/proto"
 	"context"
 	"google.golang.org/grpc"
@@ -48,40 +49,17 @@ func main() {
 
 	ctx := context.Background()
 
-	addClientToQueue(ctx, pb.NewBakeryManagementClient(client))
-
-	getBread(ctx, pb.NewBakeryManagementClient(client))
-
-	getCakes(ctx, pb.NewBakeryManagementClient(client))
-
-	getCookies(ctx, pb.NewBakeryManagementClient(client))
-
-}
-
-func getBread(ctx context.Context, client pb.BakeryManagementClient) {
-	_, err := client.GetBread(ctx, &pb.BreadRequest{})
-	if err != nil {
-		panic(err)
+	clients := &pb.ClientsInQueue{
+		Clients: 20,
 	}
-}
 
-func getCakes(ctx context.Context, client pb.BakeryManagementClient) {
-	_, err := client.GetCakes(ctx, &pb.CakesRequest{})
-	if err != nil {
-		panic(err)
-	}
-}
+	_, err = api.AddClientToQueue(ctx, clients, nil)
 
-func getCookies(ctx context.Context, client pb.BakeryManagementClient) {
-	_, err := client.GetCookies(ctx, &pb.CookiesRequest{})
+	queue, err := api.ShowWaitingQueue(ctx, &pb.ClientsInQueue{}, nil)
 	if err != nil {
-		panic(err)
+		return
 	}
-}
 
-func addClientToQueue(ctx context.Context, client pb.BakeryManagementClient) {
-	_, err := client.AddClientToQueue(ctx, &pb.ClientsInQueue{})
-	if err != nil {
-		panic(err)
-	}
+	log.Println("queue: ", queue)
+
 }
