@@ -21,9 +21,11 @@ func main() {
 	bread := &pb.Bread{
 		Name:     "Sourdough",
 		Id:       1,
-		Type:     "Sourdough",
+		Type:     "Salty",
 		Quantity: 100,
 		Price:    2.99,
+		Message:  "Sourdough bread is the best!",
+		Error:    "",
 	}
 
 	log.Println("Making bread: ", bread)
