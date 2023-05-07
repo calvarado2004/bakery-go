@@ -5,6 +5,7 @@ import (
 	"context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
 	"os"
@@ -26,6 +27,7 @@ func main() {
 
 	server := grpc.NewServer()
 	pb.RegisterBakeryManagementServer(server, management)
+	reflection.Register(server)
 	log.Print("Go Bakery server listening at port", port)
 
 	if err := server.Serve(listen); err != nil {
