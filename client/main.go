@@ -18,19 +18,12 @@ func main() {
 
 	log.Printf("Connected to %v", address)
 
-	defer func(client *grpc.ClientConn) {
-		err := client.Close()
-		if err != nil {
-			log.Println("error closing client: ", err)
-		}
-	}(conn)
-
 	bread := &pb.Bread{
 		Name:     "Sourdough",
-		Id:       "1",
+		Id:       1,
 		Type:     "Sourdough",
-		Quantity: "100",
-		Price:    "2.99",
+		Quantity: 100,
+		Price:    2.99,
 	}
 
 	log.Println("Making bread: ", bread)
@@ -38,5 +31,12 @@ func main() {
 	breadClient := pb.NewMakeBreadClient(conn)
 
 	MakeBread(breadClient, bread)
+
+	defer func(client *grpc.ClientConn) {
+		err := client.Close()
+		if err != nil {
+			log.Println("error closing client: ", err)
+		}
+	}(conn)
 
 }

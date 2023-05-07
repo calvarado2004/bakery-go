@@ -6,18 +6,22 @@ import (
 	"log"
 )
 
-type MakeBreadServer struct {
-	pb.MakeBreadServer
-}
+func (s MakeBreadServer) MakeBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
-func (s *MakeBreadServer) MakeBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
+	breadMade := pb.Bread{
+		Name:     in.Bread.Name,
+		Id:       in.Bread.Id,
+		Type:     in.Bread.Type,
+		Quantity: in.Bread.Quantity,
+		Price:    in.Bread.Price,
+		Message:  in.Bread.Message,
+		Error:    in.Bread.Error,
+	}
 
-	requestedBread := in.Bread
-
-	log.Println("Bread requested to make: ", requestedBread)
+	log.Println("Bread to make", &breadMade)
 
 	return &pb.BreadResponse{
-		Bread: requestedBread,
+		Bread: &breadMade,
 	}, nil
 
 }

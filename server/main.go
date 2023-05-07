@@ -10,26 +10,30 @@ import (
 )
 
 const (
-	port = ":50051"
+	address = "0.0.0.0:50051"
 )
+
+type MakeBreadServer struct {
+	pb.MakeBreadServer
+}
 
 func main() {
 	address := os.Getenv("BAKERY_SERVICE_ADDR")
 
-	listen, err := net.Listen("tcp", port)
+	listen, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Print("error listening: ", err)
 	}
 
-	var breadServer pb.MakeBreadServer
+	log.Printf("Server listening on %v", address)
 
 	server := grpc.NewServer()
-	pb.RegisterMakeBreadServer(server, breadServer)
-	reflection.Register(server)
-	log.Print("Go Bakery bread server listening at port", port)
+	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
 
-	if err := server.Serve(listen); err != nil {
-		log.Print("error serving: ", address)
+	reflection.Register(server)
+
+	if err = server.Serve(listen); err != nil {
+		log.Fatalf("Failed to serve gRPC server over %v", err)
 	}
 
 }

@@ -3,8 +3,6 @@ syntax = "proto3";
 package  bread;
 
 
-import "googleapis/google/api/annotations.proto";
-
 
 option go_package = "github.com/calvarado2004/bakery-go/bread";
 
@@ -12,50 +10,34 @@ option go_package = "github.com/calvarado2004/bakery-go/bread";
 service QueueService {
 
     rpc AddClientToQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            post: "/v1/queue"
-            body: "*"
-        };
+
     }
 
     rpc ShowWaitingQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            get: "/v1/queue"
-        };
+
     }
     rpc DeleteClientFromQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            delete: "/v1/queue"
-            body: "*"
-        };
+
     }
 
 }
 
 service MakeBread {
     rpc MakeBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            post: "/v1/bread"
-            body: "*"
-        };
+
     }
 }
 
 service CreateClient {
     rpc CreateClient(ClientRequest) returns (ClientResponse){
-        option (google.api.http) = {
-            post: "/v1/client"
-            body: "*"
-        };
+
     }
 }
 
 service BakeryBreadService {
 
     rpc GetAvailableBreads(BakeryRequestList) returns (BakeryResponseList) {
-        option (google.api.http) = {
-            get: "/v1/bread"
-        };
+
     }
 
 }
@@ -84,11 +66,11 @@ message ClientsInQueue {
 }
 
 message Bread {
-    string id = 1;
+    int64 id = 1;
     string name = 2;
     string type = 3;
-    string quantity = 4;
-    string price = 5;
+    int64 quantity = 4;
+    float price = 5;
     string message = 6;
     string error = 7;
 }

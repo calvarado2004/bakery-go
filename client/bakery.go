@@ -18,4 +18,5 @@ func MakeBread(client pb.MakeBreadClient, bread *pb.Bread) {
 	}
 
 	log.Println("Bread made: ", response.Bread)
+
 }
