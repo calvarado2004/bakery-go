@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package  bread;
 
+
+import "googleapis/google/api/annotations.proto";
+
+
 option go_package = "github.com/calvarado2004/bakery-go/bread";
 
 service BakeryManagement {
@@ -17,35 +21,73 @@ service BakeryManagement {
 }
 
 service MakeBread {
-    rpc MakeBread(BreadRequest) returns (BreadResponse) {}
+    rpc MakeBread(BreadRequest)
+    returns (BreadResponse) {
+        option (google.api.http) = {
+            post: "/v1/bread"
+            body: "*"
+        };
+    }
 }
 
 service MakeCakes {
-    rpc MakeCakes(CakesRequest) returns (CakesResponse) {}
+    rpc MakeCakes(CakesRequest) returns (CakesResponse) {
+        option (google.api.http) = {
+            post: "/v1/cakes"
+            body: "*"
+        };
+    }
 }
 
 service MakeCookies {
-    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {}
+    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {
+        option (google.api.http) = {
+            post: "/v1/cookies"
+            body: "*"
+        };
+    }
 }
 
 service RequestBread {
-    rpc GetBread(BreadRequest) returns (BreadResponse) {}
+    rpc GetBread(BreadRequest) returns (BreadResponse) {
+        option (google.api.http) = {
+            get: "/v1/bread/{name}"
+        };
+    }
 }
 
 service AddClientToQueue {
-  rpc AddClient(ClientsInQueue) returns (ClientsInQueue) {}
+  rpc AddClient(ClientsInQueue) returns (ClientsInQueue) {
+    option (google.api.http) = {
+      post: "/v1/queue"
+      body: "*"
+    };
+  }
 }
 
 service GetBreadList {
-  rpc GetBreadList(BreadList) returns (BreadList) {}
+  rpc GetBreadList(BreadList) returns (BreadList) {
+    option (google.api.http) = {
+      get: "/v1/bread"
+    };
+  }
 }
 
 service DeleteClientFromQueue {
-  rpc DeleteClient(ClientsInQueue) returns (ClientsInQueue) {}
+  rpc DeleteClient(ClientsInQueue) returns (ClientsInQueue) {
+    option (google.api.http) = {
+      delete: "/v1/queue"
+      body: "*"
+    };
+  }
 }
 
 service ShowWaitingQueue {
-  rpc ShowQueue(ClientsInQueue) returns (ClientsInQueue) {}
+  rpc ShowQueue(ClientsInQueue) returns (ClientsInQueue) {
+    option (google.api.http) = {
+      get: "/v1/queue"
+    };
+  }
 }
 
 message BreadRequest {
