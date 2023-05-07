@@ -8,111 +8,16 @@ import "googleapis/google/api/annotations.proto";
 
 option go_package = "github.com/calvarado2004/bakery-go/bread";
 
-service bread {
-    rpc AddClientToQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            post: "/v1/queue"
-            body: "*"
-        };
-    }
-    rpc GetBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            get: "/v1/bread/{name}"
-        };
-    }
-    rpc GetCakes(CakesRequest) returns (CakesResponse) {
-        option (google.api.http) = {
-            get: "/v1/cakes/{name}"
-        };
-    }
-    rpc GetCookies(CookiesRequest) returns (CookiesResponse) {
-        option (google.api.http) = {
-            get: "/v1/cookies/{name}"
-        };
-    }
-    rpc GetBreadList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/bread"
-        };
-    }
-    rpc GetCakesList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/cakes"
-        };
-    }
-    rpc GetCookiesList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/cookies"
-        };
-    }
-    rpc ShowWaitingQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            get: "/v1/queue"
-        };
-    }
-    rpc DeleteClientFromQueue(ClientsInQueue) returns (ClientsInQueue) {
-        option (google.api.http) = {
-            delete: "/v1/queue"
-            body: "*"
-        };
-    }
-    rpc MakeBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            post: "/v1/bread"
-            body: "*"
-        };
-    }
-    rpc MakeCakes(CakesRequest) returns (CakesResponse) {
-        option (google.api.http) = {
-            post: "/v1/cakes"
-            body: "*"
-        };
-    }
-    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {
-        option (google.api.http) = {
-            post: "/v1/cookies"
-            body: "*"
-        };
-    }
-}
 
-service BakeryManagement {
+service QueueService {
+
     rpc AddClientToQueue(ClientsInQueue) returns (ClientsInQueue) {
         option (google.api.http) = {
             post: "/v1/queue"
             body: "*"
         };
     }
-    rpc GetBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            get: "/v1/bread/{name}"
-        };
-    }
-    rpc GetCakes(CakesRequest) returns (CakesResponse) {
-        option (google.api.http) = {
-            get: "/v1/cakes/{name}"
-        };
-    }
-    rpc GetCookies(CookiesRequest) returns (CookiesResponse) {
-        option (google.api.http) = {
-            get: "/v1/cookies/{name}"
-        };
-    }
-    rpc GetBreadList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/bread"
-        };
-    }
-    rpc GetCakesList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/cakes"
-        };
-    }
-    rpc GetCookiesList(BreadList) returns (BreadList) {
-        option (google.api.http) = {
-            get: "/v1/cookies"
-        };
-    }
+
     rpc ShowWaitingQueue(ClientsInQueue) returns (ClientsInQueue) {
         option (google.api.http) = {
             get: "/v1/queue"
@@ -124,29 +29,11 @@ service BakeryManagement {
             body: "*"
         };
     }
-    rpc MakeBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            post: "/v1/bread"
-            body: "*"
-        };
-    }
-    rpc MakeCakes(CakesRequest) returns (CakesResponse) {
-        option (google.api.http) = {
-            post: "/v1/cakes"
-            body: "*"
-        };
-    }
-    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {
-        option (google.api.http) = {
-            post: "/v1/cookies"
-            body: "*"
-        };
-    }
+
 }
 
 service MakeBread {
-    rpc MakeBread(BreadRequest)
-    returns (BreadResponse) {
+    rpc MakeBread(BreadRequest) returns (BreadResponse) {
         option (google.api.http) = {
             post: "/v1/bread"
             body: "*"
@@ -154,64 +41,56 @@ service MakeBread {
     }
 }
 
-service MakeCakes {
-    rpc MakeCakes(CakesRequest) returns (CakesResponse) {
+service CreateClient {
+    rpc CreateClient(ClientRequest) returns (ClientResponse){
         option (google.api.http) = {
-            post: "/v1/cakes"
+            post: "/v1/client"
             body: "*"
         };
     }
 }
 
-service MakeCookies {
-    rpc MakeCookies(CookiesRequest) returns (CookiesResponse) {
+service BakeryBreadService {
+
+    rpc GetAvailableBreads(BakeryRequestList) returns (BakeryResponseList) {
         option (google.api.http) = {
-            post: "/v1/cookies"
-            body: "*"
+            get: "/v1/bread"
         };
     }
+
 }
 
-service RequestBread {
-    rpc GetBread(BreadRequest) returns (BreadResponse) {
-        option (google.api.http) = {
-            get: "/v1/bread/{name}"
-        };
-    }
+message Client {
+    int64 id = 1;
+    string name = 2;
+    string type = 3;
+    bool active = 4;
+    bool admin = 5;
 }
 
-service AddClientToQueue {
-  rpc AddClient(ClientsInQueue) returns (ClientsInQueue) {
-    option (google.api.http) = {
-      post: "/v1/queue"
-      body: "*"
-    };
-  }
+
+message ClientRequest {
+    Client client = 1;
 }
 
-service GetBreadList {
-  rpc GetBreadList(BreadList) returns (BreadList) {
-    option (google.api.http) = {
-      get: "/v1/bread"
-    };
-  }
+message ClientResponse {
+    Client client = 1;
 }
 
-service DeleteClientFromQueue {
-  rpc DeleteClient(ClientsInQueue) returns (ClientsInQueue) {
-    option (google.api.http) = {
-      delete: "/v1/queue"
-      body: "*"
-    };
-  }
+message ClientsInQueue {
+    repeated Client clients = 1;
+    string message = 2;
+    string error = 3;
 }
 
-service ShowWaitingQueue {
-  rpc ShowQueue(ClientsInQueue) returns (ClientsInQueue) {
-    option (google.api.http) = {
-      get: "/v1/queue"
-    };
-  }
+message Bread {
+    string id = 1;
+    string name = 2;
+    string type = 3;
+    string quantity = 4;
+    string price = 5;
+    string message = 6;
+    string error = 7;
 }
 
 message BreadRequest {
@@ -223,61 +102,6 @@ message BreadResponse {
 
 }
 
-message CakesRequest {
-    Cakes cakes = 1;
-}
-
-message CakesResponse {
-    Cakes cakes = 1;
-}
-
-message CookiesRequest {
-    Cookies cookies = 1;
-}
-
-message CookiesResponse {
-    Cookies cookies = 1;
-}
-
-message ClientsInQueue {
-    int64 clients = 1;
-}
-
-
-message Bread {
-    string name = 1;
-    string type = 2;
-    int64 quantity = 3;
-    int64 price = 4;
-    string message = 5;
-    string error = 6;
-}
-
-message Cakes {
-    string name = 1;
-    string type = 2;
-    int64 quantity = 3;
-    int64 price = 4;
-    string message = 5;
-    string error = 6;
-}
-
-message Cookies {
-    string name = 1;
-    string type = 2;
-    int64 quantity = 3;
-    int64 price = 4;
-    string message = 5;
-    string error = 6;
-}
-
-message BreadList {
-    repeated Bread breads = 1;
-    repeated Cakes cakes = 2;
-    repeated Cookies cookies = 3;
-
-}
-
 message BakeryRequestList {
     repeated BreadRequest breads = 1;
 
@@ -285,23 +109,4 @@ message BakeryRequestList {
 
 message BakeryResponseList {
     repeated BreadResponse breads = 1;
-}
-
-
-message CakesRequestList {
-    repeated CakesRequest cakes = 1;
-
-}
-
-message CakesResponseList {
-    repeated CakesResponse cakes = 1;
-}
-
-message CookiesRequestList {
-    repeated CookiesRequest cookies = 1;
-
-}
-
-message CookiesResponseList {
-    repeated CookiesResponse cookies = 1;
 }
