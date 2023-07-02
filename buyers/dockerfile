@@ -1,0 +1,32 @@
+# maker/Dockerfile
+
+# Start from the latest golang base image
+FROM --platform=linux/amd64 golang:latest as builder
+
+# Add Maintainer Info
+LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy go mod and sum files
+COPY ../go.mod ./
+
+# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+RUN go mod download
+
+# Copy the source from the current directory to the Working Directory inside the container
+COPY . .
+
+# Build the Go app
+RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -o main .
+
+RUN chmod +x /app/main
+
+FROM --platform=linux/amd64 alpine:latest
+
+RUN mkdir /app
+
+COPY --from=builder /app/main /app
+
+CMD [ "/app/main"]

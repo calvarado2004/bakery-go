@@ -17,6 +17,10 @@ type MakeBreadServer struct {
 	pb.MakeBreadServer
 }
 
+type BakeryBreadServiceServer struct {
+	pb.BakeryBreadServiceServer
+}
+
 func main() {
 	address := os.Getenv("BAKERY_SERVICE_ADDR")
 
@@ -29,6 +33,7 @@ func main() {
 
 	server := grpc.NewServer()
 	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
+	pb.RegisterBakeryBreadServiceServer(server, &BakeryBreadServiceServer{})
 
 	reflection.Register(server)
 

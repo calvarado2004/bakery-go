@@ -26,6 +26,10 @@ service MakeBread {
     rpc MakeBread(BreadRequest) returns (BreadResponse) {
 
     }
+
+    rpc AddBreadToQueue(BreadRequest) returns (BreadResponse) {
+
+    }
 }
 
 service CreateClient {
@@ -40,6 +44,22 @@ service BakeryBreadService {
 
     }
 
+    rpc CheckBreadQueue(Empty) returns (BreadQueueSize) {
+    }
+
+    rpc BuyBreadFromQueue(BuyRequest) returns (BuyResponse) {
+
+    }
+
+
+}
+
+
+
+message Empty {}
+
+message BreadQueueSize {
+    int64 quantity = 1;
 }
 
 message Client {
@@ -81,7 +101,8 @@ message BreadRequest {
 
 message BreadResponse {
     Bread bread = 1;
-
+    string message = 2;
+    string error = 3;
 }
 
 message BakeryRequestList {
@@ -91,4 +112,24 @@ message BakeryRequestList {
 
 message BakeryResponseList {
     repeated BreadResponse breads = 1;
+}
+
+message BuyRequest {
+    int64 id = 1;
+    string name = 2;
+    string type = 3;
+    int64 quantity = 4;
+    float price = 5;
+    string message = 6;
+    string error = 7;
+}
+
+message BuyResponse {
+    int64 id = 1;
+    string name = 2;
+    string type = 3;
+    int64 quantity = 4;
+    float price = 5;
+    string message = 6;
+    string error = 7;
 }
