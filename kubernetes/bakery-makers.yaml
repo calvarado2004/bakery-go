@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bakery-makers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bakery-makers
+  template:
+    metadata:
+      labels:
+        app: bakery-makers
+    spec:
+      containers:
+        - name: bakery-makers
+          image: docker.io/calvarado2004/bakery-go-makers
+          env:
+            - name: BAKERY_SERVICE_ADDR
+              value: "bakery-server-service:50051"
+            - name: ACTIVEMQ_SERVICE_ADDR
+              value: "amqp://guest:guest@rabbitmq-service:5672/"
