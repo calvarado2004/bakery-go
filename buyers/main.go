@@ -9,11 +9,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"math/rand"
+	"os"
 )
 
-const (
-	address = "0.0.0.0:50051"
-)
+var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
+
+var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
 
 var (
 	rabbitmqChannel *rabbitmq.Channel
@@ -24,7 +25,7 @@ var (
 
 func main() {
 	var err error
-	conn, err = rabbitmq.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err = rabbitmq.Dial(activemqAddress)
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
@@ -47,7 +48,7 @@ func main() {
 	}(rabbitmqChannel)
 
 	// Connect to the gRPC server
-	grpcConn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to gRPC server: %v", err)
 	}

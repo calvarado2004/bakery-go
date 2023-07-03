@@ -57,7 +57,7 @@ func makeSomeBread(breadTypeKeys []string, breadTypes map[string]BreadAttributes
 func CheckBreadQueue() (int, error) {
 
 	// Connect to RabbitMQ server
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial(activemqAddress)
 	if err != nil {
 		return 0, fmt.Errorf("failed to connect to RabbitMQ: %v", err)
 	}

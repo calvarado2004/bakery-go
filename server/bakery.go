@@ -16,7 +16,7 @@ var rabbitmqChannel *rabbitmq.Channel
 
 func init() {
 	var err error
-	rabbitmqConnection, err = rabbitmq.Dial("amqp://guest:guest@localhost:5672/")
+	rabbitmqConnection, err = rabbitmq.Dial(activemqAddress)
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
@@ -145,7 +145,7 @@ func (s *BakeryBreadServiceServer) BuyBreadFromQueue(ctx context.Context, in *pb
 
 func (s *BakeryBreadServiceServer) GetAvailableBreads(context.Context, *pb.BakeryRequestList) (*pb.BakeryResponseList, error) {
 	// Create a connection to the RabbitMQ server
-	conn, err := rabbitmq.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := rabbitmq.Dial(activemqAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RabbitMQ: %v", err)
 	}

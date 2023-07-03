@@ -5,10 +5,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"os"
 	"time"
 )
 
-var address = "0.0.0.0:50051"
+var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
+
+var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
 
 // Bread attributes
 type BreadAttributes struct {
@@ -31,12 +34,12 @@ var breadTypes = map[string]BreadAttributes{
 }
 
 func main() {
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Could not connect to %v", err)
 	}
 
-	log.Printf("Connected to %v", address)
+	log.Printf("Connected to %v", gRPCAddress)
 
 	breadClient := pb.NewMakeBreadClient(conn)
 

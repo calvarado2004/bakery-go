@@ -9,10 +9,6 @@ import (
 	"os"
 )
 
-const (
-	address = "0.0.0.0:50051"
-)
-
 type MakeBreadServer struct {
 	pb.MakeBreadServer
 }
@@ -21,15 +17,18 @@ type BakeryBreadServiceServer struct {
 	pb.BakeryBreadServiceServer
 }
 
-func main() {
-	address := os.Getenv("BAKERY_SERVICE_ADDR")
+var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
-	listen, err := net.Listen("tcp", address)
+var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
+
+func main() {
+
+	listen, err := net.Listen("tcp", gRPCAddress)
 	if err != nil {
 		log.Print("error listening: ", err)
 	}
 
-	log.Printf("Server listening on %v", address)
+	log.Printf("Server listening on %v", gRPCAddress)
 
 	server := grpc.NewServer()
 	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})

@@ -2,7 +2,8 @@
 
 ## Environment variables
 ```bash
-export BAKERY_SERVICE_ADDR=0.0.0.0:50051
+export BAKERY_SERVICE_ADDR=localhost:50051
+export ACTIVEMQ_SERVICE_ADDR=amqp://guest:guest@localhost:5672/
 ```
 
 ## Generate proto files
