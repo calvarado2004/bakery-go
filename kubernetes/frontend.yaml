@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bakery-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bakery-frontend
+  template:
+    metadata:
+      labels:
+        app: bakery-frontend
+    spec:
+      containers:
+        - name: bakery-frontend
+          image: docker.io/calvarado2004/bakery-go-frontend
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BAKERY_SERVICE_ADDR
+              value: "bakery-server-service:50051"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bakery-frontend-service
+  labels:
+    app: bakery-frontend
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: bakery-frontend

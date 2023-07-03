@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bread Bakery</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <style>
+    .log {
+      background-color: #000;
+      color: #7FFF00;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 10px;
+      margin-bottom: 10px;
+      white-space: pre-line;
+      border-radius: 5px;
+      max-height: 400px; /* adjust as necessary */
+      overflow-y: auto;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+    }
+    .log pre {
+      color: #7FFF00;
+      background-color: #000;
+    }
+  </style>
+</head>
+<body>
+<div class="container py-5">
+  <h1 class="text-center mb-5">Bread Logs</h1>
+  <button id="scrollUp">Scroll Up</button>
+  <button id="scrollDown">Scroll Down</button>
+  <div id="logs" class="log"></div>
+</div>
+<script>
+  var logsDiv = document.getElementById('logs');
+  var source = new EventSource("/stream");
+
+
+  source.onmessage = function(event) {
+    var log = JSON.parse(event.data);
+    logsDiv.innerHTML += '<pre>ID: ' + log.ID +
+            '<br>Name: ' + log.Name +
+            '<br>Message: ' + log.Message +
+            '<br>Quantity: ' + log.Quantity + '</pre>';
+  };
+
+  var scrollAmount = 100; // adjust as necessary
+  document.getElementById('scrollUp').onclick = function() {
+    logsDiv.scrollTop -= scrollAmount;
+  };
+  document.getElementById('scrollDown').onclick = function() {
+    logsDiv.scrollTop += scrollAmount;
+  };
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
@@ -81,8 +82,15 @@ func fetchAvailableBreads() {
 }
 
 // RandomBread returns a random bread from allBreads.
-func RandomBread() string {
-	return allBreads[rand.Intn(len(allBreads))]
+func RandomBread() (string, error) {
+
+	allBreads := []string{"Roll", "Baguette", "Sourdough", "Focaccia", "Whole Wheat"} // Define your subset here
+
+	if len(allBreads) == 0 {
+		return "", errors.New("no breads available")
+	}
+
+	return allBreads[rand.Intn(len(allBreads))], nil
 }
 
 func BuyBread(breadToBuy string) {
@@ -157,7 +165,14 @@ func ConsumeBreadQueue() {
 
 		for msg := range msgs {
 
-			breadToBuy := RandomBread() // Get a random bread to buy
+			breadToBuy, err := RandomBread() // Get a random bread to buy
+			if err != nil {
+				err := msg.Nack(false, true)
+				if err != nil {
+					return
+				} // requeue the message
+				log.Fatalf("Failed to get random bread: %v", err)
+			}
 
 			receivedBread := &bread.Bread{}
 			err = json.Unmarshal(msg.Body, receivedBread)

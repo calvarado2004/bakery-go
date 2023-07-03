@@ -44,12 +44,18 @@ service BakeryBreadService {
 
     }
 
+    rpc BreadUpdates(BakeryRequestList) returns (stream BakeryResponseList) {
+
+    }
+
+
     rpc CheckBreadQueue(Empty) returns (BreadQueueSize) {
     }
 
     rpc BuyBreadFromQueue(BuyRequest) returns (BuyResponse) {
 
     }
+
 
 
 }
