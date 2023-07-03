@@ -1,7 +1,7 @@
 package main
 
 import (
-	pb "calvarado2004/bakery-go/proto"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"log"

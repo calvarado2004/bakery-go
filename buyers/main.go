@@ -1,9 +1,9 @@
 package main
 
 import (
-	"calvarado2004/bakery-go/proto"
 	"context"
 	"encoding/json"
+	"github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

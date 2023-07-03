@@ -1,9 +1,9 @@
 package main
 
 import (
-	pb "calvarado2004/bakery-go/proto"
 	"context"
 	"fmt"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/streadway/amqp"
 	"log"
 	"math/rand"

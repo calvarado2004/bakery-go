@@ -1,10 +1,10 @@
 package main
 
 import (
-	pb "calvarado2004/bakery-go/proto"
 	"context"
 	"encoding/json"
 	"fmt"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

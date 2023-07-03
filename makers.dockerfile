@@ -1,4 +1,4 @@
-# maker/Dockerfile
+# makers Dockerfile
 
 # Start from the latest golang base image
 FROM --platform=linux/amd64 golang:latest as builder
@@ -10,13 +10,17 @@ LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"
 WORKDIR /app
 
 # Copy go mod and sum files
-COPY ../go.mod ../go.sum ./
+COPY go.mod go.sum ./
+
+COPY proto ./proto
 
 # Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
-RUN go mod download
+
+RUN go get github.com/calvarado2004/bakery-go/proto; go get github.com/streadway/amqp; go get google.golang.org/grpc; go get google.golang.org/grpc/codes; go get google.golang.org/grpc/reflection;  go get google.golang.org/grpc/status; go mod download
+
 
 # Copy the source from the current directory to the Working Directory inside the container
-COPY . .
+COPY makers .
 
 # Build the Go app
 RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -o main .
