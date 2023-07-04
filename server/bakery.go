@@ -181,6 +181,12 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		if err := stream.Send(breadResponse); err != nil {
 			return err
 		}
+
+		err = d.Ack(false)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	return nil
@@ -218,7 +224,7 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 				log.Printf("Failed to unmarshal bread data: %v", err)
 			}
 
-			err = d.Ack(false)
+			err = d.Nack(false, true)
 			if err != nil {
 				return
 			}
@@ -266,7 +272,7 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 
 		breadResponse := &pb.BreadResponse{Breads: breadDelivered}
 
-		err = d.Ack(false)
+		err = d.Nack(false, true)
 		if err != nil {
 			return err
 		}

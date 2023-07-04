@@ -251,11 +251,6 @@ func ConsumeBreadQueue() {
 					log.Println("Failed to publish bread data: ", err)
 				}
 
-				err = msg.Ack(false)
-				if err != nil {
-					return
-				}
-
 			}
 
 		}
