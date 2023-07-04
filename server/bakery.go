@@ -116,15 +116,42 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 
 func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
-	breadMade := in.Breads.GetBreads()
-
 	var breadDelivered pb.BreadList
 
-	for _, bread := range breadMade {
-		log.Println("Bread to deliver to the bakery", &bread)
+	msgs, err := rabbitmqChannel.Consume(
+		"bread-to-make", // queue
+		"",              // consumer
+		false,           // auto-ack
+		false,           // exclusive
+		false,           // no-local
+		false,           // no-wait
+		nil,             // args
+	)
+	if err != nil {
+		return &pb.BreadResponse{Breads: &breadDelivered}, status.Errorf(codes.Internal, "Failed to register a consumer: %v", err)
+	}
+
+	for d := range msgs {
+
+		bread := &pb.Bread{}
+		err := json.Unmarshal(d.Body, bread)
+
+		log.Println("Bread to deliver to the bakery", bread)
+
+		if err != nil {
+			err := d.Nack(false, true)
+			if err != nil {
+				return nil, err
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
+		}
 
 		breadData, err := json.Marshal(&bread)
 		if err != nil {
+			err := d.Nack(false, true)
+			if err != nil {
+				return nil, err
+			}
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
@@ -139,10 +166,19 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 				DeliveryMode: rabbitmq.Persistent,
 			})
 		if err != nil {
+			err := d.Nack(false, true)
+			if err != nil {
+				return nil, err
+			}
 			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
 		}
 
-		breadDelivered.Breads = append(breadDelivered.Breads, bread)
+		err = d.Ack(false)
+		if err != nil {
+			return nil, err
+		}
+
+		breadDelivered.Breads = append(breadDelivered.Breads)
 
 	}
 
@@ -162,6 +198,7 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		nil,               // args
 	)
 	if err != nil {
+
 		return status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
 	}
 
@@ -171,6 +208,10 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		bread := &pb.Bread{}
 		err := json.Unmarshal(d.Body, bread)
 		if err != nil {
+			err := d.Nack(false, true)
+			if err != nil {
+				return err
+			}
 			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
 		}
 
@@ -179,6 +220,10 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		breadResponse := &pb.BreadResponse{Breads: &breadDelivered}
 
 		if err := stream.Send(breadResponse); err != nil {
+			err := d.Nack(false, true)
+			if err != nil {
+				return err
+			}
 			return err
 		}
 

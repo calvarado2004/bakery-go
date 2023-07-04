@@ -23,16 +23,16 @@ type BreadAttributes struct {
 
 // Map of bread types to attributes
 var breadTypes = map[string]BreadAttributes{
-	"Roll":        {id: 1, price: 1.0, description: "Roll bread, delicious!", typeName: "Salty"},
-	"Baguette":    {id: 2, price: 1.5, description: "A baguette is always a good idea", typeName: "Sandwich"},
-	"Sourdough":   {id: 3, price: 2.0, description: "Sourdough bread, yum!", typeName: "Sandwich"},
-	"Rye":         {id: 4, price: 2.5, description: "Rye is the best!", typeName: "Salty"},
-	"Whole Wheat": {id: 5, price: 2.0, description: "Whole wheat bread, delicious!", typeName: "Sandwich"},
-	"Multigrain":  {id: 6, price: 1.5, description: "Multigrain bread, the healthy option", typeName: "Sandwich"},
-	"Pita":        {id: 7, price: 1.2, description: "Pita bread, for your Middle eastern food.", typeName: "Salty"},
-	"Naan":        {id: 8, price: 1.3, description: "Naan bread, for your Indian food.", typeName: "Salty"},
-	"Focaccia":    {id: 9, price: 2.3, description: "For your Italian food, nothing better than a Focaccia.", typeName: "Salty"},
-	"Ciabatta":    {id: 10, price: 1.8, description: "Cia-batta-bing, cia-batta-boom!", typeName: "Sandwich"},
+	//"Roll": {id: 1, price: 1.0, description: "Roll bread, delicious!", typeName: "Salty"},
+	"Baguette": {id: 2, price: 1.5, description: "A baguette is always a good idea", typeName: "Sandwich"},
+	//"Sourdough":   {id: 3, price: 2.0, description: "Sourdough bread, yum!", typeName: "Sandwich"},
+	//"Rye":         {id: 4, price: 2.5, description: "Rye is the best!", typeName: "Salty"},
+	//"Whole Wheat": {id: 5, price: 2.0, description: "Whole wheat bread, delicious!", typeName: "Sandwich"},
+	//"Multigrain":  {id: 6, price: 1.5, description: "Multigrain bread, the healthy option", typeName: "Sandwich"},
+	//"Pita":        {id: 7, price: 1.2, description: "Pita bread, for your Middle eastern food.", typeName: "Salty"},
+	//"Naan":        {id: 8, price: 1.3, description: "Naan bread, for your Indian food.", typeName: "Salty"},
+	//"Focaccia":    {id: 9, price: 2.3, description: "For your Italian food, nothing better than a Focaccia.", typeName: "Salty"},
+	//"Ciabatta":    {id: 10, price: 1.8, description: "Cia-batta-bing, cia-batta-boom!", typeName: "Sandwich"},
 }
 
 func main() {
