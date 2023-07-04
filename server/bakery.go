@@ -25,7 +25,7 @@ func init() {
 		log.Fatalf("Failed to open a channel: %v", err)
 	}
 
-	// Declare the RabbitMQ queue as durable
+	// Declare the RabbitMQ bread-to-make queue as durable
 	_, err = rabbitmqChannel.QueueDeclare(
 		"bread-to-make", // name
 		true,            // durable
@@ -38,7 +38,7 @@ func init() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	// Declare the RabbitMQ queue as durable
+	// Declare the RabbitMQ bread-in-bakery queue as durable
 	_, err = rabbitmqChannel.QueueDeclare(
 		"bread-in-bakery", // name
 		true,              // durable
@@ -51,7 +51,7 @@ func init() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	// Declare the RabbitMQ queue as durable
+	// Declare the RabbitMQ bread-bought queue as durable
 	_, err = rabbitmqChannel.QueueDeclare(
 		"bread-bought", // name
 		true,           // durable
@@ -64,7 +64,7 @@ func init() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	// Declare the RabbitMQ queue as durable
+	// Declare the RabbitMQ bread-removed queue as durable
 	_, err = rabbitmqChannel.QueueDeclare(
 		"bread-removed", // name
 		true,            // durable
@@ -218,6 +218,11 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 				log.Printf("Failed to unmarshal bread data: %v", err)
 			}
 
+			err = d.Ack(false)
+			if err != nil {
+				return
+			}
+
 		}
 	}()
 
@@ -251,20 +256,23 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 		err := json.Unmarshal(d.Body, bread)
 		if err != nil {
 			log.Printf("Failed to unmarshal bread data: %v", err)
-			continue // You might want to decide how to handle this error.
+			err := d.Nack(false, true)
+			if err != nil {
+				return err
+			}
 		}
 
 		breadDelivered.Breads = append(breadDelivered.Breads, bread)
 
 		breadResponse := &pb.BreadResponse{Breads: breadDelivered}
 
-		if err := stream.Send(breadResponse); err != nil {
-			log.Printf("Failed to send bread data: %v", err)
+		err = d.Ack(false)
+		if err != nil {
 			return err
 		}
 
-		err = d.Ack(false)
-		if err != nil {
+		if err := stream.Send(breadResponse); err != nil {
+			log.Printf("Failed to send bread data: %v", err)
 			return err
 		}
 
