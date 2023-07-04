@@ -86,7 +86,7 @@ func fetchAvailableBreads() {
 // RandomBread returns a random bread from allBreads.
 func RandomBread() (string, error) {
 
-	allBreads := []string{"Roll", "Baguette", "Sourdough", "Focaccia", "Whole Wheat"} // Define your subset here
+	allBreads := []string{"Baguette"} // Define your subset here
 
 	if len(allBreads) == 0 {
 		return "", errors.New("no breads available")
@@ -150,7 +150,7 @@ func ConsumeBreadQueue() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
-	// Declare a queue for bread that is not the one we want
+	// Declare a queue for bread that is the one we want
 	breadBoughtQueue, err := rabbitmqChannel.QueueDeclare(
 		"bread-bought", // queue name
 		true,           // durable
@@ -199,6 +199,8 @@ func ConsumeBreadQueue() {
 
 				log.Println("Sending bread to bread-bought queue: ", receivedBread.Name)
 
+				receivedBread.Status = "bread successfully bought"
+
 				breadData, err := json.Marshal(&receivedBread)
 				if err != nil {
 					log.Println("Failed to marshal bread data: ", err)
@@ -228,6 +230,8 @@ func ConsumeBreadQueue() {
 
 				log.Println("Sending bread to bread-checked queue: ", receivedBread.Name)
 
+				receivedBread.Status = "bread checked but not bought"
+
 				breadData, err := json.Marshal(&receivedBread)
 				if err != nil {
 					log.Println("Failed to marshal bread data: ", err)
@@ -245,6 +249,11 @@ func ConsumeBreadQueue() {
 					})
 				if err != nil {
 					log.Println("Failed to publish bread data: ", err)
+				}
+
+				err = msg.Ack(false)
+				if err != nil {
+					return
 				}
 
 			}

@@ -23,6 +23,7 @@ type BreadLog struct {
 	Buyer    string
 	Maker    string
 	Quantity int
+	Price    float32
 }
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -125,6 +126,7 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 				Name:     bread.Name,
 				Quantity: breadCounts[bread.Name],
 				Message:  bread.Description,
+				Price:    bread.Price,
 			}
 
 			jsonData, err := json.Marshal(data)
