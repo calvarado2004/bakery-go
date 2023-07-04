@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func MakeBread(client pb.MakeBreadClient, bread *pb.Bread) {
+func MakeBread(client pb.MakeBreadClient, bread *pb.Bread) error {
 
 	breadList := pb.BreadList{
 		Breads: []*pb.Bread{
@@ -26,10 +26,12 @@ func MakeBread(client pb.MakeBreadClient, bread *pb.Bread) {
 
 	response, err := client.BakeBread(context.Background(), request)
 	if err != nil {
-		log.Println("error making bread: ", err)
+		return err
 	}
 
 	log.Println("Breads made: ", response.GetBreads())
+
+	return nil
 
 }
 
@@ -78,17 +80,29 @@ func makeSomeBread(breadTypeKeys []string, breadTypes map[string]BreadAttributes
 	// Randomly set the quantity of bread to make (up to 10 at a time)
 	quantity := rand.Int63n(10) + 1
 
+	timeNow := time.Unix(time.Now().Unix(), 0)
+
 	bread := &pb.Bread{
-		Name:     breadType,
-		Id:       strconv.FormatInt(breadAttributes.id, 10),
-		Type:     "Salty",
-		Quantity: int32(quantity),
-		Price:    breadAttributes.price,
+		Name:        breadType,
+		Id:          strconv.FormatInt(breadAttributes.id, 10),
+		Type:        breadAttributes.typeName,
+		Quantity:    int32(quantity),
+		Description: breadAttributes.description,
+		Price:       breadAttributes.price,
+		CreatedAt:   timeNow.Format(time.RFC3339),
+		Status:      "baking bread",
 	}
 
 	log.Println("Making bread: ", bread)
 
-	MakeBread(breadClient, bread)
+	// Make the bread
+	err = MakeBread(breadClient, bread)
+	if err != nil {
+		log.Fatalf("Failed to make bread: %v", err)
+	}
+
+	// Update the status of the bread after it has been made
+	bread.Status = "ready to sell"
 
 	breadData, err := json.Marshal(&bread)
 	if err != nil {
@@ -102,8 +116,9 @@ func makeSomeBread(breadTypeKeys []string, breadTypes map[string]BreadAttributes
 		false,             // mandatory
 		false,             // immediate
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        breadData,
+			ContentType:  "application/json",
+			Body:         breadData,
+			DeliveryMode: amqp.Persistent,
 		})
 	if err != nil {
 		log.Fatalf("Failed to publish a message: %v", err)

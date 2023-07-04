@@ -24,12 +24,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to open a channel: %v", err)
 	}
-}
-
-func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
 	// Declare the RabbitMQ queue as durable
-	queue, err := rabbitmqChannel.QueueDeclare(
+	_, err = rabbitmqChannel.QueueDeclare(
 		"bread-to-make", // name
 		true,            // durable
 		false,           // delete when unused
@@ -38,8 +35,50 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 		nil,             // arguments
 	)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
+		log.Fatalf("Failed to declare a queue: %v", err)
 	}
+
+	// Declare the RabbitMQ queue as durable
+	_, err = rabbitmqChannel.QueueDeclare(
+		"bread-in-bakery", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	// Declare the RabbitMQ queue as durable
+	_, err = rabbitmqChannel.QueueDeclare(
+		"bread-bought", // name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	// Declare the RabbitMQ queue as durable
+	_, err = rabbitmqChannel.QueueDeclare(
+		"bread-removed", // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,             // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+}
+
+func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
 	breadsToMake := in.Breads.GetBreads()
 
@@ -54,13 +93,14 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 		}
 
 		err = rabbitmqChannel.Publish(
-			"",         // exchange
-			queue.Name, // routing key
-			false,      // mandatory
-			false,      // immediate
+			"",              // exchange
+			"bread-to-make", // routing key
+			false,           // mandatory
+			false,           // immediate
 			rabbitmq.Publishing{
-				ContentType: "text/json",
-				Body:        breadData,
+				ContentType:  "text/json",
+				Body:         breadData,
+				DeliveryMode: rabbitmq.Persistent,
 			})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
@@ -76,19 +116,6 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 
 func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
-	// Declare the RabbitMQ queue as durable
-	queue, err := rabbitmqChannel.QueueDeclare(
-		"bread-in-bakery", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
-
 	breadMade := in.Breads.GetBreads()
 
 	var breadDelivered pb.BreadList
@@ -102,13 +129,14 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 		}
 
 		err = rabbitmqChannel.Publish(
-			"",         // exchange
-			queue.Name, // routing key
-			false,      // mandatory
-			false,      // immediate
+			"",                // exchange
+			"bread-in-bakery", // routing key
+			false,             // mandatory
+			false,             // immediate
 			rabbitmq.Publishing{
-				ContentType: "text/json",
-				Body:        breadData,
+				ContentType:  "text/json",
+				Body:         breadData,
+				DeliveryMode: rabbitmq.Persistent,
 			})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
@@ -123,19 +151,6 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 }
 
 func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBread_MadeBreadStreamServer) error {
-
-	// Declare the RabbitMQ queue as durable
-	_, err := rabbitmqChannel.QueueDeclare(
-		"bread-in-bakery", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
 
 	msgs, err := rabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
@@ -176,19 +191,6 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 
 	breadsResponse := &pb.BreadResponse{}
 
-	// Declare the RabbitMQ queue as durable
-	_, err := rabbitmqChannel.QueueDeclare(
-		"bread-in-bakery", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		return breadsResponse, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
-
 	breadsOnQueue, err := rabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
 		"",                // consumer
@@ -224,19 +226,6 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 }
 
 func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
-
-	// Declare the RabbitMQ queue as durable
-	_, err := rabbitmqChannel.QueueDeclare(
-		"bread-in-bakery", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
 
 	msgs, err := rabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
@@ -291,19 +280,6 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 	var breadBought pb.BreadList
 	var breadToSendBack pb.BreadList
 
-	// Declare the RabbitMQ queue as durable
-	queue, err := rabbitmqChannel.QueueDeclare(
-		"bread-bought", // name
-		true,           // durable
-		false,          // delete when unused
-		false,          // exclusive
-		false,          // no-wait
-		nil,            // arguments
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
-
 	breadsOnQueue, err := rabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
 		"",                // consumer
@@ -332,20 +308,24 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 				breadBought.Breads = append(breadBought.Breads, bread)
 
 				err = rabbitmqChannel.Publish(
-					"",         // exchange
-					queue.Name, // routing key
-					false,      // mandatory
-					false,      // immediate
+					"",             // exchange
+					"bread-bought", // routing key
+					false,          // mandatory
+					false,          // immediate
 					rabbitmq.Publishing{
-						ContentType: "text/json",
-						Body:        d.Body,
+						ContentType:  "text/json",
+						Body:         d.Body,
+						DeliveryMode: rabbitmq.Persistent,
 					})
 				if err != nil {
 					return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
 				}
 
 				// Acknowledge the message from the bread-in-bakery queue
-				d.Ack(false)
+				err := d.Ack(false)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -366,8 +346,9 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 			false,             // mandatory
 			false,             // immediate
 			rabbitmq.Publishing{
-				ContentType: "text/json",
-				Body:        breadData,
+				ContentType:  "text/json",
+				Body:         breadData,
+				DeliveryMode: rabbitmq.Persistent,
 			})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to add bread back to queue: %v", err)
@@ -378,6 +359,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 }
 
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
+
 	breadsBought, err := rabbitmqChannel.Consume(
 		"bread-bought", // queue
 		"",             // consumer
@@ -402,25 +384,16 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 		if err := stream.Send(breadResponse); err != nil {
 			return err
 		}
+		err = d.Ack(false)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
-
-	// Declare the RabbitMQ queue as durable
-	queue, err := rabbitmqChannel.QueueDeclare(
-		"bread-removed", // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
-	}
 
 	breadToRemove := in.Breads.GetBreads()
 	var breadRemoved pb.BreadList
@@ -434,13 +407,14 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 		}
 
 		err = rabbitmqChannel.Publish(
-			"",         // exchange
-			queue.Name, // routing key
-			false,      // mandatory
-			false,      // immediate
+			"",              // exchange
+			"bread-removed", // routing key
+			false,           // mandatory
+			false,           // immediate
 			rabbitmq.Publishing{
-				ContentType: "text/json",
-				Body:        breadData,
+				ContentType:  "text/json",
+				Body:         breadData,
+				DeliveryMode: rabbitmq.Persistent,
 			})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
@@ -454,6 +428,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 }
 
 func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.RemoveOldBread_RemoveBreadStreamServer) error {
+
 	breadsRemoved, err := rabbitmqChannel.Consume(
 		"bread-removed", // queue
 		"",              // consumer
@@ -476,6 +451,11 @@ func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.
 
 		breadResponse := &pb.BreadResponse{Breads: &pb.BreadList{Breads: []*pb.Bread{bread}}}
 		if err := stream.Send(breadResponse); err != nil {
+			return err
+		}
+
+		err = d.Ack(false)
+		if err != nil {
 			return err
 		}
 	}

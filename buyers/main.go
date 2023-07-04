@@ -139,12 +139,12 @@ func ConsumeBreadQueue() {
 
 	// Declare a queue for bread that is not the one we want
 	breadCheckedQueue, err := rabbitmqChannel.QueueDeclare(
-		"bread-checked", // queue name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
+		"bread-in-bakery", // queue name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
 	)
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
@@ -210,8 +210,9 @@ func ConsumeBreadQueue() {
 					false,                 // mandatory
 					false,                 // immediate
 					rabbitmq.Publishing{
-						ContentType: "text/plain",
-						Body:        breadData,
+						ContentType:  "text/json",
+						Body:         breadData,
+						DeliveryMode: rabbitmq.Persistent,
 					})
 				if err != nil {
 					log.Println("Failed to publish message: ", err)
@@ -238,8 +239,9 @@ func ConsumeBreadQueue() {
 					false,                  // mandatory
 					false,                  // immediate
 					rabbitmq.Publishing{
-						ContentType: "text/plain",
-						Body:        breadData,
+						ContentType:  "text/json",
+						Body:         breadData,
+						DeliveryMode: rabbitmq.Persistent,
 					})
 				if err != nil {
 					log.Println("Failed to publish bread data: ", err)
