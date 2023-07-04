@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/calvarado2004/bakery-go/proto"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,10 +18,11 @@ var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
 
 var (
-	rabbitmqChannel *rabbitmq.Channel
-	conn            *rabbitmq.Connection
-	client          bread.BakeryBreadServiceClient
-	allBreads       []string // Holds all bread types
+	rabbitmqChannel      *rabbitmq.Channel
+	conn                 *rabbitmq.Connection
+	checkInventoryClient pb.CheckInventoryClient
+	buyBreadClient       pb.BuyBreadClient
+	allBreads            []string // Holds all bread types
 )
 
 func main() {
@@ -60,7 +61,8 @@ func main() {
 		}
 	}(grpcConn)
 
-	client = bread.NewBakeryBreadServiceClient(grpcConn)
+	checkInventoryClient = pb.NewCheckInventoryClient(grpcConn)
+	buyBreadClient = pb.NewBuyBreadClient(grpcConn)
 
 	// Fetch the available breads from the server
 	fetchAvailableBreads()
@@ -71,13 +73,13 @@ func main() {
 
 // fetchAvailableBreads retrieves the available breads from the server and populates the allBreads slice.
 func fetchAvailableBreads() {
-	response, err := client.GetAvailableBreads(context.Background(), &bread.BakeryRequestList{})
+	response, err := checkInventoryClient.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
 	if err != nil {
 		log.Fatalf("Failed to fetch available breads: %v", err)
 	}
 
-	for _, breads := range response.Breads {
-		allBreads = append(allBreads, breads.Bread.Name)
+	for _, bread := range response.Breads.Breads {
+		allBreads = append(allBreads, bread.Name)
 	}
 }
 
@@ -94,24 +96,24 @@ func RandomBread() (string, error) {
 }
 
 func BuyBread(breadToBuy string) {
-	request := &bread.BuyRequest{
-		Name:     breadToBuy,
-		Quantity: 1,
+	request := &pb.BreadRequest{
+		Breads: &pb.BreadList{Breads: []*pb.Bread{
+			{Name: breadToBuy, Quantity: 1},
+		}},
 	}
 
 	for {
-		response, err := client.BuyBreadFromQueue(context.Background(), request)
+		response, err := buyBreadClient.BuyBread(context.Background(), request)
 		if err != nil {
 			log.Println("Error buying bread: ", err)
 			continue
 		}
 
-		if response.Name == breadToBuy {
-			log.Println("Bread bought: ", response.Name)
+		if response.Breads.Breads[0].Name == breadToBuy {
+			log.Println("Bread bought: ", response.Breads.Breads[0].Name)
 			break
 		}
 	}
-
 }
 
 func ConsumeBreadQueue() {
@@ -121,13 +123,13 @@ func ConsumeBreadQueue() {
 	}
 
 	msgs, err := rabbitmqChannel.Consume(
-		"bread-queue", // queue
-		"",            // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
+		"bread-in-bakery", // queue
+		"",                // consumer
+		false,             // auto-ack
+		false,             // exclusive
+		false,             // no-local
+		false,             // no-wait
+		nil,               // args
 	)
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
@@ -174,7 +176,7 @@ func ConsumeBreadQueue() {
 				log.Fatalf("Failed to get random bread: %v", err)
 			}
 
-			receivedBread := &bread.Bread{}
+			receivedBread := &pb.Bread{}
 			err = json.Unmarshal(msg.Body, receivedBread)
 			if err != nil {
 				err := msg.Nack(false, true)

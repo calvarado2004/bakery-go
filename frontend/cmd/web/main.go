@@ -49,17 +49,19 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	}(conn)
 
 	// Initialize the client
-	client := pb.NewBakeryBreadServiceClient(conn)
+	client := pb.NewCheckInventoryClient(conn)
 
 	// Call GetAvailableBreads service
-	response, err := client.GetAvailableBreads(context.Background(), &pb.BakeryRequestList{})
+	response, err := client.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
 	if err != nil {
 		log.Fatalf("Error calling GetAvailableBreads service: %v", err)
 	}
 
+	log.Println("Response from server: ", response.Breads.GetBreads())
+
 	breadCounts := make(map[string]int)
-	for _, bread := range response.Breads {
-		breadCounts[bread.Bread.Name]++
+	for _, bread := range response.Breads.GetBreads() {
+		breadCounts[bread.Name]++
 	}
 
 	breadLogs := make([]BreadLog, 0, len(breadCounts))
@@ -97,10 +99,10 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	}(conn)
 
 	// Initialize the client
-	client := pb.NewBakeryBreadServiceClient(conn)
+	client := pb.NewCheckInventoryClient(conn)
 
 	// Call gRPC stream
-	stream, err := client.BreadUpdates(context.Background(), &pb.BakeryRequestList{})
+	stream, err := client.CheckBreadInventoryStream(context.Background(), &pb.BreadRequest{})
 	if err != nil {
 		log.Fatalf("Error calling BreadUpdates service: %v", err)
 	}
@@ -115,14 +117,14 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		breadCounts := make(map[string]int)
-		for _, bread := range breadList.Breads {
-			breadCounts[bread.Bread.Name]++
+		for _, bread := range breadList.Breads.GetBreads() {
+			breadCounts[bread.Name]++
 
 			data := BreadLog{
-				ID:       strconv.FormatInt(bread.Bread.Id, 10),
-				Name:     bread.Bread.Name,
-				Quantity: breadCounts[bread.Bread.Name],
-				Message:  bread.Message,
+				ID:       bread.Id,
+				Name:     bread.Name,
+				Quantity: breadCounts[bread.Name],
+				Message:  bread.Description,
 			}
 
 			jsonData, err := json.Marshal(data)

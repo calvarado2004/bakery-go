@@ -7,135 +7,80 @@ package  bread;
 option go_package = "github.com/calvarado2004/bakery-go/bread";
 
 
-service QueueService {
-
-    rpc AddClientToQueue(ClientsInQueue) returns (ClientsInQueue) {
-
-    }
-
-    rpc ShowWaitingQueue(ClientsInQueue) returns (ClientsInQueue) {
-
-    }
-    rpc DeleteClientFromQueue(ClientsInQueue) returns (ClientsInQueue) {
-
-    }
-
-}
-
-service MakeBread {
-    rpc MakeBread(BreadRequest) returns (BreadResponse) {
-
-    }
-
-    rpc AddBreadToQueue(BreadRequest) returns (BreadResponse) {
-
-    }
-}
-
-service CreateClient {
-    rpc CreateClient(ClientRequest) returns (ClientResponse){
-
-    }
-}
-
-service BakeryBreadService {
-
-    rpc GetAvailableBreads(BakeryRequestList) returns (BakeryResponseList) {
-
-    }
-
-    rpc BreadUpdates(BakeryRequestList) returns (stream BakeryResponseList) {
-
-    }
-
-
-    rpc CheckBreadQueue(Empty) returns (BreadQueueSize) {
-    }
-
-    rpc BuyBreadFromQueue(BuyRequest) returns (BuyResponse) {
-
-    }
-
-
-
-}
-
-
-
-message Empty {}
-
-message BreadQueueSize {
-    int64 quantity = 1;
-}
-
-message Client {
-    int64 id = 1;
-    string name = 2;
-    string type = 3;
-    bool active = 4;
-    bool admin = 5;
-}
-
-
-message ClientRequest {
-    Client client = 1;
-}
-
-message ClientResponse {
-    Client client = 1;
-}
-
-message ClientsInQueue {
-    repeated Client clients = 1;
-    string message = 2;
-    string error = 3;
-}
-
 message Bread {
-    int64 id = 1;
-    string name = 2;
-    string type = 3;
-    int64 quantity = 4;
-    float price = 5;
-    string message = 6;
-    string error = 7;
+    string name = 1;
+    string description = 2;
+    float price = 3;
+    int32 quantity = 4;
+    string image = 5;
+    string type = 6;
+    string id = 7;
+    string createdAt = 8;
+    string status = 11;
+}
+
+message BreadList {
+    repeated Bread breads = 1;
 }
 
 message BreadRequest {
-    Bread bread = 1;
+    BreadList breads = 3;
 }
 
 message BreadResponse {
-    Bread bread = 1;
-    string message = 2;
-    string error = 3;
+    string message = 1;
+    BreadList breads = 3;
+    string error = 4;
 }
 
-message BakeryRequestList {
-    repeated BreadRequest breads = 1;
+service MakeBread {
+
+    rpc BakeBread(BreadRequest) returns (BreadResponse) {
+
+    }
+
+    rpc SendBreadToBakery(BreadRequest) returns (BreadResponse) {
+
+    }
+
+    rpc MadeBreadStream(BreadRequest) returns (stream BreadResponse) {
+
+    }
+}
+
+service CheckInventory {
+
+    rpc CheckBreadInventory(BreadRequest) returns (BreadResponse) {
+
+    }
+
+    rpc CheckBreadInventoryStream(BreadRequest) returns (stream BreadResponse) {
+
+
+    }
 
 }
 
-message BakeryResponseList {
-    repeated BreadResponse breads = 1;
+service BuyBread {
+
+      rpc BuyBread(BreadRequest) returns (BreadResponse) {
+
+      }
+
+      rpc BuyBreadStream(BreadRequest) returns (stream BreadResponse) {
+
+      }
+
 }
 
-message BuyRequest {
-    int64 id = 1;
-    string name = 2;
-    string type = 3;
-    int64 quantity = 4;
-    float price = 5;
-    string message = 6;
-    string error = 7;
-}
+service RemoveOldBread {
 
-message BuyResponse {
-    int64 id = 1;
-    string name = 2;
-    string type = 3;
-    int64 quantity = 4;
-    float price = 5;
-    string message = 6;
-    string error = 7;
+      rpc RemoveBread(BreadRequest) returns (BreadResponse) {
+
+      }
+
+      rpc RemoveBreadStream(BreadRequest) returns (stream BreadResponse) {
+
+      }
+
 }

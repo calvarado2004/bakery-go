@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
@@ -27,198 +26,131 @@ func init() {
 	}
 }
 
-func (s *MakeBreadServer) BuyBread(ctx context.Context, in *pb.BuyRequest) (*pb.BreadResponse, error) {
-	msgs, err := rabbitmqChannel.Consume(
-		"bread-queue", // queue
-		"",            // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to get bread from queue: %v", err)
-	}
+func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
-	select {
-	case msg := <-msgs:
-		bread := &pb.Bread{}
-		err = json.Unmarshal(msg.Body, bread)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
-		}
-
-		log.Println("Bought bread from queue:", bread)
-		return &pb.BreadResponse{Bread: bread}, nil
-	case <-ctx.Done():
-		return nil, status.Errorf(codes.Canceled, "Request canceled")
-	}
-}
-
-func (s MakeBreadServer) MakeBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
-
-	breadMade := pb.Bread{
-		Name:     in.Bread.Name,
-		Id:       in.Bread.Id,
-		Type:     in.Bread.Type,
-		Quantity: in.Bread.Quantity,
-		Price:    in.Bread.Price,
-		Message:  in.Bread.Message,
-		Error:    in.Bread.Error,
-	}
-
-	log.Println("Bread to make", &breadMade)
-
-	// Then, convert the bread data to JSON and add it to the RabbitMQ queue
-	breadData, err := json.Marshal(&breadMade)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
-	}
-
-	// Declare the queue as durable
+	// Declare the RabbitMQ queue as durable
 	queue, err := rabbitmqChannel.QueueDeclare(
-		"bread-queue", // name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		nil,           // arguments
+		"bread-to-make", // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,             // arguments
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
 	}
 
-	err = rabbitmqChannel.Publish(
-		"",         // exchange
-		queue.Name, // routing key
-		false,      // mandatory
-		false,      // immediate
-		rabbitmq.Publishing{
-			ContentType: "text/plain",
-			Body:        breadData,
-		})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
+	breadsToMake := in.Breads.GetBreads()
+
+	var breadMade pb.BreadList
+
+	for _, bread := range breadsToMake {
+		log.Println("Bread to make", bread.Name)
+
+		breadData, err := json.Marshal(&bread)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
+		}
+
+		err = rabbitmqChannel.Publish(
+			"",         // exchange
+			queue.Name, // routing key
+			false,      // mandatory
+			false,      // immediate
+			rabbitmq.Publishing{
+				ContentType: "text/json",
+				Body:        breadData,
+			})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
+		}
+
+		breadMade.Breads = append(breadMade.Breads, bread)
+
 	}
 
-	resp := &pb.BreadResponse{Bread: &breadMade}
-	return resp, nil
+	return &pb.BreadResponse{Breads: &breadMade}, nil
 
 }
 
-func (s *BakeryBreadServiceServer) BuyBreadFromQueue(ctx context.Context, in *pb.BuyRequest) (*pb.BuyResponse, error) {
-	msgs, err := rabbitmqChannel.Consume(
-		"bread-queue", // queue
-		"",            // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
+func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
+
+	// Declare the RabbitMQ queue as durable
+	queue, err := rabbitmqChannel.QueueDeclare(
+		"bread-in-bakery", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
 	)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to get bread from queue: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
 	}
 
-	select {
-	case msg := <-msgs:
-		bread := &pb.Bread{}
-		err = json.Unmarshal(msg.Body, bread)
+	breadMade := in.Breads.GetBreads()
+
+	var breadDelivered pb.BreadList
+
+	for _, bread := range breadMade {
+		log.Println("Bread to deliver to the bakery", &bread)
+
+		breadData, err := json.Marshal(&bread)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
+			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		if bread.Quantity < in.GetQuantity() {
-			return nil, status.Errorf(codes.InvalidArgument, "Not enough bread available: requested %v, available %v", in.GetQuantity(), bread.Quantity)
+		err = rabbitmqChannel.Publish(
+			"",         // exchange
+			queue.Name, // routing key
+			false,      // mandatory
+			false,      // immediate
+			rabbitmq.Publishing{
+				ContentType: "text/json",
+				Body:        breadData,
+			})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
 		}
 
-		// Decrease the quantity of bread available
-		bread.Quantity -= in.GetQuantity()
+		breadDelivered.Breads = append(breadDelivered.Breads, bread)
 
-		log.Println("Bought bread from queue:", bread)
-		return &pb.BuyResponse{Id: bread.Id, Name: bread.Name, Type: bread.Type, Quantity: in.GetQuantity(), Price: bread.Price}, nil
-	case <-ctx.Done():
-		return nil, status.Errorf(codes.Canceled, "Request canceled")
 	}
+
+	return &pb.BreadResponse{Breads: &breadDelivered}, nil
+
 }
 
-type BakeryBreadService_BreadUpdatesServer interface {
-	Send(*pb.BreadResponse) error
-}
+func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBread_MadeBreadStreamServer) error {
 
-func (s *BakeryBreadServiceServer) GetAvailableBreads(context.Context, *pb.BakeryRequestList) (*pb.BakeryResponseList, error) {
-	// Create a connection to the RabbitMQ server
-	conn, err := rabbitmq.Dial(activemqAddress)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-	// Create a channel
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	// Declare a queue
-	queue, err := ch.QueueDeclare(
-		"bread-queue", // queue name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		nil,           // arguments
+	// Declare the RabbitMQ queue as durable
+	_, err := rabbitmqChannel.QueueDeclare(
+		"bread-in-bakery", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to declare a queue: %v", err)
+		return status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
 	}
 
-	// Get the number of messages in the queue
-	queueSize := queue.Messages
-
-	// Create a response with the available breads
-	response := &pb.BakeryResponseList{}
-	for i := 0; i < int(queueSize); i++ {
-		// Consume a message from the queue
-		msg, _, err := ch.Get(queue.Name, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to consume a message from the queue: %v", err)
-		}
-
-		// Unmarshal the message body into a Bread object
-		bread := &pb.Bread{}
-		err = json.Unmarshal(msg.Body, bread)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal bread data: %v", err)
-		}
-
-		breadResponse := &pb.BreadResponse{
-			Bread:   bread,
-			Message: bread.Message,
-		}
-
-		// Add the bread to the response
-		response.Breads = append(response.Breads, breadResponse)
-	}
-
-	return response, nil
-}
-
-func (s *BakeryBreadServiceServer) BreadUpdates(_ *pb.BakeryRequestList, stream pb.BakeryBreadService_BreadUpdatesServer) error {
 	msgs, err := rabbitmqChannel.Consume(
-		"bread-queue", // queue
-		"",            // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
+		"bread-in-bakery", // queue
+		"",                // consumer
+		false,             // auto-ack
+		false,             // exclusive
+		false,             // no-local
+		false,             // no-wait
+		nil,               // args
 	)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
 	}
+
+	var breadDelivered pb.BreadList
 
 	for d := range msgs {
 		bread := &pb.Bread{}
@@ -227,15 +159,323 @@ func (s *BakeryBreadServiceServer) BreadUpdates(_ *pb.BakeryRequestList, stream 
 			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
 		}
 
-		// Create a BreadResponse for the updated bread
-		breadResp := &pb.BreadResponse{Bread: bread, Message: bread.Message}
+		breadDelivered.Breads = append(breadDelivered.Breads, bread)
 
-		// Create a new BakeryResponseList and add the BreadResponse to it
-		bakeryRespList := &pb.BakeryResponseList{
-			Breads: []*pb.BreadResponse{breadResp},
+		breadResponse := &pb.BreadResponse{Breads: &breadDelivered}
+
+		if err := stream.Send(breadResponse); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
+
+	breadsResponse := &pb.BreadResponse{}
+
+	// Declare the RabbitMQ queue as durable
+	_, err := rabbitmqChannel.QueueDeclare(
+		"bread-in-bakery", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
+	)
+	if err != nil {
+		return breadsResponse, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
+	}
+
+	breadsOnQueue, err := rabbitmqChannel.Consume(
+		"bread-in-bakery", // queue
+		"",                // consumer
+		false,             // auto-ack
+		false,             // exclusive
+		false,             // no-local
+		false,             // no-wait
+		nil,               // args
+	)
+	if err != nil {
+		return breadsResponse, status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
+	}
+
+	breadList := pb.BreadList{}
+
+	breadsResponse.Breads = &breadList
+
+	go func() {
+		for d := range breadsOnQueue {
+			log.Printf("Bread available on Bakery: %s", d.Body)
+
+			bread := &pb.Bread{}
+			err := json.Unmarshal(d.Body, bread)
+			if err != nil {
+				log.Printf("Failed to unmarshal bread data: %v", err)
+			}
+
+		}
+	}()
+
+	return breadsResponse, nil
+
+}
+
+func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
+
+	// Declare the RabbitMQ queue as durable
+	_, err := rabbitmqChannel.QueueDeclare(
+		"bread-in-bakery", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
+	)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
+	}
+
+	msgs, err := rabbitmqChannel.Consume(
+		"bread-in-bakery", // queue
+		"",                // consumer
+		false,             // auto-ack
+		false,             // exclusive
+		false,             // no-local
+		false,             // no-wait
+		nil,               // args
+	)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
+	}
+
+	breadDelivered := &pb.BreadList{}
+
+	log.Println("Waiting for breads to be available on the bakery on stream...")
+
+	for d := range msgs {
+		log.Printf("Bread available on Bakery: %s", d.Body)
+
+		bread := &pb.Bread{}
+		err := json.Unmarshal(d.Body, bread)
+		if err != nil {
+			log.Printf("Failed to unmarshal bread data: %v", err)
+			continue // You might want to decide how to handle this error.
 		}
 
-		if err := stream.Send(bakeryRespList); err != nil {
+		breadDelivered.Breads = append(breadDelivered.Breads, bread)
+
+		breadResponse := &pb.BreadResponse{Breads: breadDelivered}
+
+		if err := stream.Send(breadResponse); err != nil {
+			log.Printf("Failed to send bread data: %v", err)
+			return err
+		}
+
+		err = d.Ack(false)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
+
+	breadsToBuy := in.Breads.GetBreads()
+
+	var breadBought pb.BreadList
+	var breadToSendBack pb.BreadList
+
+	// Declare the RabbitMQ queue as durable
+	queue, err := rabbitmqChannel.QueueDeclare(
+		"bread-bought", // name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // arguments
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
+	}
+
+	breadsOnQueue, err := rabbitmqChannel.Consume(
+		"bread-in-bakery", // queue
+		"",                // consumer
+		false,             // auto-ack
+		false,             // exclusive
+		false,             // no-local
+		false,             // no-wait
+		nil,               // args
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
+	}
+
+	for _, breadToBuy := range breadsToBuy {
+		found := false
+		for d := range breadsOnQueue {
+			bread := &pb.Bread{}
+			err := json.Unmarshal(d.Body, bread)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
+			}
+
+			// If the bread is found in the bakery
+			if bread.Id == breadToBuy.Id {
+				found = true
+				breadBought.Breads = append(breadBought.Breads, bread)
+
+				err = rabbitmqChannel.Publish(
+					"",         // exchange
+					queue.Name, // routing key
+					false,      // mandatory
+					false,      // immediate
+					rabbitmq.Publishing{
+						ContentType: "text/json",
+						Body:        d.Body,
+					})
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
+				}
+
+				// Acknowledge the message from the bread-in-bakery queue
+				d.Ack(false)
+			}
+		}
+
+		if !found {
+			breadToSendBack.Breads = append(breadToSendBack.Breads, breadToBuy)
+		}
+	}
+
+	for _, bread := range breadToSendBack.Breads {
+		breadData, err := json.Marshal(&bread)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
+		}
+
+		err = rabbitmqChannel.Publish(
+			"",                // exchange
+			"bread-in-bakery", // routing key
+			false,             // mandatory
+			false,             // immediate
+			rabbitmq.Publishing{
+				ContentType: "text/json",
+				Body:        breadData,
+			})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to add bread back to queue: %v", err)
+		}
+	}
+
+	return &pb.BreadResponse{Breads: &breadBought}, nil
+}
+
+func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
+	breadsBought, err := rabbitmqChannel.Consume(
+		"bread-bought", // queue
+		"",             // consumer
+		false,          // auto-ack
+		false,          // exclusive
+		false,          // no-local
+		false,          // no-wait
+		nil,            // args
+	)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to consume from bought breads queue: %v", err)
+	}
+
+	for d := range breadsBought {
+		bread := &pb.Bread{}
+		err := json.Unmarshal(d.Body, bread)
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
+		}
+
+		breadResponse := &pb.BreadResponse{Breads: &pb.BreadList{Breads: []*pb.Bread{bread}}}
+		if err := stream.Send(breadResponse); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
+
+	// Declare the RabbitMQ queue as durable
+	queue, err := rabbitmqChannel.QueueDeclare(
+		"bread-removed", // name
+		true,            // durable
+		false,           // delete when unused
+		false,           // exclusive
+		false,           // no-wait
+		nil,             // arguments
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to declare a queue: %v", err)
+	}
+
+	breadToRemove := in.Breads.GetBreads()
+	var breadRemoved pb.BreadList
+
+	for _, bread := range breadToRemove {
+		log.Println("Bread to remove", &bread)
+
+		breadData, err := json.Marshal(&bread)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
+		}
+
+		err = rabbitmqChannel.Publish(
+			"",         // exchange
+			queue.Name, // routing key
+			false,      // mandatory
+			false,      // immediate
+			rabbitmq.Publishing{
+				ContentType: "text/json",
+				Body:        breadData,
+			})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to add bread to queue: %v", err)
+		}
+
+		breadRemoved.Breads = append(breadRemoved.Breads, bread)
+
+	}
+
+	return &pb.BreadResponse{Breads: &breadRemoved}, nil
+}
+
+func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.RemoveOldBread_RemoveBreadStreamServer) error {
+	breadsRemoved, err := rabbitmqChannel.Consume(
+		"bread-removed", // queue
+		"",              // consumer
+		false,           // auto-ack
+		false,           // exclusive
+		false,           // no-local
+		false,           // no-wait
+		nil,             // args
+	)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to consume from removed breads queue: %v", err)
+	}
+
+	for d := range breadsRemoved {
+		bread := &pb.Bread{}
+		err := json.Unmarshal(d.Body, bread)
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
+		}
+
+		breadResponse := &pb.BreadResponse{Breads: &pb.BreadList{Breads: []*pb.Bread{bread}}}
+		if err := stream.Send(breadResponse); err != nil {
 			return err
 		}
 	}

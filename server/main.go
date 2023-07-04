@@ -13,8 +13,16 @@ type MakeBreadServer struct {
 	pb.MakeBreadServer
 }
 
-type BakeryBreadServiceServer struct {
-	pb.BakeryBreadServiceServer
+type CheckInventoryServer struct {
+	pb.CheckInventoryServer
+}
+
+type BuyBreadServer struct {
+	pb.BuyBreadServer
+}
+
+type RemoveOldBreadServer struct {
+	pb.RemoveOldBreadServer
 }
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -32,7 +40,9 @@ func main() {
 
 	server := grpc.NewServer()
 	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
-	pb.RegisterBakeryBreadServiceServer(server, &BakeryBreadServiceServer{})
+	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
+	pb.RegisterCheckInventoryServer(server, &CheckInventoryServer{})
+	pb.RegisterRemoveOldBreadServer(server, &RemoveOldBreadServer{})
 
 	reflection.Register(server)
 
