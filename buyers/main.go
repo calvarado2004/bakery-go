@@ -49,7 +49,50 @@ func buySomeBread(conn *grpc.ClientConn) {
 	checkInventoryClient = pb.NewCheckInventoryClient(conn)
 	buyBreadClient = pb.NewBuyBreadClient(conn)
 
-	breadToBuy := []string{"Sourdough", "Roll", "Naan", "Focaccia"}
+	sourdoughBread := &pb.Bread{
+		Name:        "Sourdough",
+		Description: "A delicious sourdough bread",
+		Price:       4.99,
+		Type:        "Salty",
+		Quantity:    1,
+	}
+
+	rollBread := &pb.Bread{
+		Name:        "Roll",
+		Description: "A delicious roll",
+		Price:       2.99,
+		Type:        "Sweet",
+		Quantity:    1,
+	}
+
+	naanBread := &pb.Bread{
+		Name:        "Naan",
+		Description: "A delicious naan bread",
+		Price:       3.99,
+		Type:        "Salty",
+		Quantity:    1,
+	}
+
+	focacciaBread := &pb.Bread{
+		Name:        "Focaccia",
+		Description: "A delicious focaccia bread",
+		Price:       5.99,
+		Type:        "Salty",
+		Quantity:    1,
+	}
+
+	breadList := pb.BreadList{
+		Breads: []*pb.Bread{
+			sourdoughBread,
+			rollBread,
+			naanBread,
+			focacciaBread,
+		},
+	}
+
+	request := pb.BreadRequest{
+		Breads: &breadList,
+	}
 
 	breadsInInventory := 0
 
@@ -72,13 +115,13 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 		log.Printf("Breads in inventory: %v", breadsInInventory)
 
-		log.Printf("Trying to Buy some bread: %v", breadToBuy)
+		log.Printf("Trying to Buy some bread: %v", breadList.Breads)
 
-		for _, bread := range breadToBuy {
+		for _, bread := range breadList.Breads {
 
-			if budget < 3.00 {
+			if budget < 70.00 {
 
-				log.Printf("No more money to buy bread: %v", breadToBuy)
+				log.Printf("No more money to buy bread: %v", breadList.Breads)
 
 				time.Sleep(10 * time.Second)
 
@@ -88,26 +131,14 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 				log.Printf("Current budget: %v", budget)
 
-				breadToBuy := &pb.Bread{
-					Name: bread,
-				}
-
-				breadList := &pb.BreadList{
-					Breads: []*pb.Bread{breadToBuy},
-				}
-
-				breadToBuyRequest := &pb.BreadRequest{
-					Breads: breadList,
-				}
-
-				buyBreadResponse, err := buyBreadClient.BuyBread(context.Background(), breadToBuyRequest)
+				buyBreadResponse, err := buyBreadClient.BuyBread(context.Background(), &request)
 				if err != nil {
 					log.Printf("Could not buy bread: %v", err)
 				} else {
 					log.Printf("Bread bought: %v", buyBreadResponse.GetBreads())
 				}
 
-				BreadsBought := buyBreadResponse.GetBreads()
+				BreadsBought := buyBreadResponse.Breads
 
 				for _, bread := range BreadsBought.Breads {
 					budget = budget - bread.Price
