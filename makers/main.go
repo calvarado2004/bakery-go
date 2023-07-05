@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -11,30 +12,6 @@ import (
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
-var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
-
-// Bread attributes
-type BreadAttributes struct {
-	id          int64
-	price       float32
-	description string
-	typeName    string
-}
-
-// Map of bread types to attributes
-var breadTypes = map[string]BreadAttributes{
-	//"Roll": {id: 1, price: 1.0, description: "Roll bread, delicious!", typeName: "Salty"},
-	"Baguette": {id: 2, price: 1.5, description: "A baguette is always a good idea", typeName: "Sandwich"},
-	//"Sourdough":   {id: 3, price: 2.0, description: "Sourdough bread, yum!", typeName: "Sandwich"},
-	//"Rye":         {id: 4, price: 2.5, description: "Rye is the best!", typeName: "Salty"},
-	//"Whole Wheat": {id: 5, price: 2.0, description: "Whole wheat bread, delicious!", typeName: "Sandwich"},
-	//"Multigrain":  {id: 6, price: 1.5, description: "Multigrain bread, the healthy option", typeName: "Sandwich"},
-	//"Pita":        {id: 7, price: 1.2, description: "Pita bread, for your Middle eastern food.", typeName: "Salty"},
-	//"Naan":        {id: 8, price: 1.3, description: "Naan bread, for your Indian food.", typeName: "Salty"},
-	//"Focaccia":    {id: 9, price: 2.3, description: "For your Italian food, nothing better than a Focaccia.", typeName: "Salty"},
-	//"Ciabatta":    {id: 10, price: 1.8, description: "Cia-batta-bing, cia-batta-boom!", typeName: "Sandwich"},
-}
-
 func main() {
 	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -43,8 +20,6 @@ func main() {
 
 	log.Printf("Connected to %v", gRPCAddress)
 
-	breadClient := pb.NewMakeBreadClient(conn)
-
 	defer func(client *grpc.ClientConn) {
 		err := client.Close()
 		if err != nil {
@@ -52,37 +27,127 @@ func main() {
 		}
 	}(conn)
 
+	timeNow := time.Unix(time.Now().Unix(), 0).UTC().Format(time.UnixDate)
+
+	sourdoughBread := &pb.Bread{
+		Name:        "Sourdough",
+		Description: "A delicious sourdough bread",
+		Price:       4.99,
+		Type:        "Salty",
+		CreatedAt:   timeNow,
+		Quantity:    1,
+	}
+
+	rollBread := &pb.Bread{
+		Name:        "Roll",
+		Description: "A delicious roll",
+		Price:       2.99,
+		Type:        "Sweet",
+		CreatedAt:   timeNow,
+		Quantity:    1,
+	}
+
+	naanBread := &pb.Bread{
+		Name:        "Naan",
+		Description: "A delicious naan bread",
+		Price:       3.99,
+		Type:        "Salty",
+		CreatedAt:   timeNow,
+		Quantity:    1,
+	}
+
+	focacciaBread := &pb.Bread{
+		Name:        "Focaccia",
+		Description: "A delicious focaccia bread",
+		Price:       5.99,
+		Type:        "Salty",
+		CreatedAt:   timeNow,
+		Quantity:    1,
+	}
+
+	breadList := pb.BreadList{
+		Breads: []*pb.Bread{
+			sourdoughBread,
+			rollBread,
+			naanBread,
+			focacciaBread,
+		},
+	}
+
+	request := pb.BreadRequest{
+		Breads: &breadList,
+	}
+
+	for true {
+
+		makeSomeBread(conn, &request)
+
+	}
+
+}
+
+func makeSomeBread(conn *grpc.ClientConn, request *pb.BreadRequest) {
+
+	breadClient := pb.NewMakeBreadClient(conn)
+
+	checkInventory := pb.NewCheckInventoryClient(conn)
+
+	breadList := request.GetBreads()
+
 	// Start with zero bread made
 	totalBreadMade := 0
 
-	// Get the list of bread types for random selection
-	breadTypeKeys := make([]string, 0, len(breadTypes))
-	for k := range breadTypes {
-		breadTypeKeys = append(breadTypeKeys, k)
+	maxBread := 100
+
+	inventory, err := checkInventory.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
+	if err != nil {
+		return
 	}
 
-	for {
-		// Sleep for a bit before checking the queue again
-		time.Sleep(1 * time.Second)
+	breads := inventory.Breads.GetBreads()
 
-		// Call CheckBreadQueue
-		queueSize, err := CheckBreadQueue()
-		if err != nil {
-			log.Println("error checking bread queue: ", err)
-			continue
-		}
+	breadsInInventory := 0
 
-		log.Printf("Current bread queue size: %v", queueSize)
+	for _, bread := range breads {
+		breadsInInventory = int(bread.Quantity)
+	}
 
-		// Check if the bread queue is below 50
-		if queueSize < 80 {
-			// Start making bread again
-			totalBreadMade = 0
+	log.Printf("Breads in inventory: %v", breadsInInventory)
 
-			for totalBreadMade < 100 {
-				totalBreadMade += makeSomeBread(breadTypeKeys, breadTypes, breadClient)
+	if breadsInInventory >= 100 {
+
+		log.Printf("Bakery has enough bread in inventory: %v", breads)
+
+		time.Sleep(10 * time.Second)
+
+		return
+
+	} else {
+
+		log.Printf("Bakery does not have enough bread in inventory: %v", breads)
+
+		for totalBreadMade < maxBread {
+
+			log.Printf("Making bread... %s", breadList.GetBreads())
+
+			breadMadeList, err := breadClient.SendBreadToBakery(context.Background(), request)
+			if err != nil {
+				return
 			}
+
+			breadsMade := len(breadMadeList.Breads.GetBreads())
+
+			totalBreadMade += breadsMade
+
+			log.Printf("Bread made in this batch: %v, Total bread made so far: %v", breadsMade, totalBreadMade)
+
+			time.Sleep(2 * time.Second)
+
 		}
+
+		log.Printf("Total bread made after reaching the limit: %v", totalBreadMade)
+
+		time.Sleep(10 * time.Second)
 
 	}
 }

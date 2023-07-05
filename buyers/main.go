@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
-	"math/rand"
 	"os"
+	"time"
 )
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -26,28 +24,6 @@ var (
 )
 
 func main() {
-	var err error
-	conn, err = rabbitmq.Dial(activemqAddress)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Println("Failed to close RabbitMQ connection: ", err)
-		}
-	}(conn)
-
-	rabbitmqChannel, err = conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer func(rabbitmqChannel *rabbitmq.Channel) {
-		err := rabbitmqChannel.Close()
-		if err != nil {
-			log.Println("Failed to close RabbitMQ channel: ", err)
-		}
-	}(rabbitmqChannel)
 
 	// Connect to the gRPC server
 	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -61,201 +37,93 @@ func main() {
 		}
 	}(grpcConn)
 
-	checkInventoryClient = pb.NewCheckInventoryClient(grpcConn)
-	buyBreadClient = pb.NewBuyBreadClient(grpcConn)
+	for true {
 
-	// Fetch the available breads from the server
-	fetchAvailableBreads()
+		buySomeBread(grpcConn)
+	}
 
-	// Start consuming the queue
-	ConsumeBreadQueue()
 }
 
-// fetchAvailableBreads retrieves the available breads from the server and populates the allBreads slice.
-func fetchAvailableBreads() {
-	response, err := checkInventoryClient.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
+func buySomeBread(conn *grpc.ClientConn) {
+
+	checkInventoryClient = pb.NewCheckInventoryClient(conn)
+	buyBreadClient = pb.NewBuyBreadClient(conn)
+
+	breadToBuy := []string{"Sourdough", "Roll", "Naan", "Focaccia"}
+
+	breadsInInventory := 0
+
+	inventory, err := checkInventoryClient.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
 	if err != nil {
-		log.Fatalf("Failed to fetch available breads: %v", err)
+		return
 	}
 
-	for _, bread := range response.Breads.Breads {
-		allBreads = append(allBreads, bread.Name)
-	}
-}
+	breads := inventory.Breads.GetBreads()
 
-// RandomBread returns a random bread from allBreads.
-func RandomBread() (string, error) {
-
-	allBreads := []string{"Baguette"} // Define your subset here
-
-	if len(allBreads) == 0 {
-		return "", errors.New("no breads available")
+	for _, bread := range breads {
+		breadsInInventory = int(bread.Quantity)
 	}
 
-	return allBreads[rand.Intn(len(allBreads))], nil
-}
+	var budget float32
 
-func BuyBread(breadToBuy string) {
-	request := &pb.BreadRequest{
-		Breads: &pb.BreadList{Breads: []*pb.Bread{
-			{Name: breadToBuy, Quantity: 1},
-		}},
-	}
+	budget = 100.00
 
-	for {
-		response, err := buyBreadClient.BuyBread(context.Background(), request)
-		if err != nil {
-			log.Println("Error buying bread: ", err)
-			continue
-		}
+	if breadsInInventory > 0 {
 
-		if response.Breads.Breads[0].Name == breadToBuy {
-			log.Println("Bread bought: ", response.Breads.Breads[0].Name)
-			break
-		}
-	}
-}
+		log.Printf("Breads in inventory: %v", breadsInInventory)
 
-func ConsumeBreadQueue() {
-	err := rabbitmqChannel.Qos(1, 0, false) // This ensures that RabbitMQ will not give more than one message to this consumer at a time.
-	if err != nil {
-		log.Fatalf("Failed to set QoS: %v", err)
-	}
+		log.Printf("Trying to Buy some bread: %v", breadToBuy)
 
-	msgs, err := rabbitmqChannel.Consume(
-		"bread-in-bakery", // queue
-		"",                // consumer
-		false,             // auto-ack
-		false,             // exclusive
-		false,             // no-local
-		false,             // no-wait
-		nil,               // args
-	)
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
+		for _, bread := range breadToBuy {
 
-	forever := make(chan bool)
+			if budget < 3.00 {
 
-	// Declare a queue for bread that is not the one we want
-	breadCheckedQueue, err := rabbitmqChannel.QueueDeclare(
-		"bread-in-bakery", // queue name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
+				log.Printf("No more money to buy bread: %v", breadToBuy)
 
-	// Declare a queue for bread that is the one we want
-	breadBoughtQueue, err := rabbitmqChannel.QueueDeclare(
-		"bread-bought", // queue name
-		true,           // durable
-		false,          // delete when unused
-		false,          // exclusive
-		false,          // no-wait
-		nil,            // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	go func() {
-
-		for msg := range msgs {
-
-			breadToBuy, err := RandomBread() // Get a random bread to buy
-			if err != nil {
-				err := msg.Nack(false, true)
-				if err != nil {
-					return
-				} // requeue the message
-				log.Fatalf("Failed to get random bread: %v", err)
-			}
-
-			receivedBread := &pb.Bread{}
-			err = json.Unmarshal(msg.Body, receivedBread)
-			if err != nil {
-				err := msg.Nack(false, true)
-				if err != nil {
-					return
-				} // requeue the message
-				log.Fatalf("Failed to unmarshal bread data: %v", err)
-			}
-
-			if receivedBread.Name == breadToBuy {
-
-				BuyBread(breadToBuy)
-
-				log.Printf("Received bread %v, bought %v", receivedBread.Name, breadToBuy)
-
-				err = msg.Ack(false)
-				if err != nil {
-					log.Println("Failed to ack message: ", err)
-				}
-
-				log.Println("Sending bread to bread-bought queue: ", receivedBread.Name)
-
-				receivedBread.Status = "bread successfully bought"
-
-				breadData, err := json.Marshal(&receivedBread)
-				if err != nil {
-					log.Println("Failed to marshal bread data: ", err)
-				}
-
-				err = rabbitmqChannel.Publish(
-					"",                    // exchange
-					breadBoughtQueue.Name, // routing key
-					false,                 // mandatory
-					false,                 // immediate
-					rabbitmq.Publishing{
-						ContentType:  "text/json",
-						Body:         breadData,
-						DeliveryMode: rabbitmq.Persistent,
-					})
-				if err != nil {
-					log.Println("Failed to publish message: ", err)
-				}
+				time.Sleep(10 * time.Second)
 
 			} else {
-				// This is not the bread we're looking for; requeue it and keep consuming
-				err := msg.Nack(false, true)
-				if err != nil {
-					return
-				}
-				log.Printf("Received bread %v, but we want %v", receivedBread.Name, breadToBuy)
 
-				log.Println("Sending bread to bread-checked queue: ", receivedBread.Name)
+				log.Printf("Buying bread: %v", bread)
 
-				receivedBread.Status = "bread checked but not bought"
+				log.Printf("Current budget: %v", budget)
 
-				breadData, err := json.Marshal(&receivedBread)
-				if err != nil {
-					log.Println("Failed to marshal bread data: ", err)
+				breadToBuy := &pb.Bread{
+					Name: bread,
 				}
 
-				err = rabbitmqChannel.Publish(
-					"",                     // exchange
-					breadCheckedQueue.Name, // routing key
-					false,                  // mandatory
-					false,                  // immediate
-					rabbitmq.Publishing{
-						ContentType:  "text/json",
-						Body:         breadData,
-						DeliveryMode: rabbitmq.Persistent,
-					})
-				if err != nil {
-					log.Println("Failed to publish bread data: ", err)
+				breadList := &pb.BreadList{
+					Breads: []*pb.Bread{breadToBuy},
 				}
 
+				breadToBuyRequest := &pb.BreadRequest{
+					Breads: breadList,
+				}
+
+				buyBreadResponse, err := buyBreadClient.BuyBread(context.Background(), breadToBuyRequest)
+				if err != nil {
+					log.Printf("Could not buy bread: %v", err)
+				} else {
+					log.Printf("Bread bought: %v", buyBreadResponse.GetBreads())
+				}
+
+				BreadsBought := buyBreadResponse.GetBreads()
+
+				for _, bread := range BreadsBought.Breads {
+					budget = budget - bread.Price
+				}
+
+				time.Sleep(10 * time.Second)
 			}
 
 		}
-	}()
 
-	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<-forever
+		time.Sleep(10 * time.Second)
+
+	} else {
+		log.Printf("No breads in inventory: %v", breadsInInventory)
+
+		time.Sleep(10 * time.Second)
+	}
+
 }
