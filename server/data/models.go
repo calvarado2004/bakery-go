@@ -240,7 +240,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	return nil
 }
 
-func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float64) error {
+func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 

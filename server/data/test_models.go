@@ -54,7 +54,7 @@ func (u *PostgresTestRepository) AdjustBreadQuantity(breadID int, quantityChange
 	return nil
 }
 
-func (u *PostgresTestRepository) AdjustBreadPrice(breadID int, newPrice float64) error {
+func (u *PostgresTestRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
 
 	breadID = 1
 	newPrice = 1.0

@@ -1,0 +1,225 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: initdb
+immutable: true
+data:
+  create_tables.sql: |-
+    CREATE SEQUENCE public.customer_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE SEQUENCE public.buy_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE SEQUENCE public.bread_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE SEQUENCE public.orders_processed_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+
+    CREATE SEQUENCE public.bread_maker_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE SEQUENCE public.make_order_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+    
+    CREATE TABLE public.bread (
+                                  id integer DEFAULT nextval('public.bread_id_seq'::regclass) NOT NULL,
+                                  name character varying(255),
+                                  price float,
+                                  quantity integer,
+                                  description character varying(255),
+                                  type character varying(255),
+                                  status character varying(255),
+                                  created_at timestamp without time zone,
+                                  updated_at timestamp without time zone,
+                                  image character varying(255),
+                                  PRIMARY KEY (id)
+    );
+
+    ALTER TABLE public.bread_id_seq OWNER TO postgres;        
+    
+    CREATE TABLE public.bread_maker (
+                                        id integer DEFAULT nextval('public.bread_maker_id_seq'::regclass) NOT NULL,
+                                        name character varying(255),
+                                        email character varying(255),
+                                        created_at timestamp without time zone,
+                                        updated_at timestamp without time zone,
+                                        PRIMARY KEY (id)
+    );
+
+    ALTER TABLE public.bread_maker_id_seq OWNER TO postgres;
+
+    CREATE TABLE public.make_order (
+                                       id integer DEFAULT nextval('public.make_order_id_seq'::regclass) NOT NULL,
+                                       bread_maker_id integer NOT NULL,
+                                       PRIMARY KEY (id),
+                                       FOREIGN KEY (bread_maker_id) REFERENCES public.bread_maker(id)
+    );
+
+    CREATE TABLE public.make_order_details (
+                                               make_order_id integer NOT NULL,
+                                               bread_id integer NOT NULL,
+                                               quantity integer,
+                                               PRIMARY KEY (make_order_id, bread_id),
+                                               FOREIGN KEY (make_order_id) REFERENCES public.make_order(id),
+                                               FOREIGN KEY (bread_id) REFERENCES public.bread(id)
+    );
+
+
+    CREATE TABLE public.customer (
+                                     id integer DEFAULT nextval('public.customer_id_seq'::regclass) NOT NULL,
+                                     name character varying(255),
+                                     email character varying(255),
+                                     password character varying(255),
+                                     created_at timestamp without time zone,
+                                     updated_at timestamp without time zone,
+                                     PRIMARY KEY (id)
+    );
+
+    ALTER TABLE public.customer_id_seq OWNER TO postgres;
+
+
+
+    CREATE TABLE public.buy_order (
+                                      id integer DEFAULT nextval('public.buy_id_seq'::regclass) NOT NULL,
+                                      customer_id integer NOT NULL,
+                                      PRIMARY KEY (id),
+                                      FOREIGN KEY (customer_id) REFERENCES public.customer(id)
+    );
+
+    ALTER TABLE public.buy_id_seq OWNER TO postgres;
+
+    CREATE TABLE public.order_details (
+                                          buy_order_id integer NOT NULL,
+                                          bread_id integer NOT NULL,
+                                          quantity integer,
+                                          price float,
+                                          PRIMARY KEY (buy_order_id, bread_id),
+                                          FOREIGN KEY (buy_order_id) REFERENCES public.buy_order(id),
+                                          FOREIGN KEY (bread_id) REFERENCES public.bread(id)
+    );
+
+    CREATE TABLE public.orders_processed (
+                                             id integer DEFAULT nextval('public.orders_processed_id_seq'::regclass) NOT NULL,
+                                             customer_id integer NOT NULL,
+                                             buy_order_id integer NOT NULL,
+                                             created_at timestamp without time zone,
+                                             updated_at timestamp without time zone,
+                                             PRIMARY KEY (id),
+                                             FOREIGN KEY (customer_id) REFERENCES public.customer(id),
+                                             FOREIGN KEY (buy_order_id) REFERENCES public.buy_order(id)
+    );
+
+    ALTER TABLE public.orders_processed_id_seq OWNER TO postgres;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  labels:
+    app.kubernetes.io/name: postgres-bakery
+spec:
+  ports:
+    - port: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app.kubernetes.io/name: postgres-bakery
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: postgres-bakery
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-bakery
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-bakery
+    spec:
+      containers:
+        - resources: {}
+          terminationMessagePath: /dev/termination-log
+          name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: bakery
+            - name: POSTGRES_USER
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data
+            - name: POSTGRES_PASSWORD
+              value: postgres
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: postgres-pvc
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d/create_tables.sql
+              subPath: create_tables.sql
+              readOnly: true
+          terminationMessagePolicy: File
+          image: 'postgres:15.3'
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 2000
+        supplementalGroups:
+          - 0
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
+      schedulerName: stork
+      volumes:
+        - name: initdb
+          configMap:
+            name: initdb
+            defaultMode: 420
+  volumeClaimTemplates:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: postgres-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: portworx-db-sc
+        volumeMode: Filesystem
+  serviceName: postgres-service

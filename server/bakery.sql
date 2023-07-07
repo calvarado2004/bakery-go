@@ -41,6 +41,22 @@ CREATE SEQUENCE public.make_order_id_seq
     NO MAXVALUE
     CACHE 1;
 
+CREATE TABLE public.bread (
+                              id integer DEFAULT nextval('public.bread_id_seq'::regclass) NOT NULL,
+                              name character varying(255),
+                              price float,
+                              quantity integer,
+                              description character varying(255),
+                              type character varying(255),
+                              status character varying(255),
+                              created_at timestamp without time zone,
+                              updated_at timestamp without time zone,
+                              image character varying(255),
+                              PRIMARY KEY (id)
+);
+
+ALTER TABLE public.bread_id_seq OWNER TO postgres;
+
 CREATE TABLE public.bread_maker (
                                     id integer DEFAULT nextval('public.bread_maker_id_seq'::regclass) NOT NULL,
                                     name character varying(255),
@@ -82,21 +98,6 @@ CREATE TABLE public.customer (
 ALTER TABLE public.customer_id_seq OWNER TO postgres;
 
 
-CREATE TABLE public.bread (
-                              id integer DEFAULT nextval('public.bread_id_seq'::regclass) NOT NULL,
-                              name character varying(255),
-                              price float,
-                              quantity integer,
-                              description character varying(255),
-                              type character varying(255),
-                              status character varying(255),
-                              created_at timestamp without time zone,
-                              updated_at timestamp without time zone,
-                              image character varying(255),
-                              PRIMARY KEY (id)
-);
-
-ALTER TABLE public.bread_id_seq OWNER TO postgres;
 
 CREATE TABLE public.buy_order (
                                   id integer DEFAULT nextval('public.buy_id_seq'::regclass) NOT NULL,
