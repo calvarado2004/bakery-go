@@ -37,7 +37,7 @@ type Customer struct {
 type Bread struct {
 	ID          int       `json:"primary_key"`
 	Name        string    `json:"name"`
-	Price       float64   `json:"price"`
+	Price       float32   `json:"price"`
 	Quantity    int       `json:"quantity"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
