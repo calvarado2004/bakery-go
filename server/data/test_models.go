@@ -20,7 +20,7 @@ func (u *PostgresTestRepository) InsertBread(bread Bread) (int, error) {
 	return 1, nil
 }
 
-func (u *PostgresTestRepository) InsertBuyOrder(order BuyOrder) (int, error) {
+func (u *PostgresTestRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int, error) {
 	return 1, nil
 }
 
@@ -28,7 +28,7 @@ func (u *PostgresTestRepository) InsertBreadMaker(baker BreadMaker) (int, error)
 	return 1, nil
 }
 
-func (u *PostgresTestRepository) InsertMakeOrder(order MakeOrder) (int, error) {
+func (u *PostgresTestRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (int, error) {
 	return 1, nil
 }
 
