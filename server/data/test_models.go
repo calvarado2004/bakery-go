@@ -36,3 +36,11 @@ func (u *PostgresTestRepository) PasswordMatches(plainText string, customer Cust
 
 	return true, nil
 }
+
+func (u *PostgresTestRepository) AdjustBreadQuantity(breadID int, quantityChange int) error {
+	return nil
+}
+
+func (u *PostgresTestRepository) AdjustBreadPrice(breadID int, newPrice float64) error {
+	return nil
+}

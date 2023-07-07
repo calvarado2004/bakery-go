@@ -128,25 +128,6 @@ func (u *PostgresRepository) InsertBread(bread Bread) (int, error) {
 	return newID, nil
 }
 
-func (u *PostgresRepository) InsertBuyOrder(order BuyOrder) (int, error) {
-
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
-	var newID int
-	stmt := `INSERT INTO buy_order (customer_id) VALUES ($1) RETURNING id`
-
-	err := db.QueryRowContext(ctx, stmt,
-		order.CustomerID,
-	).Scan(&newID)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return newID, nil
-}
-
 func (u *PostgresRepository) InsertBreadMaker(baker BreadMaker) (int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
@@ -169,7 +150,41 @@ func (u *PostgresRepository) InsertBreadMaker(baker BreadMaker) (int, error) {
 	return newID, nil
 }
 
-func (u *PostgresRepository) InsertMakeOrder(order MakeOrder) (int, error) {
+func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var newID int
+	stmt := `INSERT INTO buy_order (customer_id) VALUES ($1) RETURNING id`
+
+	err := db.QueryRowContext(ctx, stmt,
+		order.CustomerID,
+	).Scan(&newID)
+
+	if err != nil {
+		return 0, err
+	}
+
+	for _, bread := range breads {
+		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity) VALUES ($1, $2, $3)`
+
+		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
+
+		if err != nil {
+			return 0, err
+		}
+
+		err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return newID, nil
+}
+
+func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
@@ -185,7 +200,51 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder) (int, error) {
 		return 0, err
 	}
 
+	for _, bread := range breads {
+
+		stmt = `INSERT INTO make_order_details (make_order_id, bread_id, quantity) VALUES ($1, $2, $3)`
+
+		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
+
+		if err != nil {
+			return 0, err
+		}
+
+		err = u.AdjustBreadQuantity(bread.ID, bread.Quantity)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	return newID, nil
+}
+
+func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE bread SET quantity = quantity + $1 WHERE id = $2`
+
+	_, err := db.ExecContext(ctx, stmt, quantityChange, breadID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE bread SET price = $1 WHERE id = $2`
+
+	_, err := db.ExecContext(ctx, stmt, newPrice, breadID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer) (bool, error) {
