@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"time"
 )
 
@@ -34,13 +35,16 @@ type Customer struct {
 }
 
 type Bread struct {
-	ID        int       `json:"primary_key"`
-	Name      string    `json:"name"`
-	Price     float64   `json:"price"`
-	Quantity  int       `json:"quantity"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Image     string    `json:"image"`
+	ID          int       `json:"primary_key"`
+	Name        string    `json:"name"`
+	Price       float64   `json:"price"`
+	Quantity    int       `json:"quantity"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Image       string    `json:"image"`
+	Description string    `json:"description"`
+	Type        string    `json:"type"`
+	Status      string    `json:"status"`
 }
 
 type BuyOrder struct {
@@ -110,7 +114,7 @@ func (u *PostgresRepository) InsertBread(bread Bread) (int, error) {
 	defer cancel()
 
 	var newID int
-	stmt := `INSERT INTO bread (name, price, quantity, created_at, updated_at, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	stmt := `INSERT INTO bread (name, price, quantity, created_at, updated_at, image, description, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
 		bread.Name,
@@ -119,6 +123,9 @@ func (u *PostgresRepository) InsertBread(bread Bread) (int, error) {
 		time.Now(),
 		time.Now(),
 		bread.Image,
+		bread.Description,
+		bread.Type,
+		bread.Status,
 	).Scan(&newID)
 
 	if err != nil {
@@ -260,4 +267,172 @@ func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer
 	}
 
 	return true, nil
+}
+
+func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM bread WHERE quantity > 0`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(rows)
+
+	var breads []Bread
+
+	for rows.Next() {
+		var bread Bread
+		err := rows.Scan(
+			&bread.ID,
+			&bread.Name,
+			&bread.Price,
+			&bread.Quantity,
+			&bread.CreatedAt,
+			&bread.UpdatedAt,
+			&bread.Image,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		breads = append(breads, bread)
+	}
+
+	return breads, nil
+}
+
+func (u *PostgresRepository) GetBreadByID(breadID int) (bread Bread, err error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM bread WHERE id = $1`
+
+	err = db.QueryRowContext(ctx, stmt, breadID).Scan(
+		&bread.ID,
+		&bread.Name,
+		&bread.Price,
+		&bread.Quantity,
+		&bread.CreatedAt,
+		&bread.UpdatedAt,
+		&bread.Image,
+	)
+
+	return bread, err
+}
+
+func (u *PostgresRepository) GetMakeOrderByID(orderID int) (order MakeOrder, err error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM make_order WHERE id = $1`
+
+	err = db.QueryRowContext(ctx, stmt, orderID).Scan(
+		&order.ID,
+		&order.BreadMakerID,
+	)
+
+	if err != nil {
+		return order, err
+	}
+
+	stmt = `SELECT bread_id, quantity FROM make_order_details WHERE make_order_id = $1`
+
+	rows, err := db.QueryContext(ctx, stmt, orderID)
+	if err != nil {
+		return order, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(rows)
+
+	var breads []Bread
+
+	for rows.Next() {
+		var breadID, quantity int
+		err := rows.Scan(&breadID, &quantity)
+		if err != nil {
+			return order, err
+		}
+
+		bread, err := u.GetBreadByID(breadID)
+		if err != nil {
+			return order, err
+		}
+
+		bread.Quantity = quantity
+		breads = append(breads, bread)
+	}
+
+	order.Breads = breads
+
+	return order, nil
+}
+
+func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM buy_order WHERE id = $1`
+
+	err = db.QueryRowContext(ctx, stmt, orderID).Scan(
+		&order.ID,
+		&order.CustomerID,
+	)
+
+	if err != nil {
+		return order, err
+	}
+
+	stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+
+	rows, err := db.QueryContext(ctx, stmt, orderID)
+	if err != nil {
+		return order, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(rows)
+
+	var breads []Bread
+
+	for rows.Next() {
+		var breadID, quantity int
+		err := rows.Scan(&breadID, &quantity)
+		if err != nil {
+			return order, err
+		}
+
+		bread, err := u.GetBreadByID(breadID)
+		if err != nil {
+			return order, err
+		}
+
+		bread.Quantity = quantity
+		breads = append(breads, bread)
+	}
+
+	order.Breads = breads
+
+	return order, nil
 }

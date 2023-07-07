@@ -9,4 +9,8 @@ type Repository interface {
 	AdjustBreadQuantity(breadID int, quantityChange int) error
 	AdjustBreadPrice(breadID int, newPrice float64) error
 	PasswordMatches(plainText string, customer Customer) (bool, error)
+	GetAvailableBread() ([]Bread, error)
+	GetBreadByID(breadID int) (bread Bread, err error)
+	GetMakeOrderByID(orderID int) (order MakeOrder, err error)
+	GetBuyOrderByID(orderID int) (order BuyOrder, err error)
 }
