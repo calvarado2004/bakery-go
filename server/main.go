@@ -40,7 +40,7 @@ type Config struct {
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
-var activemqAddress = os.Getenv("ACTIVEMQ_SERVICE_ADDR")
+var activemqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
 var counts int64
 

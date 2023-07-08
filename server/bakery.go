@@ -62,7 +62,8 @@ func checkBread(pgConn *sql.DB) error {
 	}
 
 	breadMakeOrder := data.MakeOrder{
-		BreadMaker: breadMaker,
+		BreadMaker:   breadMaker,
+		BreadMakerID: breadMaker.ID,
 	}
 
 	for _, bread := range breads {
@@ -99,7 +100,7 @@ func checkBread(pgConn *sql.DB) error {
 
 	log.Printf("Make Bread Order ID %d created", order)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	return nil
 
