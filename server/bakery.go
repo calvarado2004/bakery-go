@@ -58,6 +58,7 @@ func checkBread(pgConn *sql.DB) error {
 	breadMaker := data.BreadMaker{
 		Name:  "Bread Maker",
 		Email: "bread@maker.com",
+		ID:    1,
 	}
 
 	breadMakeOrder := data.MakeOrder{
@@ -68,8 +69,8 @@ func checkBread(pgConn *sql.DB) error {
 		if bread.Quantity > 10 {
 			log.Printf("Enough bread of %s left, there are available %d", bread.Name, bread.Quantity)
 		} else {
-			bread.Quantity = 50
 			log.Printf("There are only %d breads left of %s, ordering 50 more", bread.Quantity, bread.Name)
+			bread.Quantity = 50
 			breadData, err := json.Marshal(&bread)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
