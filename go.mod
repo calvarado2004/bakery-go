@@ -27,3 +27,4 @@ require (
 )
 
 replace github.com/calvarado2004/bakery-go/proto => ./proto
+replace github.com/calvarado2004/bakery-go/data => ./data

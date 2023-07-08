@@ -1,153 +1,149 @@
 package main
 
 import (
-	"context"
-	pb "github.com/calvarado2004/bakery-go/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"database/sql"
+	"encoding/json"
+	"github.com/calvarado2004/bakery-go/data"
+	rabbitmq "github.com/streadway/amqp"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log"
+	"net/http"
 	"os"
 	"time"
 )
 
-var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
+var rabbitmqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
+
+var counts int64
+
+type Config struct {
+	Repo   data.Repository
+	Client *http.Client
+}
+
+var rabbitmqConnection *rabbitmq.Connection
+var rabbitmqChannel *rabbitmq.Channel
+
+func openDB(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+
+}
+
+func connectToDB() *sql.DB {
+	dsn := os.Getenv("DSN")
+
+	for {
+		connection, err := openDB(dsn)
+		if err != nil {
+			log.Println("Error opening database:", err)
+			counts++
+		} else {
+			log.Println("Connected to database")
+			return connection
+		}
+
+		if counts > 10 {
+			log.Println(err)
+			return nil
+		}
+
+		log.Println("Retrying in 5 seconds")
+		time.Sleep(5 * time.Second)
+		continue
+
+	}
+}
+
+func (app *Config) setupRepo(conn *sql.DB) {
+	db := data.NewPostgresRepository(conn)
+	app.Repo = db
+
+}
 
 func main() {
-	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	pgConn := connectToDB()
+	if pgConn == nil {
+		log.Panic("Could not connect to database")
+	}
+
+	err := listenForMakeBread(pgConn)
 	if err != nil {
-		log.Fatalf("Could not connect to %v", err)
-	}
-
-	log.Printf("Connected to %v", gRPCAddress)
-
-	defer func(client *grpc.ClientConn) {
-		err := client.Close()
-		if err != nil {
-			log.Println("error closing client: ", err)
-		}
-	}(conn)
-
-	timeNow := time.Unix(time.Now().Unix(), 0).UTC().Format(time.UnixDate)
-
-	sourdoughBread := &pb.Bread{
-		Name:        "Sourdough",
-		Description: "A delicious sourdough bread",
-		Price:       4.99,
-		Type:        "Salty",
-		CreatedAt:   timeNow,
-		Quantity:    1,
-	}
-
-	rollBread := &pb.Bread{
-		Name:        "Roll",
-		Description: "A delicious roll",
-		Price:       2.99,
-		Type:        "Sweet",
-		CreatedAt:   timeNow,
-		Quantity:    1,
-	}
-
-	naanBread := &pb.Bread{
-		Name:        "Naan",
-		Description: "A delicious naan bread",
-		Price:       3.99,
-		Type:        "Salty",
-		CreatedAt:   timeNow,
-		Quantity:    1,
-	}
-
-	focacciaBread := &pb.Bread{
-		Name:        "Focaccia",
-		Description: "A delicious focaccia bread",
-		Price:       5.99,
-		Type:        "Salty",
-		CreatedAt:   timeNow,
-		Quantity:    1,
-	}
-
-	breadList := pb.BreadList{
-		Breads: []*pb.Bread{
-			sourdoughBread,
-			rollBread,
-			naanBread,
-			focacciaBread,
-		},
-	}
-
-	request := pb.BreadRequest{
-		Breads: &breadList,
-	}
-
-	for true {
-
-		makeSomeBread(conn, &request)
-
+		return
 	}
 
 }
 
-func makeSomeBread(conn *grpc.ClientConn, request *pb.BreadRequest) {
-
-	breadClient := pb.NewMakeBreadClient(conn)
-
-	checkInventory := pb.NewCheckInventoryClient(conn)
-
-	breadList := request.GetBreads()
-
-	// Start with zero bread made
-	totalBreadMade := 0
-
-	maxBread := 100
-
-	inventory, err := checkInventory.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
+func init() {
+	var err error
+	rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddress)
 	if err != nil {
-		return
+		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 
-	breads := inventory.Breads.GetBreads()
+	rabbitmqChannel, err = rabbitmqConnection.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+	}
+}
 
-	breadsInInventory := 0
+func listenForMakeBread(pgConn *sql.DB) error {
 
-	for _, bread := range breads {
-		breadsInInventory = int(bread.Quantity)
+	log.Println("Listening for make bread order messages...")
+
+	breadsBought, err := rabbitmqChannel.Consume(
+		"make-bread-order", // queue
+		"",                 // consumer
+		false,              // auto-ack
+		false,              // exclusive
+		false,              // no-local
+		false,              // no-wait
+		nil,                // args
+	)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to consume from make bread order queue: %v", err)
 	}
 
-	log.Printf("Breads in inventory: %v", breadsInInventory)
+	for d := range breadsBought {
 
-	if breadsInInventory >= 100 {
+		log.Printf("Received a message: %s", d.Body)
 
-		log.Printf("Bakery has enough bread in inventory: %v", breads)
-
-		time.Sleep(10 * time.Second)
-
-		return
-
-	} else {
-
-		log.Printf("Bakery does not have enough bread in inventory: %v", breads)
-
-		for totalBreadMade < maxBread {
-
-			log.Printf("Making bread... %s", breadList.GetBreads())
-
-			breadMadeList, err := breadClient.SendBreadToBakery(context.Background(), request)
+		bread := &data.Bread{}
+		err := json.Unmarshal(d.Body, bread)
+		if err != nil {
+			err := d.Nack(false, true)
 			if err != nil {
-				return
+				return err
 			}
-
-			breadsMade := len(breadMadeList.Breads.GetBreads())
-
-			totalBreadMade += breadsMade
-
-			log.Printf("Bread made in this batch: %v, Total bread made so far: %v", breadsMade, totalBreadMade)
-
-			time.Sleep(2 * time.Second)
-
+			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
 		}
 
-		log.Printf("Total bread made after reaching the limit: %v", totalBreadMade)
+		err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
+		if err != nil {
+			return err
+		}
 
-		time.Sleep(10 * time.Second)
+		log.Printf("Bread made succesfully: %s", d.Body)
+
+		err = d.Ack(false)
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to acknowledge message: %v", err)
+		}
+
+		time.Sleep(1 * time.Second)
 
 	}
+
+	return nil
 }

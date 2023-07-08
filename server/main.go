@@ -2,8 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
-	"github.com/calvarado2004/bakery-go/server/data"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"log"
@@ -98,11 +98,6 @@ func main() {
 
 	log.Printf("Server listening on %v", gRPCAddress)
 
-	pgConn := connectToDB()
-	if pgConn == nil {
-		log.Panic("Could not connect to database")
-	}
-
 	server := grpc.NewServer()
 	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
 	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
@@ -111,6 +106,23 @@ func main() {
 
 	reflection.Register(server)
 
+	pgConn := connectToDB()
+	if pgConn == nil {
+		log.Panic("Could not connect to database")
+	}
+
+	// Check bread every 10 seconds in the background
+	go func() {
+		for {
+			err := checkBread(pgConn)
+			if err != nil {
+				log.Printf("Failed to check bread: %v", err)
+			}
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
+	// Start gRPC Server
 	if err = server.Serve(listen); err != nil {
 		log.Fatalf("Failed to serve gRPC server over %v", err)
 	}

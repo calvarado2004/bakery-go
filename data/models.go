@@ -300,6 +300,9 @@ func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 			&bread.CreatedAt,
 			&bread.UpdatedAt,
 			&bread.Image,
+			&bread.Type,
+			&bread.Description,
+			&bread.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -326,6 +329,9 @@ func (u *PostgresRepository) GetBreadByID(breadID int) (bread Bread, err error) 
 		&bread.CreatedAt,
 		&bread.UpdatedAt,
 		&bread.Image,
+		&bread.Type,
+		&bread.Description,
+		&bread.Status,
 	)
 
 	return bread, err
