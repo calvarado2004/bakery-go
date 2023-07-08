@@ -88,17 +88,16 @@ func checkBread(pgConn *sql.DB) error {
 					DeliveryMode: rabbitmq.Persistent,
 				})
 
+			breadMakeOrder.Breads = append(breadMakeOrder.Breads, bread)
+			order, err := data.NewPostgresRepository(pgConn).InsertMakeOrder(breadMakeOrder, breads)
+			if err != nil {
+				return err
+			}
+
+			log.Printf("Make Bread Order ID %d created", order)
 		}
 
-		breadMakeOrder.Breads = append(breadMakeOrder.Breads, bread)
 	}
-
-	order, err := data.NewPostgresRepository(pgConn).InsertMakeOrder(breadMakeOrder, breads)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Make Bread Order ID %d created", order)
 
 	time.Sleep(30 * time.Second)
 
