@@ -282,7 +282,8 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		for d := range breadsBought {
 			log.Printf("Bread bought: %s", d.Body)
 
-			bread := &pb.Bread{}
+			breadGRPC := &pb.Bread{}
+			bread := &data.Bread{}
 			err := json.Unmarshal(d.Body, bread)
 			if err != nil {
 				log.Printf("Failed to unmarshal bread data: %v", err)
@@ -292,7 +293,17 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 				}
 			}
 
-			breadBought.Breads = append(breadBought.Breads, bread)
+			breadGRPC.Name = bread.Name
+			breadGRPC.Quantity = int32(bread.Quantity)
+			breadGRPC.Description = bread.Description
+			breadGRPC.Price = bread.Price
+			breadGRPC.Image = bread.Image
+			breadGRPC.Type = bread.Type
+			breadGRPC.Id = string(int32(bread.ID))
+			breadGRPC.Status = bread.Status
+			breadGRPC.CreatedAt = bread.CreatedAt.String()
+
+			breadBought.Breads = append(breadBought.Breads, breadGRPC)
 
 			err = d.Ack(false)
 			if err != nil {
