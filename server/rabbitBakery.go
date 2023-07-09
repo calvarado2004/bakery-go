@@ -54,6 +54,19 @@ func init() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	// Declare the RabbitMQ bread-bought as durable
+	_, err = rabbitmqChannel.QueueDeclare(
+		"bread-bought", // name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
 }
 
 // checkBread checks if there is enough bread left in the bakery, if not, it orders more
@@ -260,6 +273,22 @@ func performBuyBread(pgConn *sql.DB) {
 					return
 				}
 				log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
+
+				breadData, err := json.Marshal(&bread)
+				if err != nil {
+					return
+				}
+
+				err = rabbitmqChannel.Publish(
+					"",             // exchange
+					"bread-bought", // routing key
+					false,          // mandatory
+					false,          // immediate
+					rabbitmq.Publishing{
+						ContentType:  "text/json",
+						Body:         breadData,
+						DeliveryMode: rabbitmq.Persistent,
+					})
 			}
 
 			order, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
@@ -273,6 +302,7 @@ func performBuyBread(pgConn *sql.DB) {
 			}
 
 			log.Printf("Buy order with ID %v placed", order)
+
 		} else {
 			log.Printf("Not all bread is available, requeuing the buy order")
 			err = buyOrder.Nack(false, true) // requeue message
