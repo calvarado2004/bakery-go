@@ -130,3 +130,19 @@ CREATE TABLE public.orders_processed (
 );
 
 ALTER TABLE public.orders_processed_id_seq OWNER TO postgres;
+
+
+INSERT INTO public.customer (name, email, password, created_at, updated_at) VALUES (
+    'John Doe',
+    'john@doe.com',
+    '123456',
+    now(),
+    now()
+    );
+
+INSERT INTO public.bread_maker (name, email, created_at, updated_at) VALUES (
+    'Jake Maker',
+    'jake@maker.com',
+    now(),
+    now()
+    );

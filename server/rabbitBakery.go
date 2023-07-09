@@ -297,6 +297,13 @@ func performBuyBread(pgConn *sql.DB) {
 					})
 			}
 
+			buyOrderType.CustomerID = 1
+			buyOrderType.Customer = data.Customer{
+				Name:  "John Doe",
+				Email: "john@doe.com",
+				ID:    1,
+			}
+
 			order, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 			if err != nil {
 				log.Printf("Failed to insert buy order to db: %v", err)
