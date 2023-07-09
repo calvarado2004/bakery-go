@@ -13,8 +13,7 @@ import (
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
 var (
-	checkInventoryClient pb.CheckInventoryClient
-	buyBreadClient       pb.BuyBreadClient
+	buyBreadClient pb.BuyBreadClient
 )
 
 func main() {
@@ -32,6 +31,8 @@ func main() {
 	}(grpcConn)
 
 	for true {
+		log.Println("Iterating to buy bread...")
+		time.Sleep(15 * time.Second)
 		buySomeBread(grpcConn)
 	}
 
@@ -105,9 +106,5 @@ func buySomeBread(conn *grpc.ClientConn) {
 		log.Printf("Failed to buy bread: %v\n", err)
 	}
 
-	time.Sleep(30 * time.Second)
-
 	log.Printf("Bread bought: %v", response.Breads.GetBreads())
-
-	return
 }
