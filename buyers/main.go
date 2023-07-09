@@ -102,13 +102,12 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	response, err := buyBreadClient.BuyBread(context.Background(), &request)
 	if err != nil {
-		log.Fatalf("Failed to buy bread: %v", err)
+		log.Printf("Failed to buy bread: %v\n", err)
 	}
 
 	time.Sleep(30 * time.Second)
 
 	log.Printf("Bread bought: %v", response.Breads.GetBreads())
 
-	time.Sleep(5 * time.Second)
-
+	return
 }
