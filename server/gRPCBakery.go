@@ -298,6 +298,8 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 
 			message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
 
+			log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
+
 			err = d.Ack(false)
 			if err != nil {
 				log.Printf("Failed to Ack message: %v", err)
