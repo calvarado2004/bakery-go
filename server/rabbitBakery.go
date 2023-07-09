@@ -299,12 +299,12 @@ func performBuyBread(pgConn *sql.DB) {
 
 			order, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 			if err != nil {
-				return
+				log.Printf("Failed to insert buy order to db: %v", err)
 			}
 
 			err = buyOrder.Ack(false)
 			if err != nil {
-				return
+				log.Printf("Failed to ack buy order on queue: %v", err)
 			}
 
 			log.Printf("Buy order with ID %v placed", order)
