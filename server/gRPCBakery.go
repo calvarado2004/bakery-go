@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -240,7 +239,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		breadDB.Image = bread.Image
 		breadDB.Type = bread.Type
 		breadDB.UpdatedAt = time.Now()
-		breadDB.ID, _ = strconv.Atoi(bread.Id)
+		breadDB.ID = int(bread.Id)
 		breadDB.Status = "Bought"
 		buyOrder.Breads = append(buyOrder.Breads, breadDB)
 
@@ -301,7 +300,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 			breadGRPC.Price = bread.Price
 			breadGRPC.Image = bread.Image
 			breadGRPC.Type = bread.Type
-			breadGRPC.Id = string(int32(bread.ID))
+			breadGRPC.Id = int32(bread.ID)
 			breadGRPC.Status = bread.Status
 			breadGRPC.CreatedAt = bread.CreatedAt.String()
 

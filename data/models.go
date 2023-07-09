@@ -25,7 +25,7 @@ func NewPostgresRepository(pool *sql.DB) *PostgresRepository {
 }
 
 type Customer struct {
-	ID        int        `json:"primary_key"`
+	ID        int        `json:"id"`
 	Name      string     `json:"name"`
 	Email     string     `json:"email"`
 	Password  string     `json:"password"`
@@ -35,7 +35,7 @@ type Customer struct {
 }
 
 type Bread struct {
-	ID          int       `json:"primary_key"`
+	ID          int       `json:"id"`
 	Name        string    `json:"name"`
 	Price       float32   `json:"price"`
 	Quantity    int       `json:"quantity"`
@@ -48,14 +48,14 @@ type Bread struct {
 }
 
 type BuyOrder struct {
-	ID         int      `json:"primary_key"`
+	ID         int      `json:"id"`
 	CustomerID int      `json:"customer_id"`
 	Customer   Customer `json:"customer"`
 	Breads     []Bread  `json:"breads"`
 }
 
 type OrdersProcessed struct {
-	ID         int       `json:"primary_key"`
+	ID         int       `json:"id"`
 	CustomerID int       `json:"customer_id"`
 	BuyOrderID int       `json:"buy_order_id"`
 	Customer   Customer  `json:"customer"`
@@ -65,7 +65,7 @@ type OrdersProcessed struct {
 }
 
 type BreadMaker struct {
-	ID         int         `json:"primary_key"`
+	ID         int         `json:"id"`
 	Name       string      `json:"name"`
 	Email      string      `json:"email"`
 	CreatedAt  time.Time   `json:"created_at"`
@@ -74,7 +74,7 @@ type BreadMaker struct {
 }
 
 type MakeOrder struct {
-	ID           int        `json:"primary_key"`
+	ID           int        `json:"id"`
 	BreadMakerID int        `json:"bread_maker_id"`
 	BreadMaker   BreadMaker `json:"bread_maker"`
 	Breads       []Bread    `json:"breads"`

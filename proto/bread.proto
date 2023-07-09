@@ -8,15 +8,44 @@ option go_package = "github.com/calvarado2004/bakery-go/bread";
 
 
 message Bread {
-    string name = 1;
-    string description = 2;
+    int32 id = 1;
+    string name = 2;
     float price = 3;
     int32 quantity = 4;
-    string image = 5;
+    string description = 5;
     string type = 6;
-    string id = 7;
+    string status = 7;
     string createdAt = 8;
-    string status = 11;
+    string updatedAt = 9;
+    string image = 10;
+}
+
+message BuyOrder {
+  int32 id = 1;
+  int32 customerId = 2;
+}
+
+message BuyOrderDetails {
+  int32 buyOrderId = 1;
+  int32 breadId = 2;
+  int32 quantity = 3;
+  float price = 4;
+}
+
+message BuyOrderList {
+  repeated BuyOrder buyOrders = 1;
+}
+
+message MakeOrder {
+  int32 id = 1;
+  int32 breadMakerId = 2;
+}
+
+message MakeOrderDetails {
+  int32 makeOrderId = 1;
+  int32 breadId = 2;
+  int32 quantity = 3;
+  float price = 4;
 }
 
 message BreadList {
