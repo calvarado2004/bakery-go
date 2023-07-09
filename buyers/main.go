@@ -107,7 +107,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	time.Sleep(30 * time.Second)
 
-	log.Printf("Bread bought: %v", response.Breads)
+	log.Printf("Bread bought: %v", response.Breads.GetBreads())
 
 	time.Sleep(5 * time.Second)
 
