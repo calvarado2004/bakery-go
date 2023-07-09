@@ -217,7 +217,17 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 
 	buyOrder := data.BuyOrder{}
 
+	buyerCustomer := data.Customer{
+		ID:        1,
+		Name:      "John Doe",
+		Email:     "john@doe.com",
+		CreatedAt: time.Now(),
+	}
+
 	var breadBought pb.BreadList
+
+	buyOrder.CustomerID = 1
+	buyOrder.Customer = buyerCustomer
 
 	for _, bread := range breadsToBuy {
 		log.Println("Buying bread", bread.Name)
