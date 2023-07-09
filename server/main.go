@@ -113,6 +113,7 @@ func main() {
 
 	// Check bread every 10 seconds in the background
 	go func() {
+		log.Println("Starting to check bread")
 		for {
 			err := checkBread(pgConn)
 			if err != nil {
@@ -120,6 +121,12 @@ func main() {
 			}
 			time.Sleep(10 * time.Second)
 		}
+	}()
+
+	// Start listening for buy bread orders
+	go func() {
+		log.Println("Starting to listen for buy bread orders")
+		performBuyBread(pgConn)
 	}()
 
 	// Start gRPC Server
