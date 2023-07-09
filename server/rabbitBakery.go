@@ -268,6 +268,7 @@ func performBuyBread(pgConn *sql.DB) {
 		}
 
 		if allBreadAvailable {
+			log.Println("All bread available, processing order")
 			for _, bread := range buyOrderType.Breads {
 				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
 				if err != nil {

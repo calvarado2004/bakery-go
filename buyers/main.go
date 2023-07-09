@@ -42,23 +42,43 @@ func buySomeBread(conn *grpc.ClientConn) {
 	buyBreadClient = pb.NewBuyBreadClient(conn)
 
 	pretzelBread := &pb.Bread{
-		Name:     "Pretzel",
-		Quantity: 2,
+		Name:        "Pretzel",
+		Quantity:    2,
+		Price:       2.49,
+		Description: "Pretzel, a classic bakery bread with a salty taste",
+		Type:        "Salty Bread",
+		Status:      "available",
+		Image:       "https://cdn.pixabay.com/photo/2017/09/05/17/18/pretzel-2718477_1280.jpg",
 	}
 
 	baguetteBread := &pb.Bread{
-		Name:     "Baguette",
-		Quantity: 2,
+		Name:        "Baguette",
+		Quantity:    2,
+		Price:       1.49,
+		Description: "Baguette, a classic bakery bread with a long shape",
+		Type:        "French Bread",
+		Status:      "available",
+		Image:       "hhttps://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
 	}
 
 	cinnamonBread := &pb.Bread{
-		Name:     "Cinnamon Roll",
-		Quantity: 2,
+		Name:        "Cinnamon Roll",
+		Quantity:    2,
+		Price:       2.99,
+		Description: "Cinnamon Roll, a classic bakery bread with cinnamon and sugar",
+		Type:        "Sweet Bread",
+		Status:      "available",
+		Image:       "https://cdn.pixabay.com/photo/2019/12/25/17/55/cinnamon-roll-4719023_1280.jpg",
 	}
 
 	croissantBread := &pb.Bread{
-		Name:     "Croissant",
-		Quantity: 2,
+		Name:        "Croissant",
+		Quantity:    1,
+		Price:       1.19,
+		Description: "Croissant, a classic bakery bread with a buttery taste",
+		Type:        "Buttery Bread",
+		Status:      "available",
+		Image:       "https://cdn.pixabay.com/photo/2012/02/29/12/17/bread-18987_1280.jpg",
 	}
 
 	breadList := pb.BreadList{
