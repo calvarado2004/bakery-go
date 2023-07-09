@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
+	"time"
 )
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -16,6 +17,8 @@ var (
 )
 
 func main() {
+	// Create a channel to control the buying attempts
+	buyBreadChan := make(chan bool)
 
 	// Connect to the gRPC server
 	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -29,11 +32,21 @@ func main() {
 		}
 	}(grpcConn)
 
+	// Start a goroutine to buy bread
+	go func() {
+		for {
+			// Wait for a signal to buy bread
+			<-buyBreadChan
+			buySomeBread(grpcConn)
+		}
+	}()
+
+	// Regularly signal the goroutine to buy bread
 	for true {
 		log.Println("Iterating to buy bread...")
-		buySomeBread(grpcConn)
+		buyBreadChan <- true
+		time.Sleep(10 * time.Second)
 	}
-
 }
 
 func buySomeBread(conn *grpc.ClientConn) {
