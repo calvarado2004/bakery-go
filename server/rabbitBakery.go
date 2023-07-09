@@ -273,11 +273,12 @@ func performBuyBread(pgConn *sql.DB) {
 		if allBreadAvailable {
 			log.Println("All bread available, processing order")
 			for _, bread := range buyOrderType.Breads {
-				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, -quantityChange)
+				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
 					return
 				}
 				log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
+				log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)
 
 				breadData, err := json.Marshal(&bread)
 				if err != nil {
