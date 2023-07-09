@@ -275,7 +275,7 @@ func performBuyBread(pgConn *sql.DB) {
 			for _, bread := range buyOrderType.Breads {
 				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
-					return
+					log.Printf("Failed to adjust bread quantity: %v", err)
 				}
 				log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
 				log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)

@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -49,6 +50,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 		Type:        "Salty Bread",
 		Status:      "available",
 		Image:       "https://cdn.pixabay.com/photo/2017/09/05/17/18/pretzel-2718477_1280.jpg",
+		Id:          strconv.Itoa(4),
 	}
 
 	baguetteBread := &pb.Bread{
@@ -59,6 +61,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 		Type:        "French Bread",
 		Status:      "available",
 		Image:       "hhttps://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
+		Id:          strconv.Itoa(3),
 	}
 
 	cinnamonBread := &pb.Bread{
@@ -69,6 +72,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 		Type:        "Sweet Bread",
 		Status:      "available",
 		Image:       "https://cdn.pixabay.com/photo/2019/12/25/17/55/cinnamon-roll-4719023_1280.jpg",
+		Id:          strconv.Itoa(1),
 	}
 
 	croissantBread := &pb.Bread{
@@ -79,6 +83,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 		Type:        "Buttery Bread",
 		Status:      "available",
 		Image:       "https://cdn.pixabay.com/photo/2012/02/29/12/17/bread-18987_1280.jpg",
+		Id:          strconv.Itoa(6),
 	}
 
 	breadList := pb.BreadList{

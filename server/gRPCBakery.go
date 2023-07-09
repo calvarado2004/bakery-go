@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -239,6 +240,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		breadDB.Image = bread.Image
 		breadDB.Type = bread.Type
 		breadDB.UpdatedAt = time.Now()
+		breadDB.ID, _ = strconv.Atoi(bread.Id)
 		breadDB.Status = "Bought"
 		buyOrder.Breads = append(buyOrder.Breads, breadDB)
 
