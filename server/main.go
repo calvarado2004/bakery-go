@@ -135,16 +135,15 @@ func main() {
 		}
 	}()
 
-	// Regularly signal the goroutine to buy bread
-	for true {
-		log.Println("Iterating to buy bread...")
-		buyBreadChan <- true
-		time.Sleep(5 * time.Second)
-	}
-
 	// Start gRPC Server
 	if err = server.Serve(listen); err != nil {
 		log.Fatalf("Failed to serve gRPC server over %v", err)
 	}
 
+	// Regularly signal the goroutine to buy bread
+	for true {
+		log.Println("Iterating to buy bread...")
+		buyBreadChan <- true
+		time.Sleep(2 * time.Second)
+	}
 }
