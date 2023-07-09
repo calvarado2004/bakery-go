@@ -7,7 +7,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
-	"time"
 )
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -32,7 +31,6 @@ func main() {
 
 	for true {
 		log.Println("Iterating to buy bread...")
-		time.Sleep(15 * time.Second)
 		buySomeBread(grpcConn)
 	}
 
@@ -104,6 +102,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 	response, err := buyBreadClient.BuyBread(context.Background(), &request)
 	if err != nil {
 		log.Printf("Failed to buy bread: %v\n", err)
+		return
 	}
 
 	log.Printf("Bread bought: %v", response.Breads.GetBreads())
