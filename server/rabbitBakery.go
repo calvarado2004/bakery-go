@@ -254,6 +254,8 @@ func performBuyBread(pgConn *sql.DB) {
 
 		allBreadAvailable := true // Initialize the flag
 
+		quantityChange := 0
+
 		for _, breadAvailable := range availableBread {
 			for _, bread := range buyOrderType.Breads {
 				if breadAvailable.Name == bread.Name {
@@ -261,7 +263,8 @@ func performBuyBread(pgConn *sql.DB) {
 						allBreadAvailable = false // If not enough bread, set the flag to false
 						log.Printf("Bread %s does not have enough quantity, required: %d, available: %d", bread.Name, bread.Quantity, breadAvailable.Quantity)
 					} else {
-						bread.Quantity = breadAvailable.Quantity - bread.Quantity
+						quantityChange = breadAvailable.Quantity - bread.Quantity
+
 					}
 				}
 			}
@@ -270,7 +273,7 @@ func performBuyBread(pgConn *sql.DB) {
 		if allBreadAvailable {
 			log.Println("All bread available, processing order")
 			for _, bread := range buyOrderType.Breads {
-				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
+				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, -quantityChange)
 				if err != nil {
 					return
 				}
