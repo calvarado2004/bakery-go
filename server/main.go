@@ -106,6 +106,9 @@ func main() {
 
 	reflection.Register(server)
 
+	// Create a channel to control the buying attempts
+	buyBreadChan := make(chan bool)
+
 	pgConn := connectToDB()
 	if pgConn == nil {
 		log.Panic("Could not connect to database")
@@ -123,11 +126,21 @@ func main() {
 		}
 	}()
 
-	// Start listening for buy bread orders
+	// Start a goroutine to buy bread
 	go func() {
-		log.Println("Starting to listen for buy bread orders")
-		performBuyBread(pgConn)
+		for {
+			// Wait for a signal to buy bread
+			<-buyBreadChan
+			performBuyBread(pgConn)
+		}
 	}()
+
+	// Regularly signal the goroutine to buy bread
+	for true {
+		log.Println("Iterating to buy bread...")
+		buyBreadChan <- true
+		time.Sleep(5 * time.Second)
+	}
 
 	// Start gRPC Server
 	if err = server.Serve(listen); err != nil {
