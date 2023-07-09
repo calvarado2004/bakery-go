@@ -294,7 +294,22 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 				log.Printf("Failed to unmarshal buy order data: %v", err)
 			}
 
+			buyOrder.Breads = buyOrderType.Breads
+
 			buyOrder.ID = buyOrderType.ID
+
+			for _, bread := range buyOrder.Breads {
+
+				breadBought.Breads = append(breadBought.Breads, &pb.Bread{
+					Id:          int32(bread.ID),
+					Name:        bread.Name,
+					Quantity:    int32(bread.Quantity),
+					Description: bread.Description,
+					Price:       bread.Price,
+					Image:       bread.Image,
+					Type:        bread.Type,
+				})
+			}
 
 			message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
 
@@ -310,8 +325,6 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 				Message: message,
 			}
 
-			// Break after sending response to prevent blocking
-			break
 		}
 
 	}()
