@@ -208,8 +208,9 @@ func initializeBakery(pgConn *sql.DB) {
 	}
 
 	breadMaker := data.BreadMaker{
-		Name:      "Bread Maker",
-		Email:     "bread@maker.com",
+		ID:        2,
+		Name:      "Another Bread Maker",
+		Email:     "another_bread@maker.com",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -280,21 +281,6 @@ func performBuyBread(pgConn *sql.DB) {
 				log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
 				log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)
 
-				breadData, err := json.Marshal(&bread)
-				if err != nil {
-					return
-				}
-
-				err = rabbitmqChannel.Publish(
-					"",             // exchange
-					"bread-bought", // routing key
-					false,          // mandatory
-					false,          // immediate
-					rabbitmq.Publishing{
-						ContentType:  "text/json",
-						Body:         breadData,
-						DeliveryMode: rabbitmq.Persistent,
-					})
 			}
 
 			buyOrderType.CustomerID = 1
@@ -304,17 +290,35 @@ func performBuyBread(pgConn *sql.DB) {
 				ID:    1,
 			}
 
-			order, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
+			buyOrderID, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 			if err != nil {
 				log.Printf("Failed to insert buy order to db: %v", err)
 			}
+
+			buyOrderType.ID = buyOrderID
 
 			err = buyOrder.Ack(false)
 			if err != nil {
 				log.Printf("Failed to ack buy order on queue: %v", err)
 			}
 
-			log.Printf("Buy order with ID %v placed", order)
+			log.Printf("Buy order with ID %v placed", buyOrderID)
+
+			buyOrderData, err := json.Marshal(&buyOrderType)
+			if err != nil {
+				return
+			}
+
+			err = rabbitmqChannel.Publish(
+				"",             // exchange
+				"bread-bought", // routing key
+				false,          // mandatory
+				false,          // immediate
+				rabbitmq.Publishing{
+					ContentType:  "text/json",
+					Body:         buyOrderData,
+					DeliveryMode: rabbitmq.Persistent,
+				})
 
 		} else {
 			log.Printf("Not all bread is available, requeuing the buy order")
