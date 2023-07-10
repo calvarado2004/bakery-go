@@ -118,7 +118,7 @@ func main() {
 // BakeryServer Go functions to run in the background
 func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
 
-	// Check bread every 10 seconds in the background and publish to RabbitMQ message queue make-bread-order when needed
+	// Check bread every 30 seconds in the background and publish to RabbitMQ message queue make-bread-order when needed
 	go func() {
 		log.Println("Starting to check bread")
 		for {
@@ -126,7 +126,7 @@ func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
 			if err != nil {
 				log.Printf("Failed to check bread: %v", err)
 			}
-			time.Sleep(40 * time.Second)
+			time.Sleep(30 * time.Second)
 		}
 	}()
 
