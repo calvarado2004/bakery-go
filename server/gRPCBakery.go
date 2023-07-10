@@ -269,9 +269,10 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 	select {
 	case response := <-responseCh:
 		return response, nil
-	case <-time.After(10 * time.Second):
 
-		return nil, status.Errorf(codes.Internal, "Failed to get bread response after 10 seconds: %v", err)
+	case <-time.After(20 * time.Second):
+
+		return nil, status.Errorf(codes.Internal, "Failed to get bread response after 20 seconds: %v", err)
 	}
 
 }
