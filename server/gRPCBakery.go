@@ -266,50 +266,37 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 
 	getBuyResponse(responseCh)
 
-	select {
-	case response := <-responseCh:
-		return response, nil
-
-	case <-time.After(30 * time.Second):
-
-		return nil, status.Errorf(codes.Internal, "Failed to get bread response after 30 seconds: %v", err)
-	}
+	// Return a response immediately.
+	// This response just indicates that the buying process has started.
+	return &pb.BreadResponse{Message: "Bread buying process started, you'll receive the order that will be settled later."}, nil
 
 }
 
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
 
-	breadsBought, err := rabbitmqChannel.Consume(
-		"bread-bought", // queue
-		"",             // consumer
-		false,          // auto-ack
-		false,          // exclusive
-		false,          // no-local
-		false,          // no-wait
-		nil,            // args
-	)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to consume from bought breads queue: %v", err)
-	}
+	// Make the response channel
+	responseCh := make(chan *pb.BreadResponse)
 
-	for d := range breadsBought {
-		bread := &pb.Bread{}
-		err := json.Unmarshal(d.Body, bread)
-		if err != nil {
-			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
-		}
+	// Start the goroutine to listen for bread buy responses
+	go getBuyResponse(responseCh)
 
-		breadResponse := &pb.BreadResponse{Breads: &pb.BreadList{Breads: []*pb.Bread{bread}}}
-		if err := stream.Send(breadResponse); err != nil {
-			return err
-		}
-		err = d.Ack(false)
-		if err != nil {
-			return err
+	// Continuously listen for updates on the responseCh and stream them to the client
+	for {
+		select {
+		case response, ok := <-responseCh:
+			if !ok {
+				// If the channel has been closed, return
+				return nil
+			}
+			// Send the response to the client
+			if err := stream.Send(response); err != nil {
+				return err
+			}
+		case <-stream.Context().Done():
+			// If the client has closed the connection, return
+			return stream.Context().Err()
 		}
 	}
-
-	return nil
 }
 
 func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {

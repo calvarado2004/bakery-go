@@ -5,6 +5,7 @@ import (
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -31,6 +32,15 @@ func main() {
 			log.Println("Failed to close gRPC connection: ", err)
 		}
 	}(grpcConn)
+
+	buyBreadClient = pb.NewBuyBreadClient(grpcConn)
+
+	// Start a goroutine to receive the BuyBreadStream
+	go func() {
+		for {
+			buyBreadStream(grpcConn)
+		}
+	}()
 
 	// Start a goroutine to buy bread
 	go func() {
@@ -118,5 +128,36 @@ func buySomeBread(conn *grpc.ClientConn) {
 		return
 	}
 
+	log.Printf("Buying bread started: %v", response.Breads.GetBreads())
+
 	log.Printf("Bread bought: %v", response.Breads.GetBreads())
+}
+
+// Function to receive and handle the BuyBreadStream
+func buyBreadStream(conn *grpc.ClientConn) {
+	breadReq := &pb.BreadRequest{
+		// Fill your BreadRequest if needed
+	}
+
+	stream, err := buyBreadClient.BuyBreadStream(context.Background(), breadReq)
+	if err != nil {
+		log.Printf("Failed to start BuyBreadStream: %v", err)
+		return
+	}
+
+	// Consume the stream
+	for {
+		response, err := stream.Recv()
+		if err == io.EOF {
+			// If we've received all updates, break out of the loop
+			break
+		}
+		if err != nil {
+			log.Printf("Failed to receive update: %v", err)
+			return
+		}
+
+		// Process the response
+		log.Printf("Received bread response: %v", response)
+	}
 }
