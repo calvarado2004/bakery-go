@@ -130,7 +130,6 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	log.Printf("Buying bread started: %v", response.Breads.GetBreads())
 
-	log.Printf("Bread bought: %v", response.Breads.GetBreads())
 }
 
 // Function to receive and handle the BuyBreadStream
@@ -158,6 +157,6 @@ func buyBreadStream(conn *grpc.ClientConn) {
 		}
 
 		// Process the response
-		log.Printf("Received bread response: %v", response)
+		log.Printf("Received bread response that has been settled: %v", response)
 	}
 }
