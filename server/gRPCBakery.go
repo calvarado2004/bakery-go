@@ -327,6 +327,8 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 
 		}
 
+		select {}
+
 	}()
 
 	// Wait for response from goroutine
