@@ -243,6 +243,8 @@ func performBuyBread(pgConn *sql.DB) {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
+	log.Printf("Listening for buy bread orders into RabbitMQ queue...")
+
 	for buyOrder := range buyOrderMessage {
 		buyOrderType := data.BuyOrder{}
 		err := json.Unmarshal(buyOrder.Body, &buyOrderType)
@@ -250,6 +252,8 @@ func performBuyBread(pgConn *sql.DB) {
 			log.Printf("Failed to unmarshal buy order: %v", err)
 			continue
 		}
+
+		log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
 		availableBread, err := data.NewPostgresRepository(pgConn).GetAvailableBread()
 		if err != nil {
@@ -333,8 +337,6 @@ func performBuyBread(pgConn *sql.DB) {
 				return
 			}
 		}
-
-		time.Sleep(5 * time.Second)
 
 	}
 }
