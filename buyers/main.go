@@ -45,7 +45,7 @@ func main() {
 	for true {
 		log.Println("Iterating to buy bread...")
 		buyBreadChan <- true
-		time.Sleep(10 * time.Second)
+		time.Sleep(35 * time.Second)
 	}
 }
 
