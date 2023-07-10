@@ -28,7 +28,7 @@ func init() {
 		log.Fatalf("Failed to open a channel: %v", err)
 	}
 
-	// Declare the RabbitMQ make-bread-orderqueue as durable
+	// Declare the RabbitMQ make-bread-order queue as durable
 	_, err = rabbitmqChannel.QueueDeclare(
 		"make-bread-order", // name
 		true,               // durable
@@ -113,6 +113,9 @@ func checkBread(pgConn *sql.DB) error {
 					Body:         breadData,
 					DeliveryMode: rabbitmq.Persistent,
 				})
+			if err != nil {
+				return status.Errorf(codes.Internal, "Failed to publish a message: %v", err)
+			}
 
 			breadMakeOrder.Breads = append(breadMakeOrder.Breads, bread)
 			order, err := data.NewPostgresRepository(pgConn).InsertMakeOrder(breadMakeOrder, breads)
@@ -160,7 +163,7 @@ func initializeBakery(pgConn *sql.DB) {
 			Description: "Baguette, a classic bakery bread with a long shape",
 			Type:        "French Bread",
 			Status:      "available",
-			Image:       "hhttps://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
+			Image:       "https://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
 		},
 		{
 			Name:        "Pretzel",
@@ -319,6 +322,9 @@ func performBuyBread(pgConn *sql.DB) {
 					Body:         buyOrderData,
 					DeliveryMode: rabbitmq.Persistent,
 				})
+			if err != nil {
+				log.Printf("Failed to publish buy order: %v", err)
+			}
 
 		} else {
 			log.Printf("Not all bread is available, requeuing the buy order")
@@ -328,7 +334,7 @@ func performBuyBread(pgConn *sql.DB) {
 			}
 		}
 
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 
 	}
 }

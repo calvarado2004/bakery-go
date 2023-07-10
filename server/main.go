@@ -111,7 +111,14 @@ func main() {
 		log.Panic("Could not connect to database")
 	}
 
-	// Check bread every 10 seconds in the background
+	BakeryServer(pgConn, listen, server)
+
+}
+
+// BakeryServer Go functions to run in the background
+func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
+
+	// Check bread every 10 seconds in the background and publish to RabbitMQ message queue make-bread-order when needed
 	go func() {
 		log.Println("Starting to check bread")
 		for {
@@ -123,43 +130,23 @@ func main() {
 		}
 	}()
 
-	buyBreadChannel(pgConn, listen, server)
-
-}
-
-func buyBreadChannel(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
-	buyBreadChan := make(chan bool)
-	// Start a goroutine to buy bread
+	// Consume from RabbitMQ message queue buy-bread-order and perform buy bread
 	go func() {
-		for {
-			// Wait for a signal to buy bread
-			<-buyBreadChan
-			performBuyBread(pgConn)
-			time.Sleep(5 * time.Second)
-		}
 
-		log.Printf("exiting from the for loop to buy bread, up")
+		performBuyBread(pgConn)
 
 	}()
 
+	// Start gRPC Server in the background
 	go func() {
-		// Regularly signal the goroutine to buy bread
-		for {
-			log.Println("Iterating to buy bread...")
-			buyBreadChan <- true
+
+		// Start gRPC Server
+		if err := server.Serve(listen); err != nil {
+			log.Fatalf("Failed to serve gRPC server over %v", err)
 		}
 
-		log.Printf("exiting from the for loop to buy bread, down")
-
 	}()
-
-	// Start gRPC Server
-	if err := server.Serve(listen); err != nil {
-		log.Fatalf("Failed to serve gRPC server over %v", err)
-	}
 
 	select {}
-
-	log.Printf("exiting from the for loop to buy bread, final")
 
 }
