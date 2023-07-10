@@ -325,9 +325,9 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 				Message: message,
 			}
 
-		}
+			select {}
 
-		select {}
+		}
 
 	}()
 
