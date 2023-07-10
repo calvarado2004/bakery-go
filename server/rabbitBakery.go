@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -339,4 +341,70 @@ func performBuyBread(pgConn *sql.DB) {
 		}
 
 	}
+}
+
+func getBuyResponse(responseCh chan *pb.BreadResponse) {
+
+	go func() { // start a goroutine
+		buyOrder := data.BuyOrder{}
+
+		breadsBought, err := rabbitmqChannel.Consume(
+			"bread-bought", // queue
+			"",             // consumer
+			false,          // auto-ack
+			false,          // exclusive
+			false,          // no-local
+			false,          // no-wait
+			nil,            // args
+		)
+
+		if err != nil {
+			log.Printf("Failed to consume from bought breads queue: %v", err)
+		}
+
+		for d := range breadsBought {
+			var breadBought pb.BreadList
+			var message string
+
+			buyOrderType := data.BuyOrder{}
+
+			err := json.Unmarshal(d.Body, &buyOrderType)
+			if err != nil {
+				log.Printf("Failed to unmarshal buy order data: %v", err)
+			}
+
+			buyOrder.Breads = buyOrderType.Breads
+
+			buyOrder.ID = buyOrderType.ID
+
+			for _, bread := range buyOrder.Breads {
+
+				breadBought.Breads = append(breadBought.Breads, &pb.Bread{
+					Id:          int32(bread.ID),
+					Name:        bread.Name,
+					Quantity:    int32(bread.Quantity),
+					Description: bread.Description,
+					Price:       bread.Price,
+					Image:       bread.Image,
+					Type:        bread.Type,
+				})
+			}
+
+			message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
+
+			log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
+
+			err = d.Ack(false)
+			if err != nil {
+				log.Printf("Failed to Ack message: %v", err)
+			}
+
+			response := &pb.BreadResponse{
+				Breads:  &breadBought,
+				Message: message,
+			}
+
+			responseCh <- response // send the response to the channel
+		}
+	}() // end of goroutine
 }
