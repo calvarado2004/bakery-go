@@ -126,7 +126,7 @@ func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
 			if err != nil {
 				log.Printf("Failed to check bread: %v", err)
 			}
-			time.Sleep(10 * time.Second)
+			time.Sleep(40 * time.Second)
 		}
 	}()
 

@@ -130,8 +130,6 @@ func checkBread(pgConn *sql.DB) error {
 
 	}
 
-	time.Sleep(30 * time.Second)
-
 	return nil
 
 }
