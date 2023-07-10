@@ -264,12 +264,31 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 
 	responseCh := make(chan *pb.BreadResponse)
 
+	// Execute the function getBuyResponse as a goroutine and pass the response channel
 	getBuyResponse(responseCh)
 
-	// Return a response immediately.
-	// This response just indicates that the buying process has started.
-	return &pb.BreadResponse{Message: "Bread buying process started, you'll receive the order that will be settled later."}, nil
+	// Create an array to store the bought breads
+	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
 
+	// Convert each bought bread to the protobuf version and store in the array
+	for i, boughtBread := range buyOrder.Breads {
+		boughtBreads[i] = &pb.Bread{
+			Name:        boughtBread.Name,
+			Description: boughtBread.Description,
+			Price:       boughtBread.Price,
+			Quantity:    int32(boughtBread.Quantity),
+			Type:        boughtBread.Type,
+			Image:       boughtBread.Image,
+			Status:      boughtBread.Status,
+			Id:          int32(boughtBread.ID),
+		}
+	}
+
+	// Include the bought breads in the response
+	return &pb.BreadResponse{
+		Message: "Bread buying process started, you'll receive the order that will be settled later.",
+		Breads:  &pb.BreadList{Breads: boughtBreads},
+	}, nil
 }
 
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
