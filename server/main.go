@@ -19,22 +19,19 @@ import (
 
 type MakeBreadServer struct {
 	pb.MakeBreadServer
-	Config
 }
 
 type CheckInventoryServer struct {
 	pb.CheckInventoryServer
-	Config
+	PgConn *sql.DB
 }
 
 type BuyBreadServer struct {
 	pb.BuyBreadServer
-	Config
 }
 
 type RemoveOldBreadServer struct {
 	pb.RemoveOldBreadServer
-	Config
 }
 
 type Config struct {
@@ -102,18 +99,20 @@ func main() {
 
 	log.Printf("Server listening on %v", gRPCAddress)
 
-	server := grpc.NewServer()
-	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
-	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
-	pb.RegisterCheckInventoryServer(server, &CheckInventoryServer{})
-	pb.RegisterRemoveOldBreadServer(server, &RemoveOldBreadServer{})
-
-	reflection.Register(server)
-
 	pgConn := connectToDB()
 	if pgConn == nil {
 		log.Panic("Could not connect to database")
 	}
+
+	server := grpc.NewServer()
+	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
+	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
+	pb.RegisterCheckInventoryServer(server, &CheckInventoryServer{
+		PgConn: pgConn,
+	})
+	pb.RegisterRemoveOldBreadServer(server, &RemoveOldBreadServer{})
+
+	reflection.Register(server)
 
 	BakeryServer(pgConn, listen, server)
 
