@@ -248,8 +248,6 @@
   <script src="./static/lib/counterup/counterup.min.js"></script>
   <script src="./static/lib/owlcarousel/owl.carousel.min.js"></script>
   <script>
-    {{/* this comment tells Go to ignore the following block as it is client-side JavaScript */}}
-
     var breadContainer = document.getElementById('breadContainer');
     var breads = {}; // we will store the bread objects here by their name
     var source = new EventSource("/stream");
@@ -259,8 +257,8 @@
       <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
         <div class="product-item d-flex flex-column bg-white rounded overflow-hidden h-100">
           <div class="text-center p-4">
-            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3">$${log.Price}</div>
-            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3">${log.Quantity} left</div>
+            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3 go-price">$${log.Price}</div>
+            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3 go-quantity">${log.Quantity} left</div>
             <h3 class="mb-3">${log.Name}</h3>
             <span>${log.Message}</span>
           </div>
@@ -284,7 +282,9 @@
       } else { // If it already exists
         breads[log.Name] = log; // we update the object
         var breadDiv = document.getElementById(log.Name); // we find its div
-        breadDiv.querySelector('.quantity').innerText = log.Quantity + ' left'; // we update the quantity on the page
+        breadDiv.querySelector('.go-quantity').innerText = log.Quantity + ' left'; // we update the quantity on the page
+        breadDiv.querySelector('.go-price').innerText = "$" + log.Price; // we update the quantity on the page
+
       }
     };
   </script>
