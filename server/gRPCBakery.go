@@ -155,20 +155,22 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 	breadList := pb.BreadList{}
 
 	for _, bread := range breads {
-		breadResponse := pb.Bread{}
-		breadResponse.Name = bread.Name
-		breadResponse.Quantity = int32(bread.Quantity)
-		breadResponse.Status = bread.Status
-		breadResponse.CreatedAt = bread.CreatedAt.String()
-		breadResponse.UpdatedAt = bread.UpdatedAt.String()
-		breadResponse.Description = bread.Description
-		breadResponse.Price = bread.Price
-		breadResponse.Image = bread.Image
-		breadResponse.Type = bread.Type
-		breadResponse.Id = int32(bread.ID)
-		breadList.Breads = append(breadList.Breads, &breadResponse)
+		breadgRPC := pb.Bread{}
+		breadgRPC.Name = bread.Name
+		breadgRPC.Quantity = int32(bread.Quantity)
+		breadgRPC.Status = bread.Status
+		breadgRPC.CreatedAt = bread.CreatedAt.String()
+		breadgRPC.UpdatedAt = bread.UpdatedAt.String()
+		breadgRPC.Description = bread.Description
+		breadgRPC.Price = bread.Price
+		breadgRPC.Image = bread.Image
+		breadgRPC.Type = bread.Type
+		breadgRPC.Id = int32(bread.ID)
+		breadList.Breads = append(breadList.Breads, &breadgRPC)
 
 	}
+
+	breadsResponse.Breads = &breadList
 
 	return &breadsResponse, nil
 }
@@ -184,28 +186,32 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 		return status.Errorf(codes.NotFound, "No breads found")
 	}
 
-	breadsResponse := &pb.BreadResponse{}
+	log.Printf("Breads found on CheckBreadInventoryStream: %v", breads)
 
-	breadList := &pb.BreadList{}
+	breadsResponse := pb.BreadResponse{}
+
+	breadList := pb.BreadList{}
 
 	for _, bread := range breads {
-		breadResponse := &pb.Bread{}
-		breadResponse.Name = bread.Name
-		breadResponse.Quantity = int32(bread.Quantity)
-		breadResponse.Status = bread.Status
-		breadResponse.CreatedAt = bread.CreatedAt.String()
-		breadResponse.UpdatedAt = bread.UpdatedAt.String()
-		breadResponse.Description = bread.Description
-		breadResponse.Price = bread.Price
-		breadResponse.Image = bread.Image
-		breadResponse.Type = bread.Type
-		breadResponse.Id = int32(bread.ID)
-		breadList.Breads = append(breadList.Breads, breadResponse)
+		breadgRPC := pb.Bread{}
+		breadgRPC.Name = bread.Name
+		breadgRPC.Quantity = int32(bread.Quantity)
+		breadgRPC.Status = bread.Status
+		breadgRPC.CreatedAt = bread.CreatedAt.String()
+		breadgRPC.UpdatedAt = bread.UpdatedAt.String()
+		breadgRPC.Description = bread.Description
+		breadgRPC.Price = bread.Price
+		breadgRPC.Image = bread.Image
+		breadgRPC.Type = bread.Type
+		breadgRPC.Id = int32(bread.ID)
+		breadList.Breads = append(breadList.Breads, &breadgRPC)
 
 	}
 
+	breadsResponse.Breads = &breadList
+
 	// Send the response to the client
-	if err := stream.Send(breadsResponse); err != nil {
+	if err := stream.Send(&breadsResponse); err != nil {
 		return err
 	}
 
