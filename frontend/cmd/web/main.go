@@ -33,6 +33,10 @@ func main() {
 
 	router.HandleFunc("/", homeHandler)
 	router.HandleFunc("/stream", streamHandler)
+
+	fs := http.FileServer(http.Dir("/cmd/web/templates/static"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
+
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 

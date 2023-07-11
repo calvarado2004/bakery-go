@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"time"
@@ -230,9 +231,27 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `UPDATE bread SET quantity = quantity + $1 WHERE id = $2`
+	// Fetch the current quantity of the bread
+	stmt := `SELECT quantity FROM bread WHERE id = $1`
+	row := db.QueryRowContext(ctx, stmt, breadID)
 
-	_, err := db.ExecContext(ctx, stmt, quantityChange, breadID)
+	var currentQuantity int
+	err := row.Scan(&currentQuantity)
+	if err != nil {
+		return err
+	}
+
+	// Calculate the new quantity after the adjustment
+	newQuantity := currentQuantity + quantityChange
+
+	// Check if the new quantity exceeds the limit, 70 breads max per type
+	if newQuantity >= 70 {
+		return fmt.Errorf("bread quantity cannot be adjusted as it exceeds the limit")
+	}
+
+	// Update the bread quantity if it doesn't exceed the limit
+	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
+	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
 	if err != nil {
 		return err
 	}
