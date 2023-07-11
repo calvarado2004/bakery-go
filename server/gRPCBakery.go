@@ -142,6 +142,7 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 
 	breads, err := s.Repo.GetAvailableBread()
 	if err != nil {
+		log.Println("Error getting breads", err)
 		return nil, err
 	}
 

@@ -106,11 +106,15 @@ func main() {
 	}
 
 	server := grpc.NewServer()
+
+	checkInventoryServer := &CheckInventoryServer{
+		PgConn: pgConn,
+		Config: Config{},
+	}
+	checkInventoryServer.setupRepo(pgConn)
+	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
 	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
 	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
-	pb.RegisterCheckInventoryServer(server, &CheckInventoryServer{
-		PgConn: pgConn,
-	})
 	pb.RegisterRemoveOldBreadServer(server, &RemoveOldBreadServer{})
 
 	reflection.Register(server)
