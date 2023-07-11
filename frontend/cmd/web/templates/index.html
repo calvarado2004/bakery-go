@@ -13,8 +13,8 @@
 
   <style>
     .img-container {
-      width: 70px;
-      height: 80px;
+      width: 600px;
+      height: 600px;
     }
   </style>
 
@@ -150,21 +150,7 @@
       <h1 class="display-6 mb-4">Explore The Categories Of Our Bakery Products</h1>
     </div>
     <div class="row g-4" id="breadContainer">
-      <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
-        <div class="product-item d-flex flex-column bg-white rounded overflow-hidden h-100">
-          <div class="text-center p-4">
-            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3">${log.Price} ${log.Quantity}</div>
-            <h3 class="mb-3">${log.Name}</h3>
-            <span>${log.Message}</span>
-          </div>
-          <div class="position-relative mt-auto img-container">
-            <img class="img-fluid" src="${log.Image}" alt="${log.Name}" width="300" height="400">
-            <div class="product-overlay">
-              <a class="btn btn-lg-square btn-outline-light rounded-circle" href=""><i class="fa fa-eye text-primary"></i></a>
-            </div>
-          </div>
-        </div>
-      </div>
+
     </div>
   </div>
   </div>
@@ -270,13 +256,20 @@
 
     function createBreadHTML(log) {
       var breadHTML = `
-      <div class="product" id="${log.Name}">
-        <div class="image"><img src="${log.Image}" alt="${log.Name}"></div>
-        <div class="product-info">
-          <h5 class="title">${log.Name}</h5>
-          <p class="description">${log.Message}</p>
-          <p class="price">${log.Price}</p>
-          <p class="quantity">${log.Quantity} left</p>
+      <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
+        <div class="product-item d-flex flex-column bg-white rounded overflow-hidden h-100">
+          <div class="text-center p-4">
+            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3">$${log.Price}</div>
+            <div class="d-inline-block border border-primary rounded-pill px-3 mb-3">${log.Quantity} left</div>
+            <h3 class="mb-3">${log.Name}</h3>
+            <span>${log.Message}</span>
+          </div>
+          <div class="position-relative mt-auto img-container">
+            <img class="img-fluid" src="${log.Image}" alt="${log.Name}">
+            <div class="product-overlay">
+              <a class="btn btn-lg-square btn-outline-light rounded-circle" href=""><i class="fa fa-eye text-primary"></i></a>
+            </div>
+          </div>
         </div>
       </div>`;
       return breadHTML;
