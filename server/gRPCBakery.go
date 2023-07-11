@@ -176,46 +176,46 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 }
 
 func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
+	for {
+		breads, err := s.Repo.GetAvailableBread()
+		if err != nil {
+			return err
+		}
 
-	breads, err := s.Repo.GetAvailableBread()
-	if err != nil {
-		return err
+		if len(breads) == 0 {
+			return status.Errorf(codes.NotFound, "No breads found")
+		}
+
+		log.Printf("Breads found on CheckBreadInventoryStream: %v", breads)
+
+		for _, bread := range breads {
+			breadgRPC := pb.Bread{}
+			breadgRPC.Name = bread.Name
+			breadgRPC.Quantity = int32(bread.Quantity)
+			breadgRPC.Status = bread.Status
+			breadgRPC.CreatedAt = bread.CreatedAt.String()
+			breadgRPC.UpdatedAt = bread.UpdatedAt.String()
+			breadgRPC.Description = bread.Description
+			breadgRPC.Price = bread.Price
+			breadgRPC.Image = bread.Image
+			breadgRPC.Type = bread.Type
+			breadgRPC.Id = int32(bread.ID)
+
+			breadsResponse := pb.BreadResponse{
+				Breads: &pb.BreadList{
+					Breads: []*pb.Bread{&breadgRPC},
+				},
+			}
+
+			// Send the response to the client
+			if err := stream.Send(&breadsResponse); err != nil {
+				return err
+			}
+		}
+
+		// Sleep for 30 seconds before next inventory check
+		time.Sleep(30 * time.Second)
 	}
-
-	if len(breads) == 0 {
-		return status.Errorf(codes.NotFound, "No breads found")
-	}
-
-	log.Printf("Breads found on CheckBreadInventoryStream: %v", breads)
-
-	breadsResponse := pb.BreadResponse{}
-
-	breadList := pb.BreadList{}
-
-	for _, bread := range breads {
-		breadgRPC := pb.Bread{}
-		breadgRPC.Name = bread.Name
-		breadgRPC.Quantity = int32(bread.Quantity)
-		breadgRPC.Status = bread.Status
-		breadgRPC.CreatedAt = bread.CreatedAt.String()
-		breadgRPC.UpdatedAt = bread.UpdatedAt.String()
-		breadgRPC.Description = bread.Description
-		breadgRPC.Price = bread.Price
-		breadgRPC.Image = bread.Image
-		breadgRPC.Type = bread.Type
-		breadgRPC.Id = int32(bread.ID)
-		breadList.Breads = append(breadList.Breads, &breadgRPC)
-
-	}
-
-	breadsResponse.Breads = &breadList
-
-	// Send the response to the client
-	if err := stream.Send(&breadsResponse); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
