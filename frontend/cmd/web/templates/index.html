@@ -39,11 +39,12 @@
 
   source.onmessage = function(event) {
     var log = JSON.parse(event.data);
-    logsDiv.innerHTML += '<pre>ID: ' + log.ID +
-            '<br>Name: ' + log.Name +
-            '<br>Message: ' + log.Message +
+    logsDiv.innerHTML += '<pre>Name: ' + log.Name +
+            '<br>Description: ' + log.Message +
             '<br>Quantity: ' + log.Quantity +
-            '<br>Price: ' + log.Price + '</pre>';
+            '<br>Price: ' + log.Price +
+            '<br>Image: ' + log.Image + '</pre>';
+
 
   };
 
