@@ -146,12 +146,16 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 		return nil, err
 	}
 
-	breadsResponse := &pb.BreadResponse{}
+	if len(breads) == 0 {
+		return nil, status.Errorf(codes.NotFound, "No breads found")
+	}
 
-	breadList := &pb.BreadList{}
+	breadsResponse := pb.BreadResponse{}
+
+	breadList := pb.BreadList{}
 
 	for _, bread := range breads {
-		breadResponse := &pb.Bread{}
+		breadResponse := pb.Bread{}
 		breadResponse.Name = bread.Name
 		breadResponse.Quantity = int32(bread.Quantity)
 		breadResponse.Status = bread.Status
@@ -162,11 +166,11 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 		breadResponse.Image = bread.Image
 		breadResponse.Type = bread.Type
 		breadResponse.Id = int32(bread.ID)
-		breadList.Breads = append(breadList.Breads, breadResponse)
+		breadList.Breads = append(breadList.Breads, &breadResponse)
 
 	}
 
-	return breadsResponse, nil
+	return &breadsResponse, nil
 }
 
 func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
@@ -174,6 +178,10 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 	breads, err := s.Repo.GetAvailableBread()
 	if err != nil {
 		return err
+	}
+
+	if len(breads) == 0 {
+		return status.Errorf(codes.NotFound, "No breads found")
 	}
 
 	breadsResponse := &pb.BreadResponse{}
