@@ -23,6 +23,7 @@ type BreadLog struct {
 	Maker    string
 	Quantity int
 	Price    float32
+	Image    string
 }
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -65,10 +66,9 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	breadLogs := make([]BreadLog, 0, len(breadCounts))
-	for name, count := range breadCounts {
+	for name, _ := range breadCounts {
 		breadLogs = append(breadLogs, BreadLog{
-			Name:     name,
-			Quantity: count,
+			Name: name,
 		})
 	}
 
@@ -119,11 +119,11 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			breadCounts[bread.Name]++
 
 			data := BreadLog{
-				ID:       int(bread.Id),
 				Name:     bread.Name,
-				Quantity: breadCounts[bread.Name],
-				Message:  bread.Description,
+				Quantity: int(bread.Quantity),
 				Price:    bread.Price,
+				Message:  bread.Description,
+				Image:    bread.Image,
 			}
 
 			jsonData, err := json.Marshal(data)

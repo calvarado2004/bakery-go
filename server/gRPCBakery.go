@@ -147,7 +147,7 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 	}
 
 	if len(breads) == 0 {
-		return nil, status.Errorf(codes.NotFound, "No breads found")
+		return nil, status.Errorf(codes.NotFound, "No breads found (CheckBreadInventory)")
 	}
 
 	breadsResponse := pb.BreadResponse{}
@@ -183,10 +183,8 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 		}
 
 		if len(breads) == 0 {
-			return status.Errorf(codes.NotFound, "No breads found")
+			return status.Errorf(codes.NotFound, "No breads found (CheckBreadInventoryStream)")
 		}
-
-		log.Printf("Breads found on CheckBreadInventoryStream: %v", breads)
 
 		for _, bread := range breads {
 			breadgRPC := pb.Bread{}
