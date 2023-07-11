@@ -76,7 +76,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	baguetteBread := &pb.Bread{
 		Name:        "Baguette",
-		Quantity:    7,
+		Quantity:    5,
 		Price:       1.49,
 		Description: "Baguette, a classic bakery bread with a long shape",
 		Type:        "French Bread",
@@ -87,7 +87,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	cinnamonBread := &pb.Bread{
 		Name:        "Cinnamon Roll",
-		Quantity:    7,
+		Quantity:    5,
 		Price:       2.99,
 		Description: "Cinnamon Roll, a classic bakery bread with cinnamon and sugar",
 		Type:        "Sweet Bread",
@@ -98,7 +98,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	croissantBread := &pb.Bread{
 		Name:        "Croissant",
-		Quantity:    4,
+		Quantity:    5,
 		Price:       1.19,
 		Description: "Croissant, a classic bakery bread with a buttery taste",
 		Type:        "Buttery Bread",
