@@ -23,6 +23,7 @@ type MakeBreadServer struct {
 
 type CheckInventoryServer struct {
 	pb.CheckInventoryServer
+	Config
 	PgConn *sql.DB
 }
 
