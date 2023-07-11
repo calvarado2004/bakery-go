@@ -246,7 +246,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 
 	// Check if the new quantity is within the allowed range
 	if newQuantity < 0 || newQuantity > 90 {
-		return fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 50")
+		return fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 90")
 	}
 
 	// Update the bread quantity
