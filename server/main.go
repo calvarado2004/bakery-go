@@ -19,18 +19,22 @@ import (
 
 type MakeBreadServer struct {
 	pb.MakeBreadServer
+	Config
 }
 
 type CheckInventoryServer struct {
 	pb.CheckInventoryServer
+	Config
 }
 
 type BuyBreadServer struct {
 	pb.BuyBreadServer
+	Config
 }
 
 type RemoveOldBreadServer struct {
 	pb.RemoveOldBreadServer
+	Config
 }
 
 type Config struct {

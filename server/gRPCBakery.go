@@ -139,73 +139,65 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 }
 
 func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
-	queue, err := rabbitmqChannel.QueueInspect("bread-in-bakery") // inspect the queue
+
+	breads, err := s.Repo.GetAvailableBread()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to inspect the queue: %v", err)
+		return nil, err
 	}
 
-	numberOfMessages := queue.Messages
+	breadsResponse := &pb.BreadResponse{}
 
-	bread := &pb.Bread{
-		Quantity: int32(numberOfMessages),
+	breadList := &pb.BreadList{}
+
+	for _, bread := range breads {
+		breadResponse := &pb.Bread{}
+		breadResponse.Name = bread.Name
+		breadResponse.Quantity = int32(bread.Quantity)
+		breadResponse.Status = bread.Status
+		breadResponse.CreatedAt = bread.CreatedAt.String()
+		breadResponse.UpdatedAt = bread.UpdatedAt.String()
+		breadResponse.Description = bread.Description
+		breadResponse.Price = bread.Price
+		breadResponse.Image = bread.Image
+		breadResponse.Type = bread.Type
+		breadResponse.Id = int32(bread.ID)
+		breadList.Breads = append(breadList.Breads, breadResponse)
+
 	}
-
-	breadList := pb.BreadList{
-		Breads: []*pb.Bread{bread},
-	}
-
-	breadsResponse := &pb.BreadResponse{Breads: &breadList}
-	// using the number of messages in the queue
 
 	return breadsResponse, nil
 }
 
 func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
 
-	msgs, err := rabbitmqChannel.Consume(
-		"bread-in-bakery", // queue
-		"",                // consumer
-		false,             // auto-ack
-		false,             // exclusive
-		false,             // no-local
-		false,             // no-wait
-		nil,               // args
-	)
+	breads, err := s.Repo.GetAvailableBread()
 	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to consume from updates queue: %v", err)
+		return err
 	}
 
-	breadDelivered := &pb.BreadList{}
+	breadsResponse := &pb.BreadResponse{}
 
-	log.Println("Waiting for breads to be available on the bakery on stream...")
+	breadList := &pb.BreadList{}
 
-	for d := range msgs {
-		log.Printf("Bread available on Bakery: %s", d.Body)
+	for _, bread := range breads {
+		breadResponse := &pb.Bread{}
+		breadResponse.Name = bread.Name
+		breadResponse.Quantity = int32(bread.Quantity)
+		breadResponse.Status = bread.Status
+		breadResponse.CreatedAt = bread.CreatedAt.String()
+		breadResponse.UpdatedAt = bread.UpdatedAt.String()
+		breadResponse.Description = bread.Description
+		breadResponse.Price = bread.Price
+		breadResponse.Image = bread.Image
+		breadResponse.Type = bread.Type
+		breadResponse.Id = int32(bread.ID)
+		breadList.Breads = append(breadList.Breads, breadResponse)
 
-		bread := &pb.Bread{}
-		err := json.Unmarshal(d.Body, bread)
-		if err != nil {
-			log.Printf("Failed to unmarshal bread data: %v", err)
-			err := d.Nack(false, true)
-			if err != nil {
-				return err
-			}
-		}
+	}
 
-		breadDelivered.Breads = append(breadDelivered.Breads, bread)
-
-		breadResponse := &pb.BreadResponse{Breads: breadDelivered}
-
-		err = d.Nack(false, true)
-		if err != nil {
-			return err
-		}
-
-		if err := stream.Send(breadResponse); err != nil {
-			log.Printf("Failed to send bread data: %v", err)
-			return err
-		}
-
+	// Send the response to the client
+	if err := stream.Send(breadsResponse); err != nil {
+		return err
 	}
 
 	return nil

@@ -13,11 +13,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 )
 
 type BreadLog struct {
-	ID       string
+	ID       int
 	Name     string
 	Message  string
 	Buyer    string
@@ -68,9 +67,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	breadLogs := make([]BreadLog, 0, len(breadCounts))
 	for name, count := range breadCounts {
 		breadLogs = append(breadLogs, BreadLog{
-			ID:       strconv.Itoa(len(breadLogs) + 1),
 			Name:     name,
-			Message:  "Bread available, buy it now!",
 			Quantity: count,
 		})
 	}
@@ -122,7 +119,7 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			breadCounts[bread.Name]++
 
 			data := BreadLog{
-				ID:       bread.Id,
+				ID:       int(bread.Id),
 				Name:     bread.Name,
 				Quantity: breadCounts[bread.Name],
 				Message:  bread.Description,

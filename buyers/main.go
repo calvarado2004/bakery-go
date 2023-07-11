@@ -149,6 +149,7 @@ func buyBreadStream(conn *grpc.ClientConn) {
 		response, err := stream.Recv()
 		if err == io.EOF {
 			// If we've received all updates, break out of the loop
+			log.Printf("Received all updates, exiting...")
 			break
 		}
 		if err != nil {

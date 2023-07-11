@@ -134,6 +134,29 @@ func checkBread(pgConn *sql.DB) error {
 
 }
 
+func getBakeryInventory(pgConn *sql.DB) ([]*pb.Bread, error) {
+	breads, err := data.NewPostgresRepository(pgConn).GetAvailableBread()
+	if err != nil {
+		return nil, err
+	}
+
+	var breadsProto []*pb.Bread
+	for _, bread := range breads {
+		breadsProto = append(breadsProto, &pb.Bread{
+			Id:          int32(bread.ID),
+			Name:        bread.Name,
+			Quantity:    int32(bread.Quantity),
+			Price:       bread.Price,
+			Description: bread.Description,
+			Type:        bread.Type,
+			Status:      bread.Status,
+			Image:       bread.Image,
+		})
+	}
+
+	return breadsProto, nil
+}
+
 // initializeBakery creates the initial breads in the database
 func initializeBakery(pgConn *sql.DB) {
 
