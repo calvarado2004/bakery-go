@@ -244,13 +244,15 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	// Calculate the new quantity after the adjustment
 	newQuantity := currentQuantity + quantityChange
 
+	log.Println("This is the newQuantity attempted", newQuantity)
+
 	// Check if the new quantity is within the allowed range
 	if newQuantity < 0 || newQuantity > 90 {
 		return fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 90")
 	}
 
 	// Update the bread quantity
-	stmt = `UPDATE bread SET quantity = CAST($1 AS integer) WHERE id = $2`
+	stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
 	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
 	if err != nil {
 		return err
