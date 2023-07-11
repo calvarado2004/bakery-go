@@ -250,7 +250,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	}
 
 	// Update the bread quantity
-	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
+	stmt = `UPDATE bread SET quantity = CAST($1 AS integer) WHERE id = $2`
 	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
 	if err != nil {
 		return err
