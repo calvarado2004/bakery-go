@@ -250,8 +250,8 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	}
 
 	// Update the bread quantity if it doesn't exceed the limit
-	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
-	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
+	stmt = `UPDATE bread SET quantity = quantity - $1 WHERE id = $2`
+	_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
 	if err != nil {
 		return err
 	}
