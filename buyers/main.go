@@ -65,7 +65,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	pretzelBread := &pb.Bread{
 		Name:        "Pretzel",
-		Quantity:    5,
+		Quantity:    3,
 		Price:       2.49,
 		Description: "Pretzel, a classic bakery bread with a salty taste",
 		Type:        "Salty Bread",
@@ -76,7 +76,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	baguetteBread := &pb.Bread{
 		Name:        "Baguette",
-		Quantity:    5,
+		Quantity:    2,
 		Price:       1.49,
 		Description: "Baguette, a classic bakery bread with a long shape",
 		Type:        "French Bread",
@@ -87,7 +87,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	cinnamonBread := &pb.Bread{
 		Name:        "Cinnamon Roll",
-		Quantity:    5,
+		Quantity:    4,
 		Price:       2.99,
 		Description: "Cinnamon Roll, a classic bakery bread with cinnamon and sugar",
 		Type:        "Sweet Bread",
@@ -98,7 +98,7 @@ func buySomeBread(conn *grpc.ClientConn) {
 
 	croissantBread := &pb.Bread{
 		Name:        "Croissant",
-		Quantity:    5,
+		Quantity:    3,
 		Price:       1.19,
 		Description: "Croissant, a classic bakery bread with a buttery taste",
 		Type:        "Buttery Bread",
@@ -107,12 +107,24 @@ func buySomeBread(conn *grpc.ClientConn) {
 		Id:          6,
 	}
 
+	briocheBread := &pb.Bread{
+		Name:        "Brioche",
+		Quantity:    4,
+		Price:       1.59,
+		Type:        "Sweet Bread",
+		Status:      "available",
+		Description: "Brioche, a classic bakery bread with a sweet taste",
+		Image:       "https://cdn.pixabay.com/photo/2017/09/05/17/18/pretzel-2718477_1280.jpg",
+		Id:          7,
+	}
+
 	breadList := pb.BreadList{
 		Breads: []*pb.Bread{
 			pretzelBread,
 			baguetteBread,
 			cinnamonBread,
 			croissantBread,
+			briocheBread,
 		},
 	}
 
