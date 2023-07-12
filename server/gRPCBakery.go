@@ -211,8 +211,8 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 			}
 		}
 
-		// Sleep for 30 seconds before next inventory check
-		time.Sleep(30 * time.Second)
+		// Sleep for 15 seconds before next inventory check
+		time.Sleep(15 * time.Second)
 	}
 }
 
