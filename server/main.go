@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"log"
@@ -17,22 +18,32 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+type RabbitMQBakery struct {
+	RabbitmqConnection *rabbitmq.Connection
+	RabbitmqChannel    *rabbitmq.Channel
+	Config
+}
+
 type MakeBreadServer struct {
 	pb.MakeBreadServer
+	RabbitMQBakery
 }
 
 type CheckInventoryServer struct {
 	pb.CheckInventoryServer
 	Config
 	PgConn *sql.DB
+	RabbitMQBakery
 }
 
 type BuyBreadServer struct {
 	pb.BuyBreadServer
+	RabbitMQBakery
 }
 
 type RemoveOldBreadServer struct {
 	pb.RemoveOldBreadServer
+	RabbitMQBakery
 }
 
 type Config struct {
@@ -45,6 +56,9 @@ var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 var activemqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
 var counts int64
+
+var rabbitmqConnection *rabbitmq.Connection
+var rabbitmqChannel *rabbitmq.Channel
 
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
@@ -105,32 +119,70 @@ func main() {
 		log.Panic("Could not connect to database")
 	}
 
+	rabbitmqConnection, err = rabbitmq.Dial(activemqAddress)
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+	}
+
+	rabbitmqChannel, err = rabbitmqConnection.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+	}
+
+	// Setup RabbitMQ Bakery struct
+	rabbitMQBakery := &RabbitMQBakery{
+		Config:             Config{},
+		RabbitmqConnection: rabbitmqConnection,
+		RabbitmqChannel:    rabbitmqChannel,
+	}
+
+	// Setup Postgres Repository for RabbitMQ Bakery
+	rabbitMQBakery.setupRepo(pgConn)
+
+	// Initialize RabbitMQ
+	rabbitMQBakery.init()
+
 	server := grpc.NewServer()
 
 	checkInventoryServer := &CheckInventoryServer{
-		PgConn: pgConn,
-		Config: Config{},
+		Config:         Config{},
+		RabbitMQBakery: *rabbitMQBakery,
 	}
-	checkInventoryServer.setupRepo(pgConn)
-	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
-	pb.RegisterMakeBreadServer(server, &MakeBreadServer{})
-	pb.RegisterBuyBreadServer(server, &BuyBreadServer{})
-	pb.RegisterRemoveOldBreadServer(server, &RemoveOldBreadServer{})
 
+	makeBreadServer := &MakeBreadServer{
+		RabbitMQBakery: *rabbitMQBakery,
+	}
+
+	buyBreadServer := &BuyBreadServer{
+		RabbitMQBakery: *rabbitMQBakery,
+	}
+
+	removeOldBreadServer := &RemoveOldBreadServer{
+		RabbitMQBakery: *rabbitMQBakery,
+	}
+
+	checkInventoryServer.RabbitMQBakery.setupRepo(pgConn)
+	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
+	pb.RegisterMakeBreadServer(server, makeBreadServer)
+	pb.RegisterBuyBreadServer(server, buyBreadServer)
+	pb.RegisterRemoveOldBreadServer(server, removeOldBreadServer)
+
+	// Register reflection service on gRPC server.
 	reflection.Register(server)
 
-	BakeryServer(pgConn, listen, server)
+	// Start Bakery Server
+	rabbitMQBakery.BakeryServer(listen, server)
 
 }
 
 // BakeryServer Go functions to run in the background
-func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
+func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Server) {
 
 	// Check bread every 30 seconds in the background and publish to RabbitMQ message queue make-bread-order when needed
 	go func() {
 		log.Println("Starting to check bread")
 		for {
-			err := checkBread(pgConn)
+			err := rabbit.checkBread()
 			if err != nil {
 				log.Printf("Failed to check bread: %v", err)
 			}
@@ -141,7 +193,7 @@ func BakeryServer(pgConn *sql.DB, listen net.Listener, server *grpc.Server) {
 	// Consume from RabbitMQ message queue buy-bread-order and perform buy bread
 	go func() {
 
-		performBuyBread(pgConn)
+		rabbit.performBuyBread()
 
 	}()
 

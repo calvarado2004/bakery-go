@@ -26,7 +26,7 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = rabbitmqChannel.Publish(
+		err = s.RabbitmqChannel.Publish(
 			"",              // exchange
 			"bread-to-make", // routing key
 			false,           // mandatory
@@ -64,7 +64,7 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 		bread.Status = "bread ready to consume"
 
-		err = rabbitmqChannel.Publish(
+		err = s.RabbitmqChannel.Publish(
 			"",                // exchange
 			"bread-in-bakery", // routing key
 			false,             // mandatory
@@ -88,7 +88,7 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBread_MadeBreadStreamServer) error {
 
-	msgs, err := rabbitmqChannel.Consume(
+	msgs, err := s.RabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
 		"",                // consumer
 		false,             // auto-ack
@@ -253,7 +253,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		return nil, status.Errorf(codes.Internal, "Failed to marshal order: %v", err)
 	}
 
-	err = rabbitmqChannel.Publish(
+	err = s.RabbitmqChannel.Publish(
 		"",                // exchange
 		"buy-bread-order", // routing key
 		false,             // mandatory
@@ -270,7 +270,7 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 	responseCh := make(chan *pb.BreadResponse)
 
 	// Execute the function getBuyResponse as a goroutine and pass the response channel
-	getBuyResponse(responseCh)
+	s.getBuyResponse(responseCh)
 
 	// Create an array to store the bought breads
 	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
@@ -302,7 +302,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	responseCh := make(chan *pb.BreadResponse)
 
 	// Start the goroutine to listen for bread buy responses
-	go getBuyResponse(responseCh)
+	go s.getBuyResponse(responseCh)
 
 	// Continuously listen for updates on the responseCh and stream them to the client
 	for {
@@ -336,7 +336,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = rabbitmqChannel.Publish(
+		err = s.RabbitmqChannel.Publish(
 			"",              // exchange
 			"bread-removed", // routing key
 			false,           // mandatory
@@ -359,7 +359,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 
 func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.RemoveOldBread_RemoveBreadStreamServer) error {
 
-	breadsRemoved, err := rabbitmqChannel.Consume(
+	breadsRemoved, err := s.RabbitmqChannel.Consume(
 		"bread-removed", // queue
 		"",              // consumer
 		false,           // auto-ack

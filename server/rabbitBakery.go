@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
@@ -13,25 +12,13 @@ import (
 	"time"
 )
 
-var rabbitmqConnection *rabbitmq.Connection
-var rabbitmqChannel *rabbitmq.Channel
-
 // init is called before the application starts, and sets up the RabbitMQ connection as well as the necessary queues
-func init() {
+func (rabbit *RabbitMQBakery) init() {
 
 	var err error
-	rabbitmqConnection, err = rabbitmq.Dial(activemqAddress)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-
-	rabbitmqChannel, err = rabbitmqConnection.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
 
 	// Declare the RabbitMQ make-bread-order queue as durable
-	_, err = rabbitmqChannel.QueueDeclare(
+	_, err = rabbit.RabbitmqChannel.QueueDeclare(
 		"make-bread-order", // name
 		true,               // durable
 		false,              // delete when unused
@@ -44,7 +31,7 @@ func init() {
 	}
 
 	// Declare the RabbitMQ buy-bread-order as durable
-	_, err = rabbitmqChannel.QueueDeclare(
+	_, err = rabbit.RabbitmqChannel.QueueDeclare(
 		"buy-bread-order", // name
 		true,              // durable
 		false,             // delete when unused
@@ -57,7 +44,7 @@ func init() {
 	}
 
 	// Declare the RabbitMQ bread-bought as durable
-	_, err = rabbitmqChannel.QueueDeclare(
+	_, err = rabbit.RabbitmqChannel.QueueDeclare(
 		"bread-bought", // name
 		true,           // durable
 		false,          // delete when unused
@@ -72,15 +59,15 @@ func init() {
 }
 
 // checkBread checks if there is enough bread left in the bakery, if not, it orders more
-func checkBread(pgConn *sql.DB) error {
+func (rabbit *RabbitMQBakery) checkBread() error {
 
-	breads, err := data.NewPostgresRepository(pgConn).GetAvailableBread()
+	breads, err := rabbit.Repo.GetAvailableBread()
 	if err != nil {
 		return err
 	}
 
 	if len(breads) == 0 {
-		initializeBakery(pgConn)
+		rabbit.initializeBakery()
 	}
 
 	breadMaker := data.BreadMaker{
@@ -105,7 +92,7 @@ func checkBread(pgConn *sql.DB) error {
 				return status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 			}
 
-			err = rabbitmqChannel.Publish(
+			err = rabbit.RabbitmqChannel.Publish(
 				"",                 // exchange
 				"make-bread-order", // routing key
 				false,              // mandatory
@@ -120,7 +107,7 @@ func checkBread(pgConn *sql.DB) error {
 			}
 
 			breadMakeOrder.Breads = append(breadMakeOrder.Breads, bread)
-			order, err := data.NewPostgresRepository(pgConn).InsertMakeOrder(breadMakeOrder, breads)
+			order, err := rabbit.Repo.InsertMakeOrder(breadMakeOrder, breads)
 			if err != nil {
 				return err
 			}
@@ -135,7 +122,7 @@ func checkBread(pgConn *sql.DB) error {
 }
 
 // initializeBakery creates the initial breads in the database
-func initializeBakery(pgConn *sql.DB) {
+func (rabbit *RabbitMQBakery) initializeBakery() {
 
 	breads := []data.Bread{
 		{
@@ -203,7 +190,7 @@ func initializeBakery(pgConn *sql.DB) {
 	}
 
 	for _, bread := range breads {
-		breadID, err := data.NewPostgresRepository(pgConn).InsertBread(bread)
+		breadID, err := rabbit.Repo.InsertBread(bread)
 		if err != nil {
 			return
 		}
@@ -218,7 +205,7 @@ func initializeBakery(pgConn *sql.DB) {
 		UpdatedAt: time.Now(),
 	}
 
-	breadMakerID, err := data.NewPostgresRepository(pgConn).InsertBreadMaker(breadMaker)
+	breadMakerID, err := rabbit.Repo.InsertBreadMaker(breadMaker)
 	if err != nil {
 		return
 
@@ -229,8 +216,8 @@ func initializeBakery(pgConn *sql.DB) {
 }
 
 // performBuyBread listens for buy bread orders and updates the database
-func performBuyBread(pgConn *sql.DB) {
-	buyOrderMessage, err := rabbitmqChannel.Consume(
+func (rabbit *RabbitMQBakery) performBuyBread() {
+	buyOrderMessage, err := rabbit.RabbitmqChannel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer
 		false,             // auto-ack
@@ -255,7 +242,7 @@ func performBuyBread(pgConn *sql.DB) {
 
 		log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
-		availableBread, err := data.NewPostgresRepository(pgConn).GetAvailableBread()
+		availableBread, err := rabbit.Repo.GetAvailableBread()
 		if err != nil {
 			return
 		}
@@ -281,7 +268,7 @@ func performBuyBread(pgConn *sql.DB) {
 		if allBreadAvailable {
 			log.Println("All bread available, processing order")
 			for _, bread := range buyOrderType.Breads {
-				err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, -bread.Quantity)
+				err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
 					log.Printf("Failed to adjust bread quantity: %v", err)
 				}
@@ -297,7 +284,7 @@ func performBuyBread(pgConn *sql.DB) {
 				ID:    1,
 			}
 
-			buyOrderID, err := data.NewPostgresRepository(pgConn).InsertBuyOrder(buyOrderType, buyOrderType.Breads)
+			buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 			if err != nil {
 				log.Printf("Failed to insert buy order to db: %v", err)
 			}
@@ -316,7 +303,7 @@ func performBuyBread(pgConn *sql.DB) {
 				return
 			}
 
-			err = rabbitmqChannel.Publish(
+			err = rabbit.RabbitmqChannel.Publish(
 				"",             // exchange
 				"bread-bought", // routing key
 				false,          // mandatory
@@ -341,12 +328,12 @@ func performBuyBread(pgConn *sql.DB) {
 	}
 }
 
-func getBuyResponse(responseCh chan *pb.BreadResponse) {
+func (rabbit *RabbitMQBakery) getBuyResponse(responseCh chan *pb.BreadResponse) {
 
 	go func() { // start a goroutine
 		buyOrder := data.BuyOrder{}
 
-		breadsBought, err := rabbitmqChannel.Consume(
+		breadsBought, err := rabbit.RabbitmqChannel.Consume(
 			"bread-bought", // queue
 			"",             // consumer
 			false,          // auto-ack
