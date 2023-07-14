@@ -160,7 +160,6 @@ func main() {
 		RabbitMQBakery: *rabbitMQBakery,
 	}
 
-	checkInventoryServer.RabbitMQBakery.setupRepo(pgConn)
 	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
 	pb.RegisterMakeBreadServer(server, makeBreadServer)
 	pb.RegisterBuyBreadServer(server, buyBreadServer)

@@ -140,7 +140,7 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 
 func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
-	breads, err := s.Repo.GetAvailableBread()
+	breads, err := s.RabbitMQBakery.Repo.GetAvailableBread()
 	if err != nil {
 		log.Println("Error getting breads", err)
 		return nil, err
@@ -176,8 +176,9 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 }
 
 func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, stream pb.CheckInventory_CheckBreadInventoryStreamServer) error {
+
 	for {
-		breads, err := s.Repo.GetAvailableBread()
+		breads, err := s.RabbitMQBakery.Repo.GetAvailableBread()
 		if err != nil {
 			return err
 		}
