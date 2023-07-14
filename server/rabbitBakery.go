@@ -423,5 +423,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 		responseCh <- response // send the response to the channel
 	}
 
+	log.Println("Reaching end of processBreadsBought, this is outside the for loop")
+
 	return nil
 }
