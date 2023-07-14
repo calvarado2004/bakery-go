@@ -217,7 +217,7 @@ func (rabbit *RabbitMQBakery) initializeBakery() {
 }
 
 // performBuyBread listens for buy bread orders and updates the database
-func (rabbit *RabbitMQBakery) performBuyBread() {
+func (rabbit *RabbitMQBakery) performBuyBread() error {
 	buyOrderMessage, err := rabbit.RabbitmqChannel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer
@@ -238,14 +238,14 @@ func (rabbit *RabbitMQBakery) performBuyBread() {
 		err := json.Unmarshal(buyOrder.Body, &buyOrderType)
 		if err != nil {
 			log.Printf("Failed to unmarshal buy order: %v", err)
-			continue
+			return err
 		}
 
 		log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
 		availableBread, err := rabbit.Repo.GetAvailableBread()
 		if err != nil {
-			return
+			return err
 		}
 
 		allBreadAvailable := true // Initialize the flag
@@ -288,6 +288,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() {
 			buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 			if err != nil {
 				log.Printf("Failed to insert buy order to db: %v", err)
+				return err
 			}
 
 			buyOrderType.ID = buyOrderID
@@ -295,13 +296,14 @@ func (rabbit *RabbitMQBakery) performBuyBread() {
 			err = buyOrder.Ack(false)
 			if err != nil {
 				log.Printf("Failed to ack buy order on queue: %v", err)
+				return err
 			}
 
 			log.Printf("Buy order with ID %v placed", buyOrderID)
 
 			buyOrderData, err := json.Marshal(&buyOrderType)
 			if err != nil {
-				return
+				return err
 			}
 
 			err = rabbit.RabbitmqChannel.Publish(
@@ -322,15 +324,17 @@ func (rabbit *RabbitMQBakery) performBuyBread() {
 			log.Printf("Not all bread is available, requeuing the buy order")
 			err = buyOrder.Nack(false, true) // requeue message
 			if err != nil {
-				return
+				return err
 			}
 		}
 
 	}
+
+	return nil
 }
 
 // getBuyResponse listens for bread bought messages and sends them to the client, adding backoff retries if there is an error
-func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh chan *pb.BreadResponse) {
+func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh chan *pb.BreadResponse) error {
 
 	retryInterval := time.Second // Start with a delay of 1 second
 
@@ -348,6 +352,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 				time.Sleep(retryInterval)
 				// Increase the retryInterval for the next try
 				retryInterval *= 2
+
 			} else {
 				// If no error, reset the retryInterval
 				retryInterval = time.Second

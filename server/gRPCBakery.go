@@ -271,7 +271,11 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 	responseCh := make(chan *pb.BreadResponse)
 
 	// Execute the function getBuyResponse as a goroutine and pass the response channel
-	s.getBuyResponse(cx, responseCh)
+	err = s.getBuyResponse(cx, responseCh)
+	if err != nil {
+		log.Printf("Error getting buy response: %v", err)
+		return nil, err
+	}
 
 	// Create an array to store the bought breads
 	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
@@ -303,7 +307,12 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	responseCh := make(chan *pb.BreadResponse)
 
 	// Start the goroutine to listen for bread buy responses
-	go s.getBuyResponse(context.Background(), responseCh)
+	go func() {
+		err := s.getBuyResponse(context.Background(), responseCh)
+		if err != nil {
+			log.Println("Error getting buy response:", err)
+		}
+	}()
 
 	// Continuously listen for updates on the responseCh and stream them to the client
 	for {
