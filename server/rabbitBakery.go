@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
@@ -328,68 +329,99 @@ func (rabbit *RabbitMQBakery) performBuyBread() {
 	}
 }
 
-func (rabbit *RabbitMQBakery) getBuyResponse(responseCh chan *pb.BreadResponse) {
+// getBuyResponse listens for bread bought messages and sends them to the client, adding backoff retries if there is an error
+func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh chan *pb.BreadResponse) {
 
-	go func() { // start a goroutine
-		buyOrder := data.BuyOrder{}
+	retryInterval := time.Second // Start with a delay of 1 second
 
-		breadsBought, err := rabbit.RabbitmqChannel.Consume(
-			"bread-bought", // queue
-			"",             // consumer
-			false,          // auto-ack
-			false,          // exclusive
-			false,          // no-local
-			false,          // no-wait
-			nil,            // args
-		)
+	for {
+		select {
+		case <-ctx.Done():
+			// If the context is done, exit the function
+			return
+		default:
+			// If the context is not done, attempt to run the goroutine
+			err := rabbit.processBreadsBought(responseCh)
+			if err != nil {
+				log.Printf("Error processing breads bought: %v", err)
+				// If there was an error, wait for retryInterval before trying again
+				time.Sleep(retryInterval)
+				// Increase the retryInterval for the next try
+				retryInterval *= 2
+			} else {
+				// If no error, reset the retryInterval
+				retryInterval = time.Second
+			}
+		}
+	}
+}
 
+// processBreadsBought listens for breads bought messages and sends them to the client
+func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadResponse) error {
+
+	buyOrder := data.BuyOrder{}
+
+	breadsBought, err := rabbit.RabbitmqChannel.Consume(
+		"bread-bought", // queue
+		"",             // consumer
+		false,          // auto-ack
+		false,          // exclusive
+		false,          // no-local
+		false,          // no-wait
+		nil,            // args
+	)
+
+	if err != nil {
+		log.Printf("Failed to consume from bought breads queue: %v", err)
+		return err
+	}
+
+	for d := range breadsBought {
+		var breadBought pb.BreadList
+		var message string
+
+		buyOrderType := data.BuyOrder{}
+
+		err := json.Unmarshal(d.Body, &buyOrderType)
 		if err != nil {
-			log.Printf("Failed to consume from bought breads queue: %v", err)
+			log.Printf("Failed to unmarshal buy order data: %v", err)
+			return err
 		}
 
-		for d := range breadsBought {
-			var breadBought pb.BreadList
-			var message string
+		buyOrder.Breads = buyOrderType.Breads
 
-			buyOrderType := data.BuyOrder{}
+		buyOrder.ID = buyOrderType.ID
 
-			err := json.Unmarshal(d.Body, &buyOrderType)
-			if err != nil {
-				log.Printf("Failed to unmarshal buy order data: %v", err)
-			}
+		for _, bread := range buyOrder.Breads {
 
-			buyOrder.Breads = buyOrderType.Breads
-
-			buyOrder.ID = buyOrderType.ID
-
-			for _, bread := range buyOrder.Breads {
-
-				breadBought.Breads = append(breadBought.Breads, &pb.Bread{
-					Id:          int32(bread.ID),
-					Name:        bread.Name,
-					Quantity:    int32(bread.Quantity),
-					Description: bread.Description,
-					Price:       bread.Price,
-					Image:       bread.Image,
-					Type:        bread.Type,
-				})
-			}
-
-			message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
-
-			log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
-
-			err = d.Ack(false)
-			if err != nil {
-				log.Printf("Failed to Ack message: %v", err)
-			}
-
-			response := &pb.BreadResponse{
-				Breads:  &breadBought,
-				Message: message,
-			}
-
-			responseCh <- response // send the response to the channel
+			breadBought.Breads = append(breadBought.Breads, &pb.Bread{
+				Id:          int32(bread.ID),
+				Name:        bread.Name,
+				Quantity:    int32(bread.Quantity),
+				Description: bread.Description,
+				Price:       bread.Price,
+				Image:       bread.Image,
+				Type:        bread.Type,
+			})
 		}
-	}() // end of goroutine
+
+		message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
+
+		log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
+
+		err = d.Ack(false)
+		if err != nil {
+			log.Printf("Failed to Ack message: %v", err)
+			return err
+		}
+
+		response := &pb.BreadResponse{
+			Breads:  &breadBought,
+			Message: message,
+		}
+
+		responseCh <- response // send the response to the channel
+	}
+
+	return nil
 }
