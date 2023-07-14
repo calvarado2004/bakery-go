@@ -31,6 +31,13 @@ Set the following environment variables:
 - `RABBITMQ_SERVICE_ADDR`: The address for the RabbitMQ server
 - `DSN`: The PostgreSQL database connection string
 
+For development on local environments:
+
+```bash
+export BAKERY_SERVICE_ADDR=localhost:50051
+export RABBITMQ_SERVICE_ADDR=amqp://guest:guest@localhost:5672/
+```
+
 Install the Go dependencies with:
 
 ```bash
