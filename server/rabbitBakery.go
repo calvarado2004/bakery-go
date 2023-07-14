@@ -337,8 +337,8 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 	for {
 		select {
 		case <-ctx.Done():
-			// If the context is done, exit the function
-			return
+			// If the context is done, start over
+			continue
 		default:
 			// If the context is not done, attempt to run the goroutine
 			err := rabbit.processBreadsBought(responseCh)
