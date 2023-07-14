@@ -145,7 +145,6 @@ func main() {
 	server := grpc.NewServer()
 
 	checkInventoryServer := &CheckInventoryServer{
-		Config:         Config{},
 		RabbitMQBakery: *rabbitMQBakery,
 	}
 
