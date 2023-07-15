@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/google/uuid"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,7 +29,7 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = s.RabbitmqChannel.Publish(
+		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
 			"",              // exchange
 			"bread-to-make", // routing key
 			false,           // mandatory
@@ -64,7 +67,7 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 		bread.Status = "bread ready to consume"
 
-		err = s.RabbitmqChannel.Publish(
+		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
 			"",                // exchange
 			"bread-in-bakery", // routing key
 			false,             // mandatory
@@ -88,7 +91,7 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBread_MadeBreadStreamServer) error {
 
-	msgs, err := s.RabbitmqChannel.Consume(
+	msgs, err := s.RabbitMQBakery.RabbitmqChannel.Consume(
 		"bread-in-bakery", // queue
 		"",                // consumer
 		false,             // auto-ack
@@ -217,11 +220,17 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 	}
 }
 
-func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
-
-	breadsToBuy := in.Breads.GetBreads()
+func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
 	buyOrder := data.BuyOrder{}
+
+	if in.BuyOrderId > 0 {
+		buyOrder.ID = int(in.BuyOrderId)
+	} else {
+		buyOrder.ID = uuid.New().ClockSequence()
+	}
+
+	breadsToBuy := in.Breads.GetBreads()
 
 	buyerCustomer := data.Customer{
 		ID:        1,
@@ -246,7 +255,6 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		breadDB.ID = int(bread.Id)
 		breadDB.Status = "Bought"
 		buyOrder.Breads = append(buyOrder.Breads, breadDB)
-
 	}
 
 	orderData, err := json.Marshal(buyOrder)
@@ -254,11 +262,11 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		return nil, status.Errorf(codes.Internal, "Failed to marshal order: %v", err)
 	}
 
-	err = s.RabbitmqChannel.Publish(
-		"",                // exchange
-		"buy-bread-order", // routing key
-		false,             // mandatory
-		false,             // immediate
+	err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+		"",
+		"buy-bread-order",
+		false,
+		false,
 		rabbitmq.Publishing{
 			ContentType:  "text/json",
 			Body:         orderData,
@@ -268,19 +276,17 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		return nil, status.Errorf(codes.Internal, "Failed to add bread order to queue: %v", err)
 	}
 
-	responseCh := make(chan *pb.BreadResponse)
-
-	// Execute the function getBuyResponse as a goroutine and pass the response channel
-	err = s.getBuyResponse(cx, responseCh)
-	if err != nil {
-		log.Printf("Error getting buy response: %v", err)
-		return nil, err
+	orderStatus := &OrderStatus{
+		Ch:      make(chan *pb.BreadResponse, 1),
+		Status:  "Processing",
+		OrderId: buyOrder.ID,
 	}
 
-	// Create an array to store the bought breads
-	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
+	s.RabbitMQBakery.mu.Lock()
+	s.RabbitMQBakery.orders[buyOrder.ID] = orderStatus
+	s.RabbitMQBakery.mu.Unlock()
 
-	// Convert each bought bread to the protobuf version and store in the array
+	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
 	for i, boughtBread := range buyOrder.Breads {
 		boughtBreads[i] = &pb.Bread{
 			Name:        boughtBread.Name,
@@ -294,40 +300,31 @@ func (s *BuyBreadServer) BuyBread(cx context.Context, in *pb.BreadRequest) (*pb.
 		}
 	}
 
-	// Include the bought breads in the response
 	return &pb.BreadResponse{
-		Message: "Bread buying process started, you'll receive the order that will be settled later.",
-		Breads:  &pb.BreadList{Breads: boughtBreads},
+		Message:    fmt.Sprintf("Bread buying process started, you'll receive the order that will be settled later. Buy order ID: %v", buyOrder.ID),
+		Breads:     &pb.BreadList{Breads: boughtBreads},
+		BuyOrderId: int32(buyOrder.ID),
 	}, nil
 }
 
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
+	s.RabbitMQBakery.mu.Lock()
+	orderStatus, ok := s.RabbitMQBakery.orders[int(in.BuyOrderId)]
+	s.RabbitMQBakery.mu.Unlock()
+	if !ok {
+		return errors.New("order not found")
+	}
 
-	// Make the response channel
-	responseCh := make(chan *pb.BreadResponse)
-
-	// Start the goroutine to listen for bread buy responses
-	go func() {
-		err := s.getBuyResponse(context.Background(), responseCh)
-		if err != nil {
-			log.Println("Error getting buy response:", err)
-		}
-	}()
-
-	// Continuously listen for updates on the responseCh and stream them to the client
 	for {
 		select {
-		case response, ok := <-responseCh:
+		case response, ok := <-orderStatus.Ch:
 			if !ok {
-				// If the channel has been closed, return
 				return nil
 			}
-			// Send the response to the client
 			if err := stream.Send(response); err != nil {
 				return err
 			}
 		case <-stream.Context().Done():
-			// If the client has closed the connection, return
 			return stream.Context().Err()
 		}
 	}
@@ -346,7 +343,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = s.RabbitmqChannel.Publish(
+		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
 			"",              // exchange
 			"bread-removed", // routing key
 			false,           // mandatory
@@ -369,7 +366,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 
 func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.RemoveOldBread_RemoveBreadStreamServer) error {
 
-	breadsRemoved, err := s.RabbitmqChannel.Consume(
+	breadsRemoved, err := s.RabbitMQBakery.RabbitmqChannel.Consume(
 		"bread-removed", // queue
 		"",              // consumer
 		false,           // auto-ack

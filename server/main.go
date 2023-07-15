@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	_ "github.com/jackc/pgconn"
@@ -22,28 +23,36 @@ type RabbitMQBakery struct {
 	RabbitmqConnection *rabbitmq.Connection
 	RabbitmqChannel    *rabbitmq.Channel
 	Config
+	orders map[int]*OrderStatus
+	mu     sync.Mutex
+}
+
+type OrderStatus struct {
+	Ch      chan *pb.BreadResponse
+	Status  string
+	OrderId int
 }
 
 type MakeBreadServer struct {
 	pb.MakeBreadServer
-	RabbitMQBakery
+	RabbitMQBakery *RabbitMQBakery
 }
 
 type CheckInventoryServer struct {
 	pb.CheckInventoryServer
 	Config
-	PgConn *sql.DB
-	RabbitMQBakery
+	PgConn         *sql.DB
+	RabbitMQBakery *RabbitMQBakery
 }
 
 type BuyBreadServer struct {
 	pb.BuyBreadServer
-	RabbitMQBakery
+	RabbitMQBakery *RabbitMQBakery
 }
 
 type RemoveOldBreadServer struct {
 	pb.RemoveOldBreadServer
-	RabbitMQBakery
+	RabbitMQBakery *RabbitMQBakery
 }
 
 type Config struct {
@@ -145,19 +154,19 @@ func main() {
 	server := grpc.NewServer()
 
 	checkInventoryServer := &CheckInventoryServer{
-		RabbitMQBakery: *rabbitMQBakery,
+		RabbitMQBakery: rabbitMQBakery,
 	}
 
 	makeBreadServer := &MakeBreadServer{
-		RabbitMQBakery: *rabbitMQBakery,
+		RabbitMQBakery: rabbitMQBakery,
 	}
 
 	buyBreadServer := &BuyBreadServer{
-		RabbitMQBakery: *rabbitMQBakery,
+		RabbitMQBakery: rabbitMQBakery,
 	}
 
 	removeOldBreadServer := &RemoveOldBreadServer{
-		RabbitMQBakery: *rabbitMQBakery,
+		RabbitMQBakery: rabbitMQBakery,
 	}
 
 	pb.RegisterCheckInventoryServer(server, checkInventoryServer)

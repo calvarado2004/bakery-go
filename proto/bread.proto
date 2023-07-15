@@ -54,12 +54,16 @@ message BreadList {
 
 message BreadRequest {
     BreadList breads = 3;
+    int32 buy_order_id = 2;
+    int32 make_order_id = 4;
 }
 
 message BreadResponse {
     string message = 1;
     BreadList breads = 3;
     string error = 4;
+    int32 buy_order_id = 5;
+    int32 make_order_id = 6;
 }
 
 service MakeBread {
