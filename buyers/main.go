@@ -20,29 +20,34 @@ type Config struct {
 	buyBreadClient pb.BuyBreadClient
 }
 
+type buyOrder struct {
+	orderId int
+	buyChan chan bool
+}
+
 // main is the entry point of the program
 
 func main() {
-	buyBreadChan := make(chan bool)
 	breadBoughtChan := make(chan bool)
-	buyOrderIdChan := make(chan int)
-
 	done := make(chan bool)
 
 	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to gRPC server: %v", err)
 	}
+
 	config := Config{
 		conn:           grpcConn,
 		buyBreadClient: pb.NewBuyBreadClient(grpcConn),
 	}
 
+	buyOrderChan := make(chan buyOrder)
+
 	go func() {
 		log.Println("Starting buySomeBread goroutine...")
 		for {
-			buyOrderId := <-buyOrderIdChan
-			config.buySomeBread(buyBreadChan, breadBoughtChan, done, buyOrderId)
+			buyOrder := <-buyOrderChan
+			config.buySomeBread(buyOrder.buyChan, breadBoughtChan, done, buyOrder.orderId)
 		}
 		log.Println("Exiting buySomeBread goroutine...")
 	}()
@@ -60,8 +65,8 @@ func main() {
 	go func() {
 		log.Println("Starting buyBreadStream goroutine...")
 		for {
-			buyOrderId := <-buyOrderIdChan
-			config.buyBreadStream(breadBoughtChan, done, buyOrderId)
+			buyOrder := <-buyOrderChan
+			config.buyBreadStream(breadBoughtChan, done, buyOrder.orderId)
 		}
 		log.Println("Exiting buyBreadStream goroutine...")
 	}()
@@ -76,8 +81,14 @@ func main() {
 
 	for {
 		log.Println("Sending a signal to buy bread")
+
+		buyBreadChan := make(chan bool)
+
 		buyOrderId := uuid.New().ClockSequence()
-		buyOrderIdChan <- buyOrderId
+		order := buyOrder{orderId: buyOrderId, buyChan: buyBreadChan}
+		buyOrderChan <- order
+		buyOrderChan <- order
+
 		buyBreadChan <- true
 		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
 		time.Sleep(35 * time.Second)
