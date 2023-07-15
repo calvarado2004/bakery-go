@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"io"
@@ -13,6 +14,8 @@ import (
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
+var buyOrderId int
+
 // Config is the configuration struct for the program
 type Config struct {
 	conn           *grpc.ClientConn
@@ -20,36 +23,32 @@ type Config struct {
 }
 
 // main is the entry point of the program
+
 func main() {
-	// Create a channel to control the buying attempts
 	buyBreadChan := make(chan bool)
 	breadBoughtChan := make(chan bool)
+	buyOrderIdChan := make(chan int)
 
-	// Create a channel to signal when all responses have been processed
 	done := make(chan bool)
 
-	// Connect to the gRPC server
 	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to gRPC server: %v", err)
 	}
-
 	config := Config{
 		conn:           grpcConn,
 		buyBreadClient: pb.NewBuyBreadClient(grpcConn),
 	}
 
-	// Start a goroutine to buy bread
 	go func() {
 		log.Println("Starting buySomeBread goroutine...")
 		for {
-			config.buySomeBread(buyBreadChan, breadBoughtChan, done)
+			buyOrderId := <-buyOrderIdChan
+			config.buySomeBread(buyBreadChan, breadBoughtChan, done, buyOrderId)
 		}
 		log.Println("Exiting buySomeBread goroutine...")
-
 	}()
 
-	// Consume the done channel
 	go func() {
 		log.Println("Starting done goroutine...")
 		for {
@@ -60,11 +59,11 @@ func main() {
 		log.Println("Exiting done goroutine...")
 	}()
 
-	// Start a goroutine to receive the BuyBreadStream
 	go func() {
 		log.Println("Starting buyBreadStream goroutine...")
 		for {
-			config.buyBreadStream(breadBoughtChan, done)
+			buyOrderId := <-buyOrderIdChan
+			config.buyBreadStream(breadBoughtChan, done, buyOrderId)
 		}
 		log.Println("Exiting buyBreadStream goroutine...")
 	}()
@@ -79,9 +78,10 @@ func main() {
 
 	for {
 		log.Println("Sending a signal to buy bread")
+		buyOrderId := uuid.New().ClockSequence()
+		buyOrderIdChan <- buyOrderId
 		buyBreadChan <- true
 		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
-		// Wait for 35 seconds before looping again
 		time.Sleep(35 * time.Second)
 		log.Printf("Done sleeping for 35 seconds...")
 	}
@@ -89,12 +89,13 @@ func main() {
 }
 
 // buySomeBread sends a BuyBread request to the gRPC server and waits for a response
-func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan chan<- bool, done chan<- bool) {
+func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan chan<- bool, done chan<- bool, buyOrderId int) {
 
 	// Wait for a signal to buy bread
 	for {
 		select {
 		case <-buyBreadChan:
+
 			log.Println("Received a signal to buy bread")
 			// Buy bread
 			pretzelBread := &pb.Bread{
@@ -163,7 +164,8 @@ func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan cha
 			}
 
 			request := pb.BreadRequest{
-				Breads: &breadList,
+				Breads:     &breadList,
+				BuyOrderId: int32(buyOrderId),
 			}
 
 			log.Printf("Trying to buy bread: %v", request.Breads.Breads)
@@ -187,9 +189,11 @@ func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan cha
 }
 
 // buyBreadStream consumes the BuyBreadStream from the gRPC server
-func (config *Config) buyBreadStream(breadBoughtChan <-chan bool, done chan<- bool) {
+func (config *Config) buyBreadStream(breadBoughtChan <-chan bool, done chan<- bool, buyOrderId int) {
 
-	breadReq := &pb.BreadRequest{}
+	breadReq := &pb.BreadRequest{
+		BuyOrderId: int32(buyOrderId),
+	}
 
 	stream, err := config.buyBreadClient.BuyBreadStream(context.Background(), breadReq)
 	if err != nil {
