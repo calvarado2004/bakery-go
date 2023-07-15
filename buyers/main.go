@@ -14,8 +14,6 @@ import (
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
-var buyOrderId int
-
 // Config is the configuration struct for the program
 type Config struct {
 	conn           *grpc.ClientConn
