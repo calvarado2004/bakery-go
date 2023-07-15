@@ -143,6 +143,7 @@ func main() {
 		Config:             Config{},
 		RabbitmqConnection: rabbitmqConnection,
 		RabbitmqChannel:    rabbitmqChannel,
+		orders:             make(map[int]*OrderStatus),
 	}
 
 	// Setup Postgres Repository for RabbitMQ Bakery
