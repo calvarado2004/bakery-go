@@ -316,10 +316,12 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	}
 
 	for {
+		log.Println("Waiting for order status updates")
 		select {
 		case response, ok := <-orderStatus.Ch:
+			log.Printf("Received order status update with ID (this is from the stream): %v", response.BuyOrderId)
 			if !ok {
-				return nil
+				return errors.New("order not found")
 			}
 			if err := stream.Send(response); err != nil {
 				return err
@@ -327,6 +329,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 		case <-stream.Context().Done():
 			return stream.Context().Err()
 		}
+		continue
 	}
 }
 

@@ -85,10 +85,11 @@ func main() {
 		buyBreadChan := make(chan bool)
 
 		buyOrderId := uuid.New().ClockSequence()
+		log.Printf("Generated a new buy order id: %v", buyOrderId)
 		order := buyOrder{orderId: buyOrderId, buyChan: buyBreadChan}
 		buyOrderChan <- order
 		buyOrderChan <- order
-
+		done <- true
 		buyBreadChan <- true
 		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
 		time.Sleep(35 * time.Second)
