@@ -313,6 +313,19 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	maxRetries := 10
 	retryCount := 0
 
+	// Create a new context that can be cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	responseCh := make(chan *pb.BreadResponse)
+	// Cancel the context after this function ends
+	defer cancel()
+
+	// Start a go-routine to listen for RabbitMQ messages
+	go func() {
+		if err := s.RabbitMQBakery.getBuyResponse(ctx, responseCh); err != nil {
+			log.Printf("Failed to get RabbitMQ response: %v", err)
+		}
+	}()
+
 	for retryCount < maxRetries {
 		time.Sleep(5 * time.Second) // wait for a while before checking again
 
@@ -337,12 +350,16 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 		if err := stream.Send(res); err != nil {
 			return err
 		}
-		break // exit the loop once the order is found
 
+		// If the order is found, cancel the context to stop the RabbitMQ process
+		cancel()
+		break // exit the loop once the order is found
 	}
 
 	// If the order was not found after all retries, return an error
 	if retryCount == maxRetries {
+		// Cancel the context to stop the RabbitMQ process
+		cancel()
 		return fmt.Errorf("order not found after %v attempts", maxRetries)
 	}
 
