@@ -338,15 +338,14 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 // getBuyResponse listens for bread bought messages and sends them to the client, adding backoff retries if there is an error
 func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh chan *pb.BreadResponse) error {
-
 	retryInterval := time.Second // Start with a delay of 1 second
 
 	maxRetries := 5 // Maximum number of retries
 	for {
 		select {
 		case <-ctx.Done():
-			// If the context is done, start over
-			continue
+			// If the context is done, return an error
+			return ctx.Err()
 		default:
 			// If the context is not done, attempt to run the goroutine
 			err := rabbit.processBreadsBought(responseCh)
