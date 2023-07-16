@@ -166,10 +166,10 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 	defer cancel()
 
 	var newID int
-	stmt := `INSERT INTO buy_order (customer_id) VALUES ($1) RETURNING id`
+	stmt := `INSERT INTO buy_order (customer_id, buy_order_uuid) VALUES ($1, $2) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
-		order.CustomerID,
+		order.CustomerID, order.BuyOrderUUID,
 	).Scan(&newID)
 
 	if err != nil {
@@ -200,10 +200,11 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 	defer cancel()
 
 	var newID int
-	stmt := `INSERT INTO make_order (bread_maker_id) VALUES ($1) RETURNING id`
+	stmt := `INSERT INTO make_order (bread_maker_id, make_order_uuid) VALUES ($1, $2) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
 		order.BreadMakerID,
+		order.MakeOrderUUID,
 	).Scan(&newID)
 
 	if err != nil {
@@ -370,6 +371,7 @@ func (u *PostgresRepository) GetMakeOrderByID(orderID int) (order MakeOrder, err
 	err = db.QueryRowContext(ctx, stmt, orderID).Scan(
 		&order.ID,
 		&order.BreadMakerID,
+		&order.MakeOrderUUID,
 	)
 
 	if err != nil {
