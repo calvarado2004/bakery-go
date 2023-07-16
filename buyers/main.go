@@ -28,9 +28,6 @@ type buyOrder struct {
 
 // main is the entry point of the program
 func main() {
-	breadBoughtChan := make(chan bool)
-	done := make(chan bool)
-
 	grpcConn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to gRPC server: %v", err)
@@ -41,48 +38,40 @@ func main() {
 		buyBreadClient: pb.NewBuyBreadClient(grpcConn),
 	}
 
-	buyOrderChan := make(chan buyOrder)
+	defer func(grpcConn *grpc.ClientConn) {
+		log.Println("Closing gRPC connection...")
+		err := grpcConn.Close()
+		if err != nil {
+			log.Fatalf("Failed to close gRPC connection: %v", err)
+		}
+	}(grpcConn)
 
 	for {
 		log.Println("Sending a signal to buy bread")
 
 		buyBreadChan := make(chan bool)
+		breadBoughtChan := make(chan bool)
+		done := make(chan bool)
+		buyOrderChan := make(chan buyOrder, 2) // Using a buffered channel to avoid blockage
 
 		buyOrderuuid := uuid.NewString()
 		log.Printf("Generated a new buy order id: %v", buyOrderuuid)
 		order := buyOrder{buyOrderUUID: buyOrderuuid, buyChan: buyBreadChan}
 		buyOrderChan <- order
 		buyOrderChan <- order
-		done <- true
-		buyBreadChan <- true
-		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 
-		go func() {
-			log.Println("Starting buySomeBread goroutine...")
-			for {
-				buyOrder := <-buyOrderChan
-				config.buySomeBread(ctx, buyOrder.buyChan, breadBoughtChan, done, buyOrder.buyOrderUUID)
-			}
-			log.Println("Exiting buySomeBread goroutine...")
-		}()
+		go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, done, buyOrderuuid)
+		go config.buyBreadStream(ctx, breadBoughtChan, done, buyOrderuuid)
 
-		go func() {
-			log.Println("Starting buyBreadStream goroutine...")
-			for {
-				buyOrder := <-buyOrderChan
-				config.buyBreadStream(ctx, breadBoughtChan, done, buyOrder.buyOrderUUID)
-			}
-			log.Println("Exiting buyBreadStream goroutine...")
-		}()
+		buyBreadChan <- true
+		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
 
 		<-ctx.Done()
 		cancel()
-		log.Println("Timeout reached, cancelling context and restarting")
-
+		log.Println("Done sleeping for 35 seconds...")
 	}
-
 }
 
 // buySomeBread sends a BuyBread request to the gRPC server and waits for a response
