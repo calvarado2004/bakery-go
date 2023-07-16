@@ -388,6 +388,8 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 		var breadBought pb.BreadList
 		var message string
 
+		log.Println("Received a message from the bread-bought queue")
+
 		buyOrderType := data.BuyOrder{}
 
 		err := json.Unmarshal(d.Body, &buyOrderType)
@@ -397,8 +399,8 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 		}
 
 		buyOrder.Breads = buyOrderType.Breads
-
 		buyOrder.ID = buyOrderType.ID
+		buyOrder.BuyOrderUUID = buyOrderType.BuyOrderUUID
 
 		for _, bread := range buyOrder.Breads {
 
@@ -413,7 +415,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 			})
 		}
 
-		message = fmt.Sprintf("Bread order %d received for customer %s", buyOrder.ID, buyOrder.Customer.Name)
+		message = fmt.Sprintf("Bread order %d received for customer %s wiht uuid %s", buyOrder.ID, buyOrder.Customer.Name, buyOrder.BuyOrderUUID)
 
 		log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
 
@@ -424,8 +426,9 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 		}
 
 		response := &pb.BreadResponse{
-			Breads:  &breadBought,
-			Message: message,
+			Breads:       &breadBought,
+			Message:      message,
+			BuyOrderUuid: buyOrder.BuyOrderUUID,
 		}
 
 		responseCh <- response // send the response to the channel
