@@ -138,3 +138,33 @@ func (u *PostgresTestRepository) GetBuyOrderByID(orderID int) (order BuyOrder, e
 
 	return order, nil
 }
+
+func (u *PostgresTestRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder, err error) {
+
+	orderUUID = "f67d8cfa-95df-4564-8f52-25f986a30d5e"
+
+	customer := Customer{
+		ID:       1,
+		Name:     "John Doe",
+		Email:    "john@doe.com",
+		Password: "password",
+	}
+
+	bread := Bread{
+		ID:       1,
+		Name:     "roll-test",
+		Price:    1.0,
+		Quantity: 1,
+	}
+
+	breads := []Bread{bread}
+
+	order = BuyOrder{
+		ID:           1,
+		Customer:     customer,
+		Breads:       breads,
+		BuyOrderUUID: orderUUID,
+	}
+
+	return order, nil
+}

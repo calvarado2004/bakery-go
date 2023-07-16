@@ -21,8 +21,9 @@ type Config struct {
 }
 
 type buyOrder struct {
-	orderId int
-	buyChan chan bool
+	orderId      int
+	buyChan      chan bool
+	buyOrderUUID string
 }
 
 // main is the entry point of the program
@@ -47,7 +48,7 @@ func main() {
 		log.Println("Starting buySomeBread goroutine...")
 		for {
 			buyOrder := <-buyOrderChan
-			config.buySomeBread(buyOrder.buyChan, breadBoughtChan, done, buyOrder.orderId)
+			config.buySomeBread(buyOrder.buyChan, breadBoughtChan, done, buyOrder.buyOrderUUID)
 		}
 		log.Println("Exiting buySomeBread goroutine...")
 	}()
@@ -66,7 +67,7 @@ func main() {
 		log.Println("Starting buyBreadStream goroutine...")
 		for {
 			buyOrder := <-buyOrderChan
-			config.buyBreadStream(breadBoughtChan, done, buyOrder.orderId)
+			config.buyBreadStream(breadBoughtChan, done, buyOrder.buyOrderUUID)
 		}
 		log.Println("Exiting buyBreadStream goroutine...")
 	}()
@@ -84,9 +85,9 @@ func main() {
 
 		buyBreadChan := make(chan bool)
 
-		buyOrderId := uuid.New().ClockSequence()
-		log.Printf("Generated a new buy order id: %v", buyOrderId)
-		order := buyOrder{orderId: buyOrderId, buyChan: buyBreadChan}
+		buyOrderuuid := uuid.NewString()
+		log.Printf("Generated a new buy order id: %v", buyOrderuuid)
+		order := buyOrder{buyOrderUUID: buyOrderuuid, buyChan: buyBreadChan}
 		buyOrderChan <- order
 		buyOrderChan <- order
 		done <- true
@@ -99,7 +100,7 @@ func main() {
 }
 
 // buySomeBread sends a BuyBread request to the gRPC server and waits for a response
-func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan chan<- bool, done chan<- bool, buyOrderId int) {
+func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan chan<- bool, done chan<- bool, buyOrderUuid string) {
 
 	// Wait for a signal to buy bread
 	for {
@@ -174,8 +175,8 @@ func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan cha
 			}
 
 			request := pb.BreadRequest{
-				Breads:     &breadList,
-				BuyOrderId: int32(buyOrderId),
+				Breads:       &breadList,
+				BuyOrderUuid: buyOrderUuid,
 			}
 
 			log.Printf("Trying to buy bread: %v", request.Breads.Breads)
@@ -199,10 +200,10 @@ func (config *Config) buySomeBread(buyBreadChan <-chan bool, breadBoughtChan cha
 }
 
 // buyBreadStream consumes the BuyBreadStream from the gRPC server
-func (config *Config) buyBreadStream(breadBoughtChan <-chan bool, done chan<- bool, buyOrderId int) {
+func (config *Config) buyBreadStream(breadBoughtChan <-chan bool, done chan<- bool, buyOrderUuid string) {
 
 	breadReq := &pb.BreadRequest{
-		BuyOrderId: int32(buyOrderId),
+		BuyOrderUuid: buyOrderUuid,
 	}
 
 	stream, err := config.buyBreadClient.BuyBreadStream(context.Background(), breadReq)

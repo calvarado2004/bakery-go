@@ -71,6 +71,7 @@ ALTER TABLE public.bread_maker_id_seq OWNER TO postgres;
 CREATE TABLE public.make_order (
                                    id integer DEFAULT nextval('public.make_order_id_seq'::regclass) NOT NULL,
                                    bread_maker_id integer NOT NULL,
+                                   make_order_uuid character varying(255),
                                    PRIMARY KEY (id),
                                    FOREIGN KEY (bread_maker_id) REFERENCES public.bread_maker(id)
 );
@@ -102,6 +103,7 @@ ALTER TABLE public.customer_id_seq OWNER TO postgres;
 CREATE TABLE public.buy_order (
                                   id integer DEFAULT nextval('public.buy_id_seq'::regclass) NOT NULL,
                                   customer_id integer NOT NULL,
+                                  buy_order_uuid character varying(255),
                                   PRIMARY KEY (id),
                                   FOREIGN KEY (customer_id) REFERENCES public.customer(id)
 );

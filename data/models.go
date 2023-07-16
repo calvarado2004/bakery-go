@@ -49,10 +49,11 @@ type Bread struct {
 }
 
 type BuyOrder struct {
-	ID         int      `json:"id"`
-	CustomerID int      `json:"customer_id"`
-	Customer   Customer `json:"customer"`
-	Breads     []Bread  `json:"breads"`
+	ID           int      `json:"id"`
+	CustomerID   int      `json:"customer_id"`
+	BuyOrderUUID string   `json:"buy_order_uuid"`
+	Customer     Customer `json:"customer"`
+	Breads       []Bread  `json:"breads"`
 }
 
 type OrdersProcessed struct {
@@ -75,10 +76,11 @@ type BreadMaker struct {
 }
 
 type MakeOrder struct {
-	ID           int        `json:"id"`
-	BreadMakerID int        `json:"bread_maker_id"`
-	BreadMaker   BreadMaker `json:"bread_maker"`
-	Breads       []Bread    `json:"breads"`
+	ID            int        `json:"id"`
+	BreadMakerID  int        `json:"bread_maker_id"`
+	MakeOrderUUID string     `json:"make_order_uuid"`
+	BreadMaker    BreadMaker `json:"bread_maker"`
+	Breads        []Bread    `json:"breads"`
 }
 
 func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {
@@ -421,6 +423,7 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 	err = db.QueryRowContext(ctx, stmt, orderID).Scan(
 		&order.ID,
 		&order.CustomerID,
+		&order.BuyOrderUUID,
 	)
 
 	if err != nil {
@@ -462,4 +465,59 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 	order.Breads = breads
 
 	return order, nil
+}
+
+func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder, err error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM buy_order WHERE buy_order_uuid = $1`
+
+	err = db.QueryRowContext(ctx, stmt, orderUUID).Scan(
+		&order.ID,
+		&order.CustomerID,
+		&order.BuyOrderUUID,
+	)
+
+	if err != nil {
+		return order, err
+	}
+
+	stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+
+	rows, err := db.QueryContext(ctx, stmt, order.ID)
+	if err != nil {
+		return order, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(rows)
+
+	var breads []Bread
+
+	for rows.Next() {
+		var breadID, quantity int
+		err := rows.Scan(&breadID, &quantity)
+		if err != nil {
+			return order, err
+		}
+
+		bread, err := u.GetBreadByID(breadID)
+		if err != nil {
+			return order, err
+		}
+
+		bread.Quantity = quantity
+		breads = append(breads, bread)
+	}
+
+	order.Breads = breads
+
+	return order, nil
+
 }

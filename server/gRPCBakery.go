@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
@@ -220,14 +219,15 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 	}
 }
 
+// BuyBread is a server-streaming RPC to buy bread
 func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
 	buyOrder := data.BuyOrder{}
 
-	if in.BuyOrderId > 0 {
-		buyOrder.ID = int(in.BuyOrderId)
+	if in.BuyOrderUuid != "" {
+		buyOrder.BuyOrderUUID = in.BuyOrderUuid
 	} else {
-		buyOrder.ID = uuid.New().ClockSequence()
+		buyOrder.BuyOrderUUID = uuid.NewString()
 	}
 
 	breadsToBuy := in.Breads.GetBreads()
@@ -307,30 +307,46 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 	}, nil
 }
 
+// BuyBreadStream is a server stream function that returns the status of the order
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
-	s.RabbitMQBakery.mu.Lock()
-	orderStatus, ok := s.RabbitMQBakery.orders[int(in.BuyOrderId)]
-	s.RabbitMQBakery.mu.Unlock()
-	if !ok {
-		return errors.New("order not found")
+	// Maximum number of retries before giving up
+	maxRetries := 10
+	retryCount := 0
+
+	for retryCount < maxRetries {
+		time.Sleep(5 * time.Second) // wait for a while before checking again
+
+		// Fetch the order from the database
+		s.RabbitMQBakery.mu.Lock()
+		savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+		s.RabbitMQBakery.mu.Unlock()
+
+		// if there was an error or the order is not found, try again
+		if err != nil {
+			log.Printf("Failed to get order from database: %v", err)
+			retryCount++
+			continue
+		}
+
+		// The order was found
+		res := &pb.BreadResponse{
+			Message:      fmt.Sprintf("Order %v was found in the database", savedOrder.BuyOrderUUID),
+			BuyOrderId:   int32(savedOrder.ID),
+			BuyOrderUuid: savedOrder.BuyOrderUUID,
+		}
+		if err := stream.Send(res); err != nil {
+			return err
+		}
+		break // exit the loop once the order is found
+
 	}
 
-	for {
-		log.Println("Waiting for order status updates")
-		select {
-		case response, ok := <-orderStatus.Ch:
-			log.Printf("Received order status update with ID (this is from the stream): %v", response.BuyOrderId)
-			if !ok {
-				return errors.New("order not found")
-			}
-			if err := stream.Send(response); err != nil {
-				return err
-			}
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		}
-		continue
+	// If the order was not found after all retries, return an error
+	if retryCount == maxRetries {
+		return fmt.Errorf("order not found after %v attempts", maxRetries)
 	}
+
+	return nil
 }
 
 func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
