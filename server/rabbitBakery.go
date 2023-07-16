@@ -348,7 +348,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 			return ctx.Err()
 		default:
 			// If the context is not done, attempt to run the goroutine
-			err := rabbit.processBreadsBought(responseCh)
+			err := rabbit.processBreadsBought(ctx, responseCh)
 			if err != nil {
 				if maxRetries == 0 {
 					// If there are no more retries, return the error
@@ -369,8 +369,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 }
 
 // processBreadsBought listens for breads bought messages and sends them to the client
-func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadResponse) error {
-
+func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseCh chan *pb.BreadResponse) error {
 	buyOrder := data.BuyOrder{}
 
 	breadsBought, err := rabbit.RabbitmqChannel.Consume(
@@ -388,57 +387,62 @@ func (rabbit *RabbitMQBakery) processBreadsBought(responseCh chan *pb.BreadRespo
 		return err
 	}
 
-	for d := range breadsBought {
-		var breadBought pb.BreadList
-		var message string
+	for {
+		select {
+		case d := <-breadsBought:
+			var breadBought pb.BreadList
+			var message string
 
-		log.Println("Received a message from the bread-bought queue")
+			log.Println("Received a message from the bread-bought queue")
 
-		buyOrderType := data.BuyOrder{}
+			buyOrderType := data.BuyOrder{}
 
-		err := json.Unmarshal(d.Body, &buyOrderType)
-		if err != nil {
-			log.Printf("Failed to unmarshal buy order data: %v", err)
-			return err
+			err := json.Unmarshal(d.Body, &buyOrderType)
+			if err != nil {
+				log.Printf("Failed to unmarshal buy order data: %v", err)
+				return err
+			}
+
+			buyOrder.Breads = buyOrderType.Breads
+			buyOrder.ID = buyOrderType.ID
+			buyOrder.BuyOrderUUID = buyOrderType.BuyOrderUUID
+
+			for _, bread := range buyOrder.Breads {
+
+				breadBought.Breads = append(breadBought.Breads, &pb.Bread{
+					Id:          int32(bread.ID),
+					Name:        bread.Name,
+					Quantity:    int32(bread.Quantity),
+					Description: bread.Description,
+					Price:       bread.Price,
+					Image:       bread.Image,
+					Type:        bread.Type,
+				})
+			}
+
+			message = fmt.Sprintf("Bread order %d received for customer %s with uuid %s", buyOrder.ID, buyOrder.Customer.Name, buyOrder.BuyOrderUUID)
+
+			log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
+
+			err = d.Ack(false)
+			if err != nil {
+				log.Printf("Failed to Ack message: %v", err)
+				return err
+			}
+
+			response := &pb.BreadResponse{
+				Breads:       &breadBought,
+				Message:      message,
+				BuyOrderUuid: buyOrder.BuyOrderUUID,
+			}
+
+			responseCh <- response // send the response to the channel
+
+		case <-ctx.Done():
+			// If the context is done, return an error
+			return ctx.Err()
 		}
-
-		buyOrder.Breads = buyOrderType.Breads
-		buyOrder.ID = buyOrderType.ID
-		buyOrder.BuyOrderUUID = buyOrderType.BuyOrderUUID
-
-		for _, bread := range buyOrder.Breads {
-
-			breadBought.Breads = append(breadBought.Breads, &pb.Bread{
-				Id:          int32(bread.ID),
-				Name:        bread.Name,
-				Quantity:    int32(bread.Quantity),
-				Description: bread.Description,
-				Price:       bread.Price,
-				Image:       bread.Image,
-				Type:        bread.Type,
-			})
-		}
-
-		message = fmt.Sprintf("Bread order %d received for customer %s wiht uuid %s", buyOrder.ID, buyOrder.Customer.Name, buyOrder.BuyOrderUUID)
-
-		log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
-
-		err = d.Ack(false)
-		if err != nil {
-			log.Printf("Failed to Ack message: %v", err)
-			return err
-		}
-
-		response := &pb.BreadResponse{
-			Breads:       &breadBought,
-			Message:      message,
-			BuyOrderUuid: buyOrder.BuyOrderUUID,
-		}
-
-		responseCh <- response // send the response to the channel
 	}
-
-	log.Println("Reaching end of processBreadsBought, this is outside the for loop")
 
 	return nil
 }
