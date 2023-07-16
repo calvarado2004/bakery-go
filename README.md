@@ -38,6 +38,17 @@ export BAKERY_SERVICE_ADDR=localhost:50051
 export RABBITMQ_SERVICE_ADDR=amqp://guest:guest@localhost:5672/
 ```
 
+Some useful commands 
+
+```bash
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/bread.proto
+
+docker build . -t docker.io/calvarado2004/bakery-go-buyers -f buyers.dockerfile && docker push docker.io/calvarado2004/bakery-go-buyers
+docker build . -t docker.io/calvarado2004/bakery-go-frontend -f frontend.dockerfile && docker push docker.io/calvarado2004/bakery-go-frontend
+docker build . -t docker.io/calvarado2004/bakery-go-makers -f makers.dockerfile && docker push docker.io/calvarado2004/bakery-go-makers 
+docker build . -t docker.io/calvarado2004/bakery-go-server -f server.dockerfile && docker push docker.io/calvarado2004/bakery-go-server
+
+```
 Install the Go dependencies with:
 
 ```bash
