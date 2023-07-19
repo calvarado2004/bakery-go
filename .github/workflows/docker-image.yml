@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker build . --file server.dockerfile --tag calvarado2004/bakery-go-server:$(date +%s)
+      run: docker build . --file server.dockerfile --tag calvarado2004/bakery-go-server:latest
     - uses: actions/checkout@v3
     - name: Push the Docker image
-      run: docker push calvarado2004/bakery-go-server:$(date +%s)
+      run: docker push calvarado2004/bakery-go-server:latest
