@@ -238,6 +238,6 @@ spec:
         resources:
           requests:
             storage: 5Gi
-        storageClassName: portworx-db-sc
+        storageClassName: px-csi-db
         volumeMode: Filesystem
   serviceName: postgres-service
