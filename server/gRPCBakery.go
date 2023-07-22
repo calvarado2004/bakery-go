@@ -262,49 +262,55 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 		return nil, status.Errorf(codes.Internal, "Failed to marshal order: %v", err)
 	}
 
-	err = s.RabbitMQBakery.RabbitmqChannel.Publish(
-		"",
-		"buy-bread-order",
-		false,
-		false,
-		rabbitmq.Publishing{
-			ContentType:  "text/json",
-			Body:         orderData,
-			DeliveryMode: rabbitmq.Persistent,
-		})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to add bread order to queue: %v", err)
-	}
-
-	orderStatus := &OrderStatus{
-		Ch:      make(chan *pb.BreadResponse, 1),
-		Status:  "Processing",
-		OrderId: buyOrder.ID,
-	}
-
-	s.RabbitMQBakery.mu.Lock()
-	s.RabbitMQBakery.orders[buyOrder.ID] = orderStatus
-	s.RabbitMQBakery.mu.Unlock()
-
-	boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
-	for i, boughtBread := range buyOrder.Breads {
-		boughtBreads[i] = &pb.Bread{
-			Name:        boughtBread.Name,
-			Description: boughtBread.Description,
-			Price:       boughtBread.Price,
-			Quantity:    int32(boughtBread.Quantity),
-			Type:        boughtBread.Type,
-			Image:       boughtBread.Image,
-			Status:      boughtBread.Status,
-			Id:          int32(boughtBread.ID),
+	select {
+	case <-ctx.Done():
+		// If the context is cancelled, return an error
+		return nil, status.Error(codes.Canceled, "Request canceled by client")
+	default:
+		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+			"",
+			"buy-bread-order",
+			false,
+			false,
+			rabbitmq.Publishing{
+				ContentType:  "text/json",
+				Body:         orderData,
+				DeliveryMode: rabbitmq.Persistent,
+			})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to add bread order to queue: %v", err)
 		}
-	}
 
-	return &pb.BreadResponse{
-		Message:    fmt.Sprintf("Bread buying process started, you'll receive the order that will be settled later. Buy order ID: %v", buyOrder.ID),
-		Breads:     &pb.BreadList{Breads: boughtBreads},
-		BuyOrderId: int32(buyOrder.ID),
-	}, nil
+		orderStatus := &OrderStatus{
+			Ch:      make(chan *pb.BreadResponse, 1),
+			Status:  "Processing",
+			OrderId: buyOrder.ID,
+		}
+
+		s.RabbitMQBakery.mu.Lock()
+		s.RabbitMQBakery.orders[buyOrder.ID] = orderStatus
+		s.RabbitMQBakery.mu.Unlock()
+
+		boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
+		for i, boughtBread := range buyOrder.Breads {
+			boughtBreads[i] = &pb.Bread{
+				Name:        boughtBread.Name,
+				Description: boughtBread.Description,
+				Price:       boughtBread.Price,
+				Quantity:    int32(boughtBread.Quantity),
+				Type:        boughtBread.Type,
+				Image:       boughtBread.Image,
+				Status:      boughtBread.Status,
+				Id:          int32(boughtBread.ID),
+			}
+		}
+
+		return &pb.BreadResponse{
+			Message:    fmt.Sprintf("Bread buying process started, you'll receive the order that will be settled later. Buy order ID: %v", buyOrder.ID),
+			Breads:     &pb.BreadList{Breads: boughtBreads},
+			BuyOrderId: int32(buyOrder.ID),
+		}, nil
+	}
 }
 
 // BuyBreadStream is a server stream function that returns the status of the order

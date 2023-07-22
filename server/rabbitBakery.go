@@ -341,11 +341,19 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 	retryInterval := time.Second // Start with a delay of 1 second
 
 	maxRetries := 5 // Maximum number of retries
+	retries := 0    // Number of retries made
+
 	for {
 		select {
 		case <-ctx.Done():
-			// If the context is done, return an error
-			return ctx.Err()
+			// If the context is done, instead of returning an error, restart the loop
+			// But first check if it's not recoverable or maxRetries is hit
+			if ctx.Err() == context.Canceled || retries >= maxRetries {
+				return ctx.Err()
+			}
+			retries++
+			log.Printf("Context done, restarting the loop: %v", ctx.Err())
+			continue
 		default:
 			// If the context is not done, attempt to run the goroutine
 			err := rabbit.processBreadsBought(ctx, responseCh)
