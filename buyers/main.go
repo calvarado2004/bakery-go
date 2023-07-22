@@ -60,7 +60,7 @@ func main() {
 		buyOrderChan <- order
 		buyOrderChan <- order
 
-		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 
 		go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, done, buyOrderuuid)
 		go config.buyBreadStream(ctx, breadBoughtChan, done, buyOrderuuid)
