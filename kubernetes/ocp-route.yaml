@@ -1,0 +1,21 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: 'true'
+  labels:
+    app: bakery-frontend
+    app.kubernetes.io/instance: bakery-golang
+  name: bakery-go
+spec:
+  host: bakery-go-bakery.apps.okd.calvarado04.com
+  port:
+    targetPort: http
+  tls:
+    insecureEdgeTerminationPolicy: Allow
+    termination: edge
+  to:
+    kind: Service
+    name: bakery-frontend-service
+    weight: 100
+  wildcardPolicy: None
