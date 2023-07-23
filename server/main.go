@@ -7,7 +7,6 @@ import (
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -17,6 +16,7 @@ import (
 	_ "github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
+	log "github.com/sirupsen/logrus"
 )
 
 type RabbitMQBakery struct {
@@ -72,10 +72,12 @@ var rabbitmqChannel *rabbitmq.Channel
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
+		log.Errorf("Failed to open database: %v", err)
 		return nil, err
 	}
 
 	if err = db.Ping(); err != nil {
+		log.Errorf("Failed to ping database: %v", err)
 		return nil, err
 	}
 
@@ -89,7 +91,7 @@ func connectToDB() *sql.DB {
 	for {
 		connection, err := openDB(dsn)
 		if err != nil {
-			log.Println("Error opening database:", err)
+			log.Warningf("Error opening database: %s", err)
 			counts++
 		} else {
 			log.Println("Connected to database")
@@ -97,7 +99,7 @@ func connectToDB() *sql.DB {
 		}
 
 		if counts > 10 {
-			log.Println(err)
+			log.Errorf("Could not connect to database after 10 attempts: %v", err)
 			return nil
 		}
 
@@ -116,9 +118,14 @@ func (app *Config) setupRepo(conn *sql.DB) {
 
 func main() {
 
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
 	listen, err := net.Listen("tcp", gRPCAddress)
 	if err != nil {
-		log.Print("error listening: ", err)
+		log.Fatalf("error listening: %s ", err)
 	}
 
 	log.Printf("Server listening on %v", gRPCAddress)
@@ -192,7 +199,7 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 		for {
 			err := rabbit.checkBread()
 			if err != nil {
-				log.Printf("Failed to check bread: %v", err)
+				log.Errorf("Failed to check bread: %v", err)
 			}
 			time.Sleep(30 * time.Second)
 		}
@@ -203,7 +210,7 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 
 		err := rabbit.performBuyBread()
 		if err != nil {
-			log.Printf("Failed to perform buy bread (main): %v", err)
+			log.Errorf("Failed to perform buy bread (main): %v", err)
 			return
 		}
 		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ")

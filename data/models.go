@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"log"
 	"time"
 )
 
@@ -105,6 +105,7 @@ func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {
 	).Scan(&newID)
 
 	if err != nil {
+		log.Errorf("Error inserting customer: %v", err)
 		return 0, err
 	}
 
@@ -132,6 +133,7 @@ func (u *PostgresRepository) InsertBread(bread Bread) (int, error) {
 	).Scan(&newID)
 
 	if err != nil {
+		log.Errorf("Error inserting bread: %v", err)
 		return 0, err
 	}
 
@@ -154,6 +156,7 @@ func (u *PostgresRepository) InsertBreadMaker(baker BreadMaker) (int, error) {
 	).Scan(&newID)
 
 	if err != nil {
+		log.Errorf("Error inserting bread maker: %v", err)
 		return 0, err
 	}
 
@@ -173,6 +176,7 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 	).Scan(&newID)
 
 	if err != nil {
+		log.Errorf("Error inserting buy order: %v", err)
 		return 0, err
 	}
 
@@ -182,11 +186,13 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
 
 		if err != nil {
+			log.Errorf("Error inserting order details: %v", err)
 			return 0, err
 		}
 
 		err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 		if err != nil {
+			log.Errorf("Error adjusting bread quantity: %v", err)
 			return 0, err
 		}
 	}
@@ -208,6 +214,7 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 	).Scan(&newID)
 
 	if err != nil {
+		log.Errorf("Error inserting make order: %v", err)
 		return 0, err
 	}
 
@@ -218,11 +225,13 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
 
 		if err != nil {
+			log.Errorf("Error inserting make order details: %v", err)
 			return 0, err
 		}
 
 		err = u.AdjustBreadQuantity(bread.ID, bread.Quantity)
 		if err != nil {
+			log.Errorf("Error adjusting bread quantity: %v", err)
 			return 0, err
 		}
 	}
@@ -241,6 +250,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	var currentQuantity int
 	err := row.Scan(&currentQuantity)
 	if err != nil {
+		log.Errorf("Error fetching bread quantity: %v", err)
 		return err
 	}
 
@@ -258,6 +268,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
 	_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
 	if err != nil {
+		log.Errorf("Error updating bread quantity: %v", err)
 		return err
 	}
 
@@ -272,6 +283,7 @@ func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) err
 
 	_, err := db.ExecContext(ctx, stmt, newPrice, breadID)
 	if err != nil {
+		log.Errorf("Error updating bread price: %v", err)
 		return err
 	}
 
@@ -286,6 +298,7 @@ func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer
 			// invalid password
 			return false, nil
 		default:
+			log.Errorf("Error comparing password: %v", err)
 			return false, err
 		}
 	}
@@ -302,12 +315,14 @@ func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 
 	rows, err := db.QueryContext(ctx, stmt)
 	if err != nil {
+		log.Errorf("Error fetching bread: %v", err)
 		return nil, err
 	}
 
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
+			log.Errorf("Error closing rows while fetching bread: %v", err)
 			log.Println(err)
 		}
 	}(rows)
@@ -329,6 +344,7 @@ func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 			&bread.Image,
 		)
 		if err != nil {
+			log.Errorf("Error scanning bread: %v", err)
 			return nil, err
 		}
 
@@ -357,6 +373,10 @@ func (u *PostgresRepository) GetBreadByID(breadID int) (bread Bread, err error) 
 		&bread.UpdatedAt,
 		&bread.Image,
 	)
+	if err != nil {
+		log.Errorf("Error scanning bread by ID: %v", err)
+		return bread, err
+	}
 
 	return bread, err
 }
@@ -375,6 +395,7 @@ func (u *PostgresRepository) GetMakeOrderByID(orderID int) (order MakeOrder, err
 	)
 
 	if err != nil {
+		log.Errorf("Error scanning make order by ID: %v", err)
 		return order, err
 	}
 
@@ -382,13 +403,14 @@ func (u *PostgresRepository) GetMakeOrderByID(orderID int) (order MakeOrder, err
 
 	rows, err := db.QueryContext(ctx, stmt, orderID)
 	if err != nil {
+		log.Errorf("Error querying make order details: %v", err)
 		return order, err
 	}
 
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-			log.Println(err)
+			log.Errorf("Error closing rows while fetching make order details: %v", err)
 		}
 	}(rows)
 
@@ -398,11 +420,13 @@ func (u *PostgresRepository) GetMakeOrderByID(orderID int) (order MakeOrder, err
 		var breadID, quantity int
 		err := rows.Scan(&breadID, &quantity)
 		if err != nil {
+			log.Errorf("Error scanning make order details: %v", err)
 			return order, err
 		}
 
 		bread, err := u.GetBreadByID(breadID)
 		if err != nil {
+			log.Errorf("Error fetching bread by ID: %v", err)
 			return order, err
 		}
 
@@ -429,6 +453,7 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 	)
 
 	if err != nil {
+		log.Errorf("Error scanning buy order by ID: %v", err)
 		return order, err
 	}
 
@@ -436,13 +461,14 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 
 	rows, err := db.QueryContext(ctx, stmt, orderID)
 	if err != nil {
+		log.Errorf("Error querying order details: %v", err)
 		return order, err
 	}
 
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-			log.Println(err)
+			log.Errorf("Error closing rows while fetching order details: %v", err)
 		}
 	}(rows)
 
@@ -452,11 +478,13 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 		var breadID, quantity int
 		err := rows.Scan(&breadID, &quantity)
 		if err != nil {
+			log.Errorf("Error scanning order details: %v", err)
 			return order, err
 		}
 
 		bread, err := u.GetBreadByID(breadID)
 		if err != nil {
+			log.Errorf("Error fetching bread by ID: %v", err)
 			return order, err
 		}
 
@@ -483,6 +511,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 	)
 
 	if err != nil {
+		log.Errorf("Error scanning buy order by UUID: %v", err)
 		return order, err
 	}
 
@@ -490,13 +519,14 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 
 	rows, err := db.QueryContext(ctx, stmt, order.ID)
 	if err != nil {
+		log.Errorf("Error querying order details: %v", err)
 		return order, err
 	}
 
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-			log.Println(err)
+			log.Errorf("Error closing rows while fetching order details: %v", err)
 		}
 	}(rows)
 
@@ -506,11 +536,13 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 		var breadID, quantity int
 		err := rows.Scan(&breadID, &quantity)
 		if err != nil {
+			log.Errorf("Error scanning order details: %v", err)
 			return order, err
 		}
 
 		bread, err := u.GetBreadByID(breadID)
 		if err != nil {
+			log.Errorf("Error fetching bread by ID: %v", err)
 			return order, err
 		}
 

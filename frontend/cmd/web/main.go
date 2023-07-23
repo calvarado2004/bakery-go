@@ -6,11 +6,11 @@ import (
 	"fmt"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"os"
 )
@@ -29,6 +29,11 @@ type BreadLog struct {
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
 func main() {
+
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", homeHandler)
@@ -132,15 +137,19 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 
 			jsonData, err := json.Marshal(data)
 			if err != nil {
-				log.Printf("Error serializing data: %v", err)
+				log.Errorf("Error serializing data: %v", err)
 				continue
 			}
-			fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			if err != nil {
+				log.Errorf("Error writing to stream: %v", err)
+				return
+			}
 
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			} else {
-				log.Println("Failed to flush")
+				log.Errorf("Failed to flush")
 			}
 		}
 	}

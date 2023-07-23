@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	log "github.com/sirupsen/logrus"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
 	"time"
 )
 
@@ -352,7 +352,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 				return ctx.Err()
 			}
 			retries++
-			log.Printf("Context done, restarting the loop: %v", ctx.Err())
+			log.Errorf("Context done, restarting the loop: %v", ctx.Err())
 			continue
 		default:
 			// If the context is not done, attempt to run the goroutine
@@ -362,7 +362,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 					// If there are no more retries, return the error
 					return err
 				}
-				log.Printf("Error processing breads bought: %v", err)
+				log.Errorf("Error processing breads bought: %v", err)
 				// If there was an error, wait for retryInterval before trying again
 				time.Sleep(retryInterval)
 				// Increase the retryInterval for the next try
@@ -391,7 +391,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 	)
 
 	if err != nil {
-		log.Printf("Failed to consume from bought breads queue: %v", err)
+		log.Errorf("Failed to consume from bought breads queue: %v", err)
 		return err
 	}
 
@@ -407,7 +407,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 
 			err := json.Unmarshal(d.Body, &buyOrderType)
 			if err != nil {
-				log.Printf("Failed to unmarshal buy order data: %v", err)
+				log.Errorf("Failed to unmarshal buy order data: %v", err)
 				return err
 			}
 
@@ -434,7 +434,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 
 			err = d.Ack(false)
 			if err != nil {
-				log.Printf("Failed to Ack message: %v", err)
+				log.Errorf("Failed to Ack message: %v", err)
 				return err
 			}
 
@@ -448,6 +448,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 
 		case <-ctx.Done():
 			// If the context is done, return an error
+			log.Warningf("Context done, returning error")
 			return ctx.Err()
 		}
 	}

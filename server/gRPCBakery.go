@@ -7,10 +7,10 @@ import (
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
 	"time"
 )
 
@@ -112,6 +112,7 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		if err != nil {
 			err := d.Nack(false, true)
 			if err != nil {
+				log.Errorf("Failed to unmarshal bread data: %v", err)
 				return err
 			}
 			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
@@ -328,7 +329,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	// Start a go-routine to listen for RabbitMQ messages
 	go func() {
 		if err := s.RabbitMQBakery.getBuyResponse(ctx, responseCh); err != nil {
-			log.Printf("Failed to get RabbitMQ response: %v", err)
+			log.Errorf("Failed to get RabbitMQ response: %v", err)
 		}
 	}()
 
@@ -435,6 +436,7 @@ func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.
 
 		err = d.Ack(false)
 		if err != nil {
+			log.Errorf("Failed to acknowledge message: %v", err)
 			return err
 		}
 	}

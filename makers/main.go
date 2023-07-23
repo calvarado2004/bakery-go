@@ -6,9 +6,9 @@ import (
 	"github.com/calvarado2004/bakery-go/data"
 	rabbitmq "github.com/streadway/amqp"
 
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -33,6 +33,7 @@ var rabbitmqChannel *rabbitmq.Channel
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
+		log.Errorf("Failed to open database: %v", err)
 		return nil, err
 	}
 
@@ -50,7 +51,7 @@ func connectToDB() *sql.DB {
 	for {
 		connection, err := openDB(dsn)
 		if err != nil {
-			log.Println("Error opening database:", err)
+			log.Errorf("Error opening database: %s", err)
 			counts++
 		} else {
 			log.Println("Connected to database")
@@ -58,7 +59,7 @@ func connectToDB() *sql.DB {
 		}
 
 		if counts > 10 {
-			log.Println(err)
+			log.Errorf("Error opening database, max attempts reached: %s", err)
 			return nil
 		}
 
@@ -77,6 +78,11 @@ func (app *Config) setupRepo(conn *sql.DB) {
 
 func main() {
 
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
 	pgConn := connectToDB()
 	if pgConn == nil {
 		log.Panic("Could not connect to database")
@@ -84,6 +90,7 @@ func main() {
 
 	err := listenForMakeBread(pgConn)
 	if err != nil {
+		log.Fatalf("Failed to listen for make bread order messages: %v", err)
 		return
 	}
 
