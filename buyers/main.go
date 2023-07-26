@@ -88,6 +88,8 @@ func main() {
 		select {
 		case <-globalDone:
 			log.Println("Successfully bought bread")
+			buyBreadChan <- true // Signal to buy bread again
+			log.Println("Iterating again to buy bread...")
 			<-ctx.Done()
 		case err := <-errChan:
 			time.Sleep(35 * time.Second)
