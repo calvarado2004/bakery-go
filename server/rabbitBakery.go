@@ -221,7 +221,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 	buyOrderMessage, err := rabbit.RabbitmqChannel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer
-		false,             // auto-ack
+		true,              // auto-ack
 		false,             // exclusive
 		false,             // no-local
 		false,             // no-wait
@@ -384,7 +384,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 	breadsBought, err := rabbit.RabbitmqChannel.Consume(
 		"bread-bought", // queue
 		"",             // consumer
-		false,          // auto-ack
+		true,           // auto-ack
 		false,          // exclusive
 		false,          // no-local
 		false,          // no-wait
@@ -454,5 +454,4 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 		}
 	}
 
-	return nil
 }
