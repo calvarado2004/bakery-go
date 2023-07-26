@@ -92,9 +92,8 @@ func main() {
 			log.Println("Done sleeping for 35 seconds...")
 			ctx.Done() // Cancel the previous context
 			// Start new iteration
+			log.Println("Iterating again to buy bread, creating a new context...")
 			ctx, cancel = context.WithCancel(context.Background())
-			buyBreadChan <- true // Signal to buy bread again
-			log.Println("Iterating again to buy bread...")
 		case err := <-errChan:
 			time.Sleep(35 * time.Second)
 			log.Errorf("Error buying bread: %v", err)
