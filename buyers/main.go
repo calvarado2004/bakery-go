@@ -218,10 +218,12 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 				if err == io.EOF {
 					// If we've received all updates, break out of the loop
 					log.Warningf("Received all updates, exiting...")
-					break
+					done <- true // signal that we're done here
+					return
 				}
 				if err != nil {
 					log.Warningf("Failed to receive update: %v", err)
+					errChan <- err
 					return
 				}
 
@@ -229,8 +231,6 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 				log.Printf("Received bread response that has been settled: %v", response)
 			}
 
-			// After the bread has been bought, signal that we're done
-			done <- true
 		}
 	}
 }
