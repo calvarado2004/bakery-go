@@ -87,7 +87,7 @@ func main() {
 			cancel() // This will cancel the context, ending all operations using it
 			// Start new iteration
 		}
-		cancel()
+
 		log.Println("Done sleeping for 35 seconds...")
 	}
 }
