@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"io"
 	"os"
 	"time"
 )
@@ -215,12 +214,6 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 			for {
 				log.Println("Waiting for stream response...")
 				response, err := stream.Recv()
-				if err == io.EOF {
-					// If we've received all updates, break out of the loop
-					log.Warningf("Received all updates, exiting...")
-					done <- true // signal that we're done here
-					return
-				}
 				if err != nil {
 					log.Warningf("Failed to receive update: %v", err)
 					errChan <- err
@@ -229,6 +222,9 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 
 				// Process the response
 				log.Printf("Received bread response that has been settled: %v", response)
+
+				done <- true // signal that we're done here
+
 			}
 
 		}
