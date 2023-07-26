@@ -88,7 +88,6 @@ func main() {
 		select {
 		case <-globalDone:
 			log.Println("Successfully bought bread")
-			time.Sleep(35 * time.Second)
 			<-ctx.Done()
 		case err := <-errChan:
 			time.Sleep(35 * time.Second)
@@ -97,6 +96,7 @@ func main() {
 			// Start new iteration
 		}
 
+		time.Sleep(35 * time.Second)
 		log.Println("Done sleeping for 35 seconds...")
 	}
 }
