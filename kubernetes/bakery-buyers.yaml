@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: bakery-buyers
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: bakery-buyers
