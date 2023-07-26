@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"io"
 	"os"
 	"time"
 )
@@ -56,7 +57,8 @@ func main() {
 
 		buyBreadChan := make(chan bool)
 		breadBoughtChan := make(chan bool)
-		done := make(chan bool)
+		doneBuy := make(chan bool)
+		doneStream := make(chan bool)
 		buyOrderChan := make(chan buyOrder, 2) // Using a buffered channel to avoid blockage
 
 		buyOrderuuid := uuid.NewString()
@@ -69,14 +71,22 @@ func main() {
 
 		errChan := make(chan error, 2) // Buffered channel to avoid blocking goroutines
 
-		go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, done, buyOrderuuid, errChan)
-		go config.buyBreadStream(ctx, breadBoughtChan, done, buyOrderuuid, errChan)
+		go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, doneBuy, buyOrderuuid, errChan)
+		go config.buyBreadStream(ctx, breadBoughtChan, doneStream, buyOrderuuid, errChan)
 
 		buyBreadChan <- true
 		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
 
+		// Wait for both doneBuy and doneStream to be true
+		globalDone := make(chan bool)
+		go func() {
+			<-doneBuy
+			<-doneStream
+			globalDone <- true
+		}()
+
 		select {
-		case <-done:
+		case <-globalDone:
 			log.Println("Successfully bought bread")
 			time.Sleep(35 * time.Second)
 			<-ctx.Done()
@@ -92,9 +102,9 @@ func main() {
 }
 
 // buySomeBread sends a BuyBread request to the gRPC server and waits for a response
-func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool, breadBoughtChan chan<- bool, done chan<- bool, buyOrderUuid string, errChan chan<- error) {
+func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool, breadBoughtChan chan<- bool, doneBuy chan<- bool, buyOrderUuid string, errChan chan<- error) {
 
-	// Wait for a signal to buy bread
+	// Wait for a signal to buy bread, this for should keep running indefinitely
 	for {
 		select {
 		case <-buyBreadChan:
@@ -186,14 +196,14 @@ func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool
 			breadBoughtChan <- true
 
 			// After the bread has been bought, signal that we're done
-			done <- true
+			doneBuy <- true
 		}
 	}
 
 }
 
 // buyBreadStream consumes the BuyBreadStream from the gRPC server
-func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan bool, done chan<- bool, buyOrderUuid string, errChan chan<- error) {
+func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan bool, doneStream chan<- bool, buyOrderUuid string, errChan chan<- error) {
 
 	breadReq := &pb.BreadRequest{
 		BuyOrderUuid: buyOrderUuid,
@@ -206,6 +216,7 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 		return
 	}
 
+	// This for should keep running indefinitely
 	for {
 		log.Println("Waiting for bread to be bought...")
 		select {
@@ -214,6 +225,12 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 			for {
 				log.Println("Waiting for stream response...")
 				response, err := stream.Recv()
+				if err == io.EOF {
+					log.Println("Reached end of stream")
+					doneStream <- true // signal that we're done here
+
+					return
+				}
 				if err != nil {
 					log.Warningf("Failed to receive update: %v", err)
 					errChan <- err
@@ -222,8 +239,6 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 
 				// Process the response
 				log.Printf("Received bread response that has been settled: %v", response)
-
-				done <- true // signal that we're done here
 
 			}
 
