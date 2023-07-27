@@ -16,6 +16,30 @@ import (
 
 func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return nil, err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return nil, err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
 	breadsToMake := in.Breads.GetBreads()
 
 	var breadMade pb.BreadList
@@ -28,7 +52,7 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+		err = channel.Publish(
 			"",              // exchange
 			"bread-to-make", // routing key
 			false,           // mandatory
@@ -52,6 +76,30 @@ func (s *MakeBreadServer) BakeBread(_ context.Context, in *pb.BreadRequest) (*pb
 
 func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return nil, err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return nil, err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
 	breadsToMake := in.Breads.GetBreads()
 
 	var breadMade pb.BreadList
@@ -66,7 +114,7 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 		bread.Status = "bread ready to consume"
 
-		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+		err = channel.Publish(
 			"",                // exchange
 			"bread-in-bakery", // routing key
 			false,             // mandatory
@@ -90,7 +138,31 @@ func (s *MakeBreadServer) SendBreadToBakery(_ context.Context, in *pb.BreadReque
 
 func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBread_MadeBreadStreamServer) error {
 
-	msgs, err := s.RabbitMQBakery.RabbitmqChannel.Consume(
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
+	msgs, err := channel.Consume(
 		"bread-in-bakery", // queue
 		"",                // consumer
 		false,             // auto-ack
@@ -223,6 +295,30 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 // BuyBread is a server-streaming RPC to buy bread
 func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return nil, err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return nil, err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
 	buyOrder := data.BuyOrder{}
 
 	if in.BuyOrderUuid != "" {
@@ -268,7 +364,7 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 		// If the context is cancelled, return an error
 		return nil, status.Error(codes.Canceled, "Request canceled by client")
 	default:
-		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+		err = channel.Publish(
 			"",
 			"buy-bread-order",
 			false,
@@ -371,6 +467,30 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 
 func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return nil, err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return nil, err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
 	breadToRemove := in.Breads.GetBreads()
 	var breadRemoved pb.BreadList
 
@@ -382,7 +502,7 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 			return nil, status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 		}
 
-		err = s.RabbitMQBakery.RabbitmqChannel.Publish(
+		err = channel.Publish(
 			"",              // exchange
 			"bread-removed", // routing key
 			false,           // mandatory
@@ -405,7 +525,31 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 
 func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.RemoveOldBread_RemoveBreadStreamServer) error {
 
-	breadsRemoved, err := s.RabbitMQBakery.RabbitmqChannel.Consume(
+	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
+	breadsRemoved, err := channel.Consume(
 		"bread-removed", // queue
 		"",              // consumer
 		false,           // auto-ack

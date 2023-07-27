@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
-	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
@@ -20,11 +19,10 @@ import (
 )
 
 type RabbitMQBakery struct {
-	RabbitmqConnection *rabbitmq.Connection
-	RabbitmqChannel    *rabbitmq.Channel
 	Config
-	orders map[int]*OrderStatus
-	mu     sync.Mutex
+	orders      map[int]*OrderStatus
+	mu          sync.Mutex
+	rabbitmqURL string
 }
 
 type OrderStatus struct {
@@ -62,12 +60,9 @@ type Config struct {
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
-var activemqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
+var rabbitMQAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
 var counts int64
-
-var rabbitmqConnection *rabbitmq.Connection
-var rabbitmqChannel *rabbitmq.Channel
 
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
@@ -116,6 +111,15 @@ func (app *Config) setupRepo(conn *sql.DB) {
 
 }
 
+// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
+func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
+	return &RabbitMQBakery{
+		Config:      config,
+		orders:      make(map[int]*OrderStatus),
+		rabbitmqURL: rabbitmqURL,
+	}
+}
+
 func main() {
 
 	log.SetFormatter(&log.TextFormatter{
@@ -135,23 +139,8 @@ func main() {
 		log.Panic("Could not connect to database")
 	}
 
-	rabbitmqConnection, err = rabbitmq.Dial(activemqAddress)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-
-	rabbitmqChannel, err = rabbitmqConnection.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-
-	// Setup RabbitMQ Bakery struct
-	rabbitMQBakery := &RabbitMQBakery{
-		Config:             Config{},
-		RabbitmqConnection: rabbitmqConnection,
-		RabbitmqChannel:    rabbitmqChannel,
-		orders:             make(map[int]*OrderStatus),
-	}
+	// Create a new RabbitMQBakery instance
+	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitMQAddress)
 
 	// Setup Postgres Repository for RabbitMQ Bakery
 	rabbitMQBakery.setupRepo(pgConn)

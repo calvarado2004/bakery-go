@@ -19,10 +19,32 @@ type ContextMaker func() (context.Context, context.CancelFunc)
 // init is called before the application starts, and sets up the RabbitMQ connection as well as the necessary queues
 func (rabbit *RabbitMQBakery) init() {
 
-	var err error
+	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
 
 	// Declare the RabbitMQ make-bread-order queue as durable
-	_, err = rabbit.RabbitmqChannel.QueueDeclare(
+	_, err = channel.QueueDeclare(
 		"make-bread-order", // name
 		true,               // durable
 		false,              // delete when unused
@@ -35,7 +57,7 @@ func (rabbit *RabbitMQBakery) init() {
 	}
 
 	// Declare the RabbitMQ buy-bread-order as durable
-	_, err = rabbit.RabbitmqChannel.QueueDeclare(
+	_, err = channel.QueueDeclare(
 		"buy-bread-order", // name
 		true,              // durable
 		false,             // delete when unused
@@ -48,7 +70,7 @@ func (rabbit *RabbitMQBakery) init() {
 	}
 
 	// Declare the RabbitMQ bread-bought as durable
-	_, err = rabbit.RabbitmqChannel.QueueDeclare(
+	_, err = channel.QueueDeclare(
 		"bread-bought", // name
 		true,           // durable
 		false,          // delete when unused
@@ -64,6 +86,30 @@ func (rabbit *RabbitMQBakery) init() {
 
 // checkBread checks if there is enough bread left in the bakery, if not, it orders more
 func (rabbit *RabbitMQBakery) checkBread() error {
+
+	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
 
 	breads, err := rabbit.Repo.GetAvailableBread()
 	if err != nil {
@@ -96,7 +142,7 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 				return status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
 			}
 
-			err = rabbit.RabbitmqChannel.Publish(
+			err = channel.Publish(
 				"",                 // exchange
 				"make-bread-order", // routing key
 				false,              // mandatory
@@ -221,7 +267,32 @@ func (rabbit *RabbitMQBakery) initializeBakery() {
 
 // performBuyBread listens for buy bread orders and updates the database
 func (rabbit *RabbitMQBakery) performBuyBread() error {
-	buyOrderMessage, err := rabbit.RabbitmqChannel.Consume(
+
+	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
+	buyOrderMessage, err := channel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer
 		true,              // auto-ack
@@ -313,7 +384,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 				return err
 			}
 
-			err = rabbit.RabbitmqChannel.Publish(
+			err = channel.Publish(
 				"",             // exchange
 				"bread-bought", // routing key
 				false,          // mandatory
@@ -388,9 +459,34 @@ func (rabbit *RabbitMQBakery) getBuyResponse(contextMaker ContextMaker, response
 
 // processBreadsBought listens for breads bought messages and sends them to the client
 func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseCh chan *pb.BreadResponse) error {
+
+	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return err
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+	}(connection)
+
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return err
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
+
 	buyOrder := data.BuyOrder{}
 
-	breadsBought, err := rabbit.RabbitmqChannel.Consume(
+	breadsBought, err := channel.Consume(
 		"bread-bought", // queue
 		"",             // consumer
 		true,           // auto-ack
