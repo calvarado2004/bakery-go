@@ -320,7 +320,6 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	maxRetries := 10
 	retryCount := 0
 	responseCh := make(chan *pb.BreadResponse)
-	rabbit := RabbitMQBakery{}
 	contextMaker := func() (context.Context, context.CancelFunc) {
 		return context.WithTimeout(context.Background(), 40*time.Second)
 	}
@@ -328,7 +327,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	// Start a go-routine to listen for RabbitMQ messages
 	go func() {
 
-		err := rabbit.getBuyResponse(contextMaker, responseCh)
+		err := s.RabbitMQBakery.getBuyResponse(contextMaker, responseCh)
 		if err != nil {
 			log.Fatalf("Error getting buy response: %v", err)
 		}
