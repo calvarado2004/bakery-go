@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// ContextMaker creates a new context when necessary
+type ContextMaker func() (context.Context, context.CancelFunc)
+
 // init is called before the application starts, and sets up the RabbitMQ connection as well as the necessary queues
 func (rabbit *RabbitMQBakery) init() {
 
@@ -338,22 +341,26 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 }
 
 // getBuyResponse listens for bread bought messages and sends them to the client, adding backoff retries if there is an error
-func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh chan *pb.BreadResponse) error {
+func (rabbit *RabbitMQBakery) getBuyResponse(contextMaker ContextMaker, responseCh chan *pb.BreadResponse) error {
 	retryInterval := time.Second // Start with a delay of 1 second
 
 	maxRetries := 5 // Maximum number of retries
 	retries := 0    // Number of retries made
 
 	for {
+		ctx, cancel := contextMaker()
+
 		select {
 		case <-ctx.Done():
 			// If the context is done, instead of returning an error, restart the loop
-			// But first check if it's not recoverable or maxRetries is hit
-			if ctx.Err() == context.Canceled || retries >= maxRetries {
+			// But first check if maxRetries is hit
+			if retries >= maxRetries {
+				cancel()
 				return ctx.Err()
 			}
 			retries++
 			log.Errorf("Context done, restarting the loop: %v", ctx.Err())
+			cancel()
 			continue
 		default:
 			// If the context is not done, attempt to run the goroutine
@@ -361,6 +368,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 			if err != nil {
 				if maxRetries == 0 {
 					// If there are no more retries, return the error
+					cancel()
 					return err
 				}
 				log.Errorf("Error processing breads bought: %v", err)
@@ -374,6 +382,7 @@ func (rabbit *RabbitMQBakery) getBuyResponse(ctx context.Context, responseCh cha
 				retryInterval = time.Second
 			}
 		}
+		cancel() // Cancel the context after each loop iteration, as we're going to create a new one
 	}
 }
 
