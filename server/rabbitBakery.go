@@ -84,26 +84,41 @@ func (rabbit *RabbitMQBakery) init() {
 
 }
 
-// checkBread checks if there is enough bread left in the bakery, if not, it orders more
-func (rabbit *RabbitMQBakery) checkBread() error {
-
+// checkRabbitMQConnection checks if the RabbitMQ connection is still alive, and if not, it reconnects
+func (rabbit *RabbitMQBakery) checkRabbitMQConnection() (*rabbitmq.Connection, error) {
 	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
 	if err != nil {
 		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return nil, err
+	}
+	return connection, nil
+}
+
+// checkBread checks if there is enough bread left in the bakery, if not, it orders more
+func (rabbit *RabbitMQBakery) checkBread() error {
+
+	var connection *rabbitmq.Connection
+	var err error
+
+	for i := 0; i < 5; i++ {
+		connection, err = rabbit.checkRabbitMQConnection()
+		if err == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	if err != nil {
+		log.Errorf("Failed to establish RabbitMQ connection: %v", err)
 		return err
 	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
 
 	channel, err := connection.Channel()
 	if err != nil {
 		log.Errorf("Failed to open a channel: %v", err)
 		return err
 	}
+
 	defer func(ch *rabbitmq.Channel) {
 		err := ch.Close()
 		if err != nil {
@@ -267,18 +282,21 @@ func (rabbit *RabbitMQBakery) initializeBakery() {
 
 // performBuyBread listens for buy bread orders and updates the database
 func (rabbit *RabbitMQBakery) performBuyBread() error {
+	var connection *rabbitmq.Connection
+	var err error
 
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	for i := 0; i < 5; i++ {
+		connection, err = rabbit.checkRabbitMQConnection()
+		if err == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
 	if err != nil {
-		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		log.Errorf("Failed to establish RabbitMQ connection: %v", err)
 		return err
 	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
 
 	channel, err := connection.Channel()
 	if err != nil {
@@ -460,17 +478,21 @@ func (rabbit *RabbitMQBakery) getBuyResponse(contextMaker ContextMaker, response
 // processBreadsBought listens for breads bought messages and sends them to the client
 func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseCh chan *pb.BreadResponse) error {
 
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	var connection *rabbitmq.Connection
+	var err error
+
+	for i := 0; i < 5; i++ {
+		connection, err = rabbit.checkRabbitMQConnection()
+		if err == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
 	if err != nil {
-		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		log.Errorf("Failed to establish RabbitMQ connection: %v", err)
 		return err
 	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
 
 	channel, err := connection.Channel()
 	if err != nil {
