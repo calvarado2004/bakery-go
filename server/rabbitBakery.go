@@ -313,7 +313,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 	buyOrderMessage, err := channel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer
-		true,              // auto-ack
+		false,             // auto-ack
 		false,             // exclusive
 		false,             // no-local
 		false,             // no-wait
