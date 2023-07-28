@@ -417,7 +417,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	retryCount := 0
 	responseCh := make(chan *pb.BreadResponse)
 	contextMaker := func() (context.Context, context.CancelFunc) {
-		return context.WithTimeout(context.Background(), 40*time.Second)
+		return context.WithCancel(context.Background())
 	}
 
 	// Start a go-routine to listen for RabbitMQ messages
