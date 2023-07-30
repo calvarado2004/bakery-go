@@ -12,7 +12,7 @@ func NewPostgresTestRepository(db *sql.DB) *PostgresTestRepository {
 	}
 }
 
-func UpdateOrderStatus(buyOrderUUID string, status string) error {
+func (u *PostgresTestRepository) UpdateOrderStatus(buyOrderUUID string, status string) error {
 	return nil
 }
 
