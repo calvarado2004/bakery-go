@@ -524,6 +524,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 		&order.ID,
 		&order.CustomerID,
 		&order.BuyOrderUUID,
+		&order.Status,
 	)
 
 	if err != nil {
