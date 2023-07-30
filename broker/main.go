@@ -183,7 +183,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 		// Insert the buy order first with status as "Pending"
 		buyOrderType.Status = "Pending"
-		_, err = rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
+		buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 		if err != nil {
 			log.Printf("Failed to insert buy order to db: %v", err)
 			return err
@@ -236,12 +236,6 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 				Name:  "John Doe",
 				Email: "john@doe.com",
 				ID:    1,
-			}
-
-			buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
-			if err != nil {
-				log.Printf("Failed to insert buy order to db: %v", err)
-				return err
 			}
 
 			if buyOrderType.ID <= 0 {
