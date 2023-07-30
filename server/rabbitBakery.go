@@ -343,7 +343,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 	breadsBought, err := channel.Consume(
 		"bread-bought", // queue
 		"",             // consumer
-		true,           // auto-ack
+		false,           // auto-ack
 		false,          // exclusive
 		false,          // no-local
 		false,          // no-wait
