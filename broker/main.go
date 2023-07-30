@@ -214,13 +214,6 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		if allBreadAvailable {
 			log.Println("All bread available, processing order")
 
-			// Update the status to "Processed"
-			err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Processed")
-			if err != nil {
-				log.Printf("Failed to update order status: %v", err)
-				return err
-			}
-
 			for _, bread := range buyOrderType.Breads {
 				err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
@@ -244,13 +237,20 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 				buyOrderType.ID = buyOrderID
 			}
 
+			// Update the status to "Processed"
+			err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Processed")
+			if err != nil {
+				log.Printf("Failed to update order status: %v", err)
+				return err
+			}
+
 			err = buyOrder.Ack(false)
 			if err != nil {
 				log.Printf("Failed to ack buy order on queue: %v", err)
 				return err
 			}
 
-			log.Printf("Buy order with ID %v placed", buyOrderType.ID)
+			log.Printf("Buy order with ID %v marked as processed", buyOrderType.ID)
 
 			buyOrderData, err := json.Marshal(&buyOrderType)
 			if err != nil {
@@ -274,7 +274,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 			time.Sleep(34 * time.Second)
 
 		} else {
-			log.Printf("Not all bread is available, requeuing the buy order")
+			log.Printf("Not all bread is available, marking order as failed")
 			// Update the status to "Failed"
 			err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
 			if err != nil {
