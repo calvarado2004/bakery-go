@@ -30,6 +30,7 @@ message BuyOrderDetails {
   int32 breadId = 2;
   int32 quantity = 3;
   float price = 4;
+  string status = 5;
 }
 
 message BuyOrderList {
