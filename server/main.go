@@ -194,18 +194,6 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 		}
 	}()
 
-	// Consume from RabbitMQ message queue buy-bread-order and perform buy bread
-	go func() {
-
-		err := rabbit.performBuyBread()
-		if err != nil {
-			log.Errorf("Failed to perform buy bread (main): %v", err)
-			return
-		}
-		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ")
-
-	}()
-
 	// Start gRPC Server in the background
 	go func() {
 
@@ -217,5 +205,4 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 	}()
 
 	select {}
-
 }

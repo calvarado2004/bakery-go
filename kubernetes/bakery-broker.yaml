@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bakery-broker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bakery-broker
+  template:
+    metadata:
+      labels:
+        app: bakery-broker
+    spec:
+      containers:
+        - name: bakery-broker
+          image: docker.io/calvarado2004/bakery-go-broker
+          env:
+            - name: RABBITMQ_SERVICE_ADDR
+              value: "amqp://guest:guest@rabbitmq-service:5672/"
+            - name: DSN
+              value: "host=postgres-service port=5432 user=postgres password=postgres dbname=bakery sslmode=disable timezone=UTC connect_timeout=5"
+
+
