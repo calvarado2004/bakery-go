@@ -197,9 +197,9 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 	}
 
 	for _, bread := range breads {
-		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity) VALUES ($1, $2, $3)`
+		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price) VALUES ($1, $2, $3, $4)`
 
-		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
+		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
 
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)
