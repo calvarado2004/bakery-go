@@ -12,6 +12,10 @@ func NewPostgresTestRepository(db *sql.DB) *PostgresTestRepository {
 	}
 }
 
+func UpdateOrderStatus(buyOrderUUID string, status string) error {
+	return nil
+}
+
 func (u *PostgresTestRepository) InsertCustomer(customer Customer) (int, error) {
 	return 1, nil
 }

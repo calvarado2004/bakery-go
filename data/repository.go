@@ -14,4 +14,5 @@ type Repository interface {
 	GetMakeOrderByID(orderID int) (order MakeOrder, err error)
 	GetBuyOrderByID(orderID int) (order BuyOrder, err error)
 	GetBuyOrderByUUID(uuid string) (order BuyOrder, err error)
+	UpdateOrderStatus(buyOrderUUID string, status string) error
 }
