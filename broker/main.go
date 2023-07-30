@@ -181,13 +181,20 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 		log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
+		// Insert the buy order first with status as "Pending"
+		buyOrderType.Status = "Pending"
+		_, err = rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
+		if err != nil {
+			log.Printf("Failed to insert buy order to db: %v", err)
+			return err
+		}
+
 		availableBread, err := rabbit.Repo.GetAvailableBread()
 		if err != nil {
 			return err
 		}
 
 		allBreadAvailable := true // Initialize the flag
-
 		quantityChange := 0
 
 		for _, breadAvailable := range availableBread {
@@ -206,6 +213,14 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 		if allBreadAvailable {
 			log.Println("All bread available, processing order")
+
+			// Update the status to "Processed"
+			err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Processed")
+			if err != nil {
+				log.Printf("Failed to update order status: %v", err)
+				return err
+			}
+
 			for _, bread := range buyOrderType.Breads {
 				err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
@@ -266,8 +281,17 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 		} else {
 			log.Printf("Not all bread is available, requeuing the buy order")
-			err = buyOrder.Nack(false, true) // requeue message
+			// Update the status to "Failed"
+			err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
 			if err != nil {
+				log.Printf("Failed to update order status: %v", err)
+				return err
+			}
+
+			// Acknowledge the message regardless of bread availability
+			err = buyOrder.Ack(false)
+			if err != nil {
+				log.Printf("Failed to ack buy order on queue: %v", err)
 				return err
 			}
 

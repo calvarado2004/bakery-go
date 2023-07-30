@@ -54,6 +54,7 @@ type BuyOrder struct {
 	BuyOrderUUID string   `json:"buy_order_uuid"`
 	Customer     Customer `json:"customer"`
 	Breads       []Bread  `json:"breads"`
+	Status       string   `json:"status"`
 }
 
 type OrdersProcessed struct {
@@ -81,6 +82,21 @@ type MakeOrder struct {
 	MakeOrderUUID string     `json:"make_order_uuid"`
 	BreadMaker    BreadMaker `json:"bread_maker"`
 	Breads        []Bread    `json:"breads"`
+}
+
+// UpdateOrderStatus updates the status of the order with the given Buy Order UUID
+func (u *PostgresRepository) UpdateOrderStatus(buyOrderUUID string, status string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE buy_order SET status = $1 WHERE buy_order_uuid = $2`
+	_, err := db.ExecContext(ctx, stmt, status, buyOrderUUID)
+
+	if err != nil {
+		log.Errorf("Error updating buy order status: %v", err)
+	}
+
+	return err
 }
 
 func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {

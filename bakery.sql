@@ -104,6 +104,7 @@ CREATE TABLE public.buy_order (
                                   id integer DEFAULT nextval('public.buy_id_seq'::regclass) NOT NULL,
                                   customer_id integer NOT NULL,
                                   buy_order_uuid character varying(255),
+                                  status character varying(255),
                                   PRIMARY KEY (id),
                                   FOREIGN KEY (customer_id) REFERENCES public.customer(id)
 );
