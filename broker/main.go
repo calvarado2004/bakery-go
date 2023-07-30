@@ -262,12 +262,17 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 				log.Printf("Failed to publish buy order: %v", err)
 			}
 
+			time.Sleep(34 * time.Second)
+
 		} else {
 			log.Printf("Not all bread is available, requeuing the buy order")
 			err = buyOrder.Nack(false, true) // requeue message
 			if err != nil {
 				return err
 			}
+
+			time.Sleep(34 * time.Second)
+
 		}
 
 	}
