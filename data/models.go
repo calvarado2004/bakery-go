@@ -104,7 +104,7 @@ func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float32, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT sum(price) FROM buy_order bo, order_details od WHERE bo.id = od.buy_order_id AND bo.id = $1`
+	stmt := `SELECT sum(od.price * od.quantity) AS total_cost FROM buy_order bo, order_details od  WHERE bo.id = od.buy_order_id AND bo.id = $1;`
 
 	var total float32
 	err := db.QueryRowContext(ctx, stmt, orderID).Scan(&total)
