@@ -232,6 +232,8 @@ spec:
       apiVersion: v1
       metadata:
         name: postgres-pvc
+        annotations:
+          px/secure: "true"
       spec:
         accessModes:
           - ReadWriteOnce
