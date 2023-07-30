@@ -435,6 +435,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 		// Fetch the order from the database
 		s.RabbitMQBakery.mu.Lock()
 		savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+		totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
 		s.RabbitMQBakery.mu.Unlock()
 
 		// if there was an error or the order is not found, try again
@@ -446,7 +447,7 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 
 		// The order was found
 		res := &pb.BreadResponse{
-			Message:      fmt.Sprintf("Order %v was found in the database", savedOrder.BuyOrderUUID),
+			Message:      fmt.Sprintf("Order %v found, total cost $%.2f", savedOrder.BuyOrderUUID, totalCost),
 			BuyOrderId:   int32(savedOrder.ID),
 			BuyOrderUuid: savedOrder.BuyOrderUUID,
 		}

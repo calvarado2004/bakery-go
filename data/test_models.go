@@ -16,6 +16,11 @@ func (u *PostgresTestRepository) UpdateOrderStatus(buyOrderUUID string, status s
 	return nil
 }
 
+func (u *PostgresTestRepository) GetOrderTotalCost(orderID int) (float32, error) {
+
+	return 3.99, nil
+}
+
 func (u *PostgresTestRepository) InsertCustomer(customer Customer) (int, error) {
 	return 1, nil
 }

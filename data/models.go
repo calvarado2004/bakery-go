@@ -99,6 +99,28 @@ func (u *PostgresRepository) UpdateOrderStatus(buyOrderUUID string, status strin
 	return err
 }
 
+// GetOrderTotalCost retrieves the total cost of a given order id
+func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float32, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT sum(price) FROM buy_order bo, order_details od WHERE bo.id = od.buy_order_id AND bo.id = $1`
+
+	var total float32
+	err := db.QueryRowContext(ctx, stmt, orderID).Scan(&total)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// There were no rows, but otherwise no error occurred
+			log.Errorf("No rows returned for order ID %d", orderID)
+			return 0, nil
+		}
+		log.Errorf("Error getting order price: %v", err)
+		return 0, err
+	}
+
+	return total, nil
+}
+
 func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
