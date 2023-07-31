@@ -122,8 +122,8 @@ func main() {
 				log.Errorf("Failed to perform buy bread (main): %v", err)
 				return
 			}
-			log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 5 seconds...")
-			time.Sleep(5 * time.Second)
+			log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
+			time.Sleep(20 * time.Second)
 
 		}
 
@@ -257,7 +257,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		buyOrderType.Status = "Pending"
 		buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 		if err != nil {
-			log.Printf("Failed to insert buy order to db: %v", err)
+			log.Errorf("Failed to insert buy order to db: %v", err)
 			return err
 		}
 
@@ -272,7 +272,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		// Insert the outbox message to the database
 		err = rabbit.Repo.InsertOutboxMessage(outboxMessage)
 		if err != nil {
-			log.Printf("Failed to insert outbox message to db: %v", err)
+			log.Errorf("Failed to insert outbox message to db: %v", err)
 			return err
 		}
 
