@@ -306,7 +306,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 			for _, bread := range buyOrderType.Breads {
 
 				// Update current bread quantity, if failed, mark the order as "Failed" and ack the message.
-				err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
+				_, err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
 					log.Printf("Failed to adjust bread quantity: %v", err)
 

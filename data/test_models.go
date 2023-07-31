@@ -46,7 +46,7 @@ func (u *PostgresTestRepository) PasswordMatches(plainText string, customer Cust
 	return true, nil
 }
 
-func (u *PostgresTestRepository) AdjustBreadQuantity(breadID int, quantityChange int) error {
+func (u *PostgresTestRepository) AdjustBreadQuantity(breadID int, quantityChange int) (bool, error) {
 
 	breadID = 1
 	quantityChange = 1
@@ -60,7 +60,7 @@ func (u *PostgresTestRepository) AdjustBreadQuantity(breadID int, quantityChange
 
 	bread.Quantity += quantityChange
 
-	return nil
+	return true, nil
 }
 
 func (u *PostgresTestRepository) AdjustBreadPrice(breadID int, newPrice float32) error {

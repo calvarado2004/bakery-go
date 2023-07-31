@@ -6,7 +6,7 @@ type Repository interface {
 	InsertBreadMaker(baker BreadMaker) (int, error)
 	InsertBuyOrder(order BuyOrder, breads []Bread) (int, error)
 	InsertMakeOrder(order MakeOrder, breads []Bread) (int, error)
-	AdjustBreadQuantity(breadID int, quantityChange int) error
+	AdjustBreadQuantity(breadID int, quantityChange int) (bool, error)
 	AdjustBreadPrice(breadID int, newPrice float32) error
 	PasswordMatches(plainText string, customer Customer) (bool, error)
 	GetAvailableBread() ([]Bread, error)
