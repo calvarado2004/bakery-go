@@ -58,11 +58,9 @@ spec:
   volumeClaimTemplates:
     - metadata:
         name: rabbitmq-data
-        annotations:
-          px/secure: "true"
       spec:
         accessModes: [ "ReadWriteOnce" ]
-        storageClassName: "px-csi-db"
+        storageClassName: px-csi-db
         resources:
           requests:
             storage: 5Gi

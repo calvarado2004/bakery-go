@@ -289,7 +289,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		// Fetch the current quantity of the bread
 		stmt := `SELECT quantity FROM bread WHERE id = $1`
 		row := db.QueryRowContext(ctx, stmt, breadID)
@@ -308,8 +308,8 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 
 		// Check if the new quantity is within the allowed range
 		if newQuantity < 0 {
-			// If quantity is 0 or less, wait for 10 seconds and try again
-			time.Sleep(10 * time.Second)
+			// If quantity is 0 or less, wait 1 second and try again (up to 10 times)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 
