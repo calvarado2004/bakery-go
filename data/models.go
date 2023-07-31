@@ -332,6 +332,11 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 			return countBread, err
 		}
 
+		// currentQuantity, when 0, is a special case where we want to set it to 1
+		if currentQuantity == 0 {
+			currentQuantity = 1
+		}
+
 		// Calculate the new quantity after the adjustment
 		newQuantity := currentQuantity + quantityChange
 
