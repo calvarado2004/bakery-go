@@ -334,6 +334,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	err := row.Scan(&currentQuantity)
 	if err != nil {
 		log.Errorf("Error fetching bread quantity: %v", err)
+		countBread = false
 		return countBread, err
 	}
 
