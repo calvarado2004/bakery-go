@@ -168,6 +168,28 @@ func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool
 				Id:          7,
 			}
 
+			bolilloBread := &pb.Bread{
+				Name:        "Bolillo",
+				Quantity:    3,
+				Price:       0.79,
+				Description: "Bolillo, a classic bakery bread with a soft texture",
+				Type:        "Soft Bread",
+				Status:      "available",
+				Image:       "https://cdn.pixabay.com/photo/2019/02/07/21/19/bobbin-lace-3982200_1280.jpg",
+				Id:          5,
+			}
+
+			sourdoughBread := &pb.Bread{
+				Name:        "Sourdough Bread",
+				Quantity:    1,
+				Price:       1.99,
+				Description: "Sourdough Bread, a classic bakery bread with a sour taste",
+				Type:        "Sour Bread",
+				Status:      "available",
+				Image:       "https://cdn.pixabay.com/photo/2020/11/28/12/25/bread-5784572_1280.jpg",
+				Id:          2,
+			}
+
 			breadList := pb.BreadList{
 				Breads: []*pb.Bread{
 					pretzelBread,
@@ -175,6 +197,8 @@ func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool
 					cinnamonBread,
 					croissantBread,
 					briocheBread,
+					bolilloBread,
+					sourdoughBread,
 				},
 			}
 
