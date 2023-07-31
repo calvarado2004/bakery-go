@@ -190,7 +190,7 @@ func (u *PostgresTestRepository) GetOutboxMessages() ([]OutboxMessage, error) {
 
 	message := OutboxMessage{
 		ID:      1,
-		Payload: []byte("outbox message test"),
+		Payload: []byte("outbox message test to check bread"),
 		Sent:    false,
 	}
 
