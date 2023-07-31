@@ -348,6 +348,11 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		newQuantity = 100
 	}
 
+	if currentQuantity > 10 {
+		log.Warningf("There are enough breads in stock, setting to the current quantity")
+		newQuantity = currentQuantity
+	}
+
 	// Update the bread quantity
 	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
 	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
