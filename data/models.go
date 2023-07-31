@@ -338,19 +338,19 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	log.Println("This is the newQuantity attempted", newQuantity)
 
 	if newQuantity < 0 {
-		quantityChange = 0
 		log.Warningf("New intended bread quantity cannot be adjusted below 0, setting to 0")
+		newQuantity = 0
 		countBread = false
 	}
 
 	if newQuantity > 100 {
-		quantityChange = 100
 		log.Warningf("New intended bread quantity cannot be adjusted to be greater than 100, setting to 100")
+		newQuantity = 100
 	}
 
 	// Update the bread quantity
-	stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
-	_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
+	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
+	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
 	if err != nil {
 		log.Errorf("Error updating bread quantity: %v", err)
 		countBread = false
@@ -358,7 +358,6 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	}
 
 	return countBread, nil
-
 }
 
 func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
