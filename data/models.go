@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
 
-const dbTimeout = time.Second * 11
+const dbTimeout = time.Second * 5
 
 var db *sql.DB
 
@@ -327,60 +326,51 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 
 	countBread = false
 
-	for i := 0; i < 10; i++ {
-		// Fetch the current quantity of the bread
-		stmt := `SELECT quantity FROM bread WHERE id = $1`
-		row := db.QueryRowContext(ctx, stmt, breadID)
+	// Fetch the current quantity of the bread
+	stmt := `SELECT quantity FROM bread WHERE id = $1`
+	row := db.QueryRowContext(ctx, stmt, breadID)
 
-		var currentQuantity int
-		err := row.Scan(&currentQuantity)
-		if err != nil {
-			log.Errorf("Error fetching bread quantity: %v", err)
-			return countBread, err
-		}
-
-		// currentQuantity, when 0, is a special case where we want to set it to 1
-		if currentQuantity == 0 {
-			currentQuantity = 1
-		}
-
-		// Calculate the new quantity after the adjustment
-		newQuantity := currentQuantity + quantityChange
-
-		log.Println("This is the newQuantity attempted", newQuantity)
-
-		if newQuantity < 0 || newQuantity > 100 {
-			quantityChange = 0
-			log.Warningf("New intended bread quantity cannot be adjusted below 0 or greater than 100, setting to 0")
-			countBread = false
-		}
-
-		// Check if the new quantity is within the allowed range
-		if newQuantity < 0 {
-			// If quantity is 0 or less, wait 1 second and try again (up to 10 times)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if newQuantity > 100 {
-			return countBread, fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 100")
-		}
-
-		// Update the bread quantity
-		stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
-		_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
-		if err != nil {
-			log.Errorf("Error updating bread quantity: %v", err)
-			countBread = false
-			return countBread, err
-		}
-
-		countBread = true
-
-		return countBread, nil
+	var currentQuantity int
+	err := row.Scan(&currentQuantity)
+	if err != nil {
+		log.Errorf("Error fetching bread quantity: %v", err)
+		return countBread, err
 	}
 
-	return countBread, fmt.Errorf("bread quantity could not be adjusted within 10 attempts")
+	// currentQuantity, when 0, is a special case where we want to set it to 1
+	if currentQuantity == 0 {
+		currentQuantity = 1
+	}
+
+	// Calculate the new quantity after the adjustment
+	newQuantity := currentQuantity + quantityChange
+
+	log.Println("This is the newQuantity attempted", newQuantity)
+
+	if newQuantity < 0 {
+		quantityChange = 0
+		log.Warningf("New intended bread quantity cannot be adjusted below 0, setting to 0")
+		countBread = false
+	}
+
+	if newQuantity > 100 {
+		quantityChange = 100
+		log.Warningf("New intended bread quantity cannot be adjusted to be greater than 100, setting to 100")
+	}
+
+	// Update the bread quantity
+	stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
+	_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
+	if err != nil {
+		log.Errorf("Error updating bread quantity: %v", err)
+		countBread = false
+		return countBread, err
+	}
+
+	countBread = true
+
+	return countBread, nil
+
 }
 
 func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
