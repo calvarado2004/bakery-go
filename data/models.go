@@ -284,40 +284,51 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 	return newID, nil
 }
 
+// AdjustBreadQuantity adjusts the quantity of a bread by the given amount, and returns an error if the quantity goes below 0 after 3 attempts
 func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	// Fetch the current quantity of the bread
-	stmt := `SELECT quantity FROM bread WHERE id = $1`
-	row := db.QueryRowContext(ctx, stmt, breadID)
+	for i := 0; i < 3; i++ {
+		// Fetch the current quantity of the bread
+		stmt := `SELECT quantity FROM bread WHERE id = $1`
+		row := db.QueryRowContext(ctx, stmt, breadID)
 
-	var currentQuantity int
-	err := row.Scan(&currentQuantity)
-	if err != nil {
-		log.Errorf("Error fetching bread quantity: %v", err)
-		return err
+		var currentQuantity int
+		err := row.Scan(&currentQuantity)
+		if err != nil {
+			log.Errorf("Error fetching bread quantity: %v", err)
+			return err
+		}
+
+		// Calculate the new quantity after the adjustment
+		newQuantity := currentQuantity + quantityChange
+
+		log.Println("This is the newQuantity attempted", newQuantity)
+
+		// Check if the new quantity is within the allowed range
+		if newQuantity < 0 {
+			// If quantity is 0 or less, wait for 10 seconds and try again
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		if newQuantity > 100 {
+			return fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 100")
+		}
+
+		// Update the bread quantity
+		stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
+		_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
+		if err != nil {
+			log.Errorf("Error updating bread quantity: %v", err)
+			return err
+		}
+
+		return nil
 	}
 
-	// Calculate the new quantity after the adjustment
-	newQuantity := currentQuantity + quantityChange
-
-	log.Println("This is the newQuantity attempted", newQuantity)
-
-	// Check if the new quantity is within the allowed range
-	if newQuantity < 1 || newQuantity > 100 {
-		return fmt.Errorf("bread quantity cannot be adjusted outside the range of 1 to 100")
-	}
-
-	// Update the bread quantity
-	stmt = `UPDATE bread SET quantity = quantity + CAST($1 AS integer) WHERE id = $2`
-	_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
-	if err != nil {
-		log.Errorf("Error updating bread quantity: %v", err)
-		return err
-	}
-
-	return nil
+	return fmt.Errorf("bread quantity could not be adjusted within 3 attempts")
 }
 
 func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
