@@ -134,6 +134,15 @@ CREATE TABLE public.orders_processed (
 
 ALTER TABLE public.orders_processed_id_seq OWNER TO postgres;
 
+CREATE TABLE public.outbox (
+                               id SERIAL PRIMARY KEY,
+                               payload BYTEA NOT NULL,
+                               sent BOOLEAN NOT NULL DEFAULT false,
+                               created_at timestamp without time zone NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.outbox  OWNER TO postgres;
+
 
 INSERT INTO public.customer (name, email, password, created_at, updated_at) VALUES (
     'John Doe',

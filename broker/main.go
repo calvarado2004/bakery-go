@@ -125,6 +125,66 @@ func main() {
 
 	}()
 
+	// Publish outbox messages to RabbitMQ, check every 45 seconds for unprocessed messages
+	go func() {
+
+		connection, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+		if err != nil {
+			log.Errorf("Failed to connect to RabbitMQ: %v", err)
+			return
+		}
+		defer func(conn *rabbitmq.Connection) {
+			err := conn.Close()
+			if err != nil {
+				log.Errorf("Failed to close connection: %v", err)
+			}
+		}(connection)
+
+		channel, err := connection.Channel()
+		if err != nil {
+			log.Errorf("Failed to open a channel: %v", err)
+			return
+		}
+		defer func(ch *rabbitmq.Channel) {
+			err := ch.Close()
+			if err != nil {
+				log.Errorf("Failed to close channel: %v", err)
+			}
+		}(channel)
+
+		ticker := time.NewTicker(time.Second * 45)
+		for range ticker.C {
+			messages, err := rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
+			if err != nil {
+				log.Errorf("Failed to get unprocessed outbox messages: %v", err)
+				continue
+			}
+
+			for _, message := range messages {
+				err = channel.Publish(
+					"",             // exchange
+					"bread-bought", // routing key
+					false,          // mandatory
+					false,          // immediate
+					rabbitmq.Publishing{
+						ContentType:  "text/json",
+						Body:         message.Payload,
+						DeliveryMode: rabbitmq.Persistent,
+					})
+
+				if err != nil {
+					log.Printf("Failed to publish buy order: %v", err)
+				} else {
+					// If the message was successfully published, mark it as processed in the database
+					err := rabbitMQBakery.Repo.DeleteOutboxMessage(message.ID)
+					if err != nil {
+						log.Errorf("Failed to mark outbox message as processed: %v", err)
+					}
+				}
+			}
+		}
+	}()
+
 	select {}
 
 }
@@ -171,6 +231,8 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 	log.Printf("Listening for buy bread orders into RabbitMQ queue...")
 
+	processedOrders := make(map[string]bool)
+
 	for buyOrder := range buyOrderMessage {
 		buyOrderType := data.BuyOrder{}
 		err := json.Unmarshal(buyOrder.Body, &buyOrderType)
@@ -181,11 +243,32 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 		log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
+		// Check if the buy order has already been processed
+		if _, processed := processedOrders[buyOrderType.BuyOrderUUID]; processed {
+			log.Printf("Buy order with ID %v has already been processed, skipping", buyOrderType.BuyOrderUUID)
+			continue
+		}
+
 		// Insert the buy order first with status as "Pending"
 		buyOrderType.Status = "Pending"
 		buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
 		if err != nil {
 			log.Printf("Failed to insert buy order to db: %v", err)
+			return err
+		}
+
+		// Create an OutboxMessage with the serialized buy order
+		outboxMessage := data.OutboxMessage{
+			Payload:   buyOrder.Body,
+			Sent:      false,
+			ID:        buyOrderID,
+			CreatedAt: time.Now(),
+		}
+
+		// Insert the outbox message to the database
+		err = rabbit.Repo.InsertOutboxMessage(outboxMessage)
+		if err != nil {
+			log.Printf("Failed to insert outbox message to db: %v", err)
 			return err
 		}
 
@@ -212,13 +295,43 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		}
 
 		if allBreadAvailable {
+
 			log.Println("All bread available, processing order")
 
 			for _, bread := range buyOrderType.Breads {
+
+				// Update current bread quantity, if failed, mark the order as "Failed" and ack the message.
 				err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 				if err != nil {
 					log.Printf("Failed to adjust bread quantity: %v", err)
+
+					// Update the status to "Failed"
+					err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
+					if err != nil {
+						log.Printf("Failed to update order status: %v", err)
+						return err
+					}
+
+					// Acknowledge the message regardless of bread availability
+					err = buyOrder.Ack(false)
+					if err != nil {
+						log.Printf("Failed to ack buy order on queue: %v", err)
+						return err
+					}
+
+					// Delete the outbox message, since the order has failed but message has been acked as per business logic
+					err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+					if err != nil {
+						log.Printf("Failed to delete outbox messaged: %v", err)
+						return err
+					}
+
+					time.Sleep(34 * time.Second)
+
+					return err
 				}
+
+				// Order processed successfully for current bread, move to the next bread
 				log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
 				log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)
 
@@ -271,6 +384,16 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 				log.Printf("Failed to publish buy order: %v", err)
 			}
 
+			// Delete the outbox message, since the order has been processed
+			err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+			if err != nil {
+				log.Printf("Failed to delete outbox message: %v", err)
+				return err
+			}
+
+			// Mark the order as processed, so it won't be processed again
+			processedOrders[buyOrderType.BuyOrderUUID] = true
+
 			time.Sleep(34 * time.Second)
 
 		} else {
@@ -286,6 +409,13 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 			err = buyOrder.Ack(false)
 			if err != nil {
 				log.Printf("Failed to ack buy order on queue: %v", err)
+				return err
+			}
+
+			// Delete the outbox message, since the order has failed but message has been acked as per business logic
+			err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+			if err != nil {
+				log.Printf("Failed to delete outbox messaged: %v", err)
 				return err
 			}
 

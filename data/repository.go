@@ -16,4 +16,7 @@ type Repository interface {
 	GetBuyOrderByUUID(uuid string) (order BuyOrder, err error)
 	UpdateOrderStatus(buyOrderUUID string, status string) error
 	GetOrderTotalCost(orderID int) (float32, error)
+	DeleteOutboxMessage(id int) error
+	InsertOutboxMessage(message OutboxMessage) error
+	GetUnprocessedOutboxMessages() ([]OutboxMessage, error)
 }

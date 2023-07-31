@@ -84,6 +84,13 @@ type MakeOrder struct {
 	Breads        []Bread    `json:"breads"`
 }
 
+type OutboxMessage struct {
+	ID        int       `json:"id"`
+	Payload   []byte    `json:"payload"`
+	Sent      bool      `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // UpdateOrderStatus updates the status of the order with the given Buy Order UUID
 func (u *PostgresRepository) UpdateOrderStatus(buyOrderUUID string, status string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
@@ -593,4 +600,73 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 
 	return order, nil
 
+}
+
+// InsertOutboxMessage inserts a message into the outbox table for later processing
+func (u *PostgresRepository) InsertOutboxMessage(message OutboxMessage) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `INSERT INTO outbox (id, payload, sent, created_at) VALUES ($1, $2, $3, $4)`
+	_, err := db.ExecContext(ctx, stmt, message.ID, message.Payload, message.Sent, message.CreatedAt)
+	if err != nil {
+		log.Errorf("Error inserting outbox message: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetUnprocessedOutboxMessages returns all unprocessed outbox messages from the database
+func (u *PostgresRepository) GetUnprocessedOutboxMessages() ([]OutboxMessage, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, payload, sent, created_at FROM outbox WHERE sent = false`
+
+	rows, err := u.Conn.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying unprocessed outbox messages: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching unprocessed outbox messages: %v", err)
+		}
+	}(rows)
+
+	var messages []OutboxMessage
+	for rows.Next() {
+		var msg OutboxMessage
+		if err := rows.Scan(&msg.ID, &msg.Payload, &msg.Sent, &msg.CreatedAt); err != nil {
+			log.Errorf("Error scanning outbox message: %v", err)
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+	if err := rows.Err(); err != nil {
+		log.Errorf("Error fetching rows: %v", err)
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+// DeleteOutboxMessage removes an outbox message from the database (as is no longer needed)
+func (u *PostgresRepository) DeleteOutboxMessage(id int) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `DELETE FROM outbox WHERE id = $1`
+
+	_, err := u.Conn.ExecContext(ctx, stmt, id)
+	if err != nil {
+		log.Errorf("Error deleting outbox message: %v", err)
+	}
+
+	return nil
 }

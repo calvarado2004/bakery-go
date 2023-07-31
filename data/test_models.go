@@ -177,3 +177,24 @@ func (u *PostgresTestRepository) GetBuyOrderByUUID(orderUUID string) (order BuyO
 
 	return order, nil
 }
+
+func (u *PostgresTestRepository) DeleteOutboxMessage(id int) error {
+	return nil
+}
+
+func (u *PostgresTestRepository) InsertOutboxMessage(message OutboxMessage) (int, error) {
+	return 1, nil
+}
+
+func (u *PostgresTestRepository) GetOutboxMessages() ([]OutboxMessage, error) {
+
+	message := OutboxMessage{
+		ID:      1,
+		Payload: []byte("outbox message test"),
+		Sent:    false,
+	}
+
+	messages := []OutboxMessage{message}
+
+	return messages, nil
+}
