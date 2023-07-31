@@ -120,7 +120,7 @@ func main() {
 			err := rabbitMQBakery.performBuyBread()
 			if err != nil {
 				log.Errorf("Failed to perform buy bread (main): %v", err)
-				return
+				continue
 			}
 			log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
 			time.Sleep(20 * time.Second)

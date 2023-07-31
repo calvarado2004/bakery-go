@@ -328,7 +328,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		return nil
 	}
 
-	return fmt.Errorf("bread quantity could not be adjusted within 3 attempts")
+	return fmt.Errorf("bread quantity could not be adjusted within 10 attempts")
 }
 
 func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
