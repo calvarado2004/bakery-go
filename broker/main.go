@@ -116,12 +116,16 @@ func main() {
 	// Consume from RabbitMQ message queue buy-bread-order and perform buy bread
 	go func() {
 
-		err := rabbitMQBakery.performBuyBread()
-		if err != nil {
-			log.Errorf("Failed to perform buy bread (main): %v", err)
-			return
+		for {
+			err := rabbitMQBakery.performBuyBread()
+			if err != nil {
+				log.Errorf("Failed to perform buy bread (main): %v", err)
+				return
+			}
+			log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 5 seconds...")
+			time.Sleep(5 * time.Second)
+
 		}
-		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ")
 
 	}()
 
