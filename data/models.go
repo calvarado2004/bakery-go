@@ -346,9 +346,10 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	if newQuantity > 100 {
 		log.Warningf("New intended bread quantity cannot be adjusted to be greater than 100, setting to 100")
 		newQuantity = 100
+		countBread = false
 	}
 
-	if currentQuantity > 10 {
+	if currentQuantity > 10 && !countBread {
 		log.Warningf("There are enough breads in stock, setting to the current quantity")
 		newQuantity = currentQuantity
 	}
