@@ -324,7 +324,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 
 	var countBread bool
 
-	countBread = false
+	countBread = true
 
 	// Fetch the current quantity of the bread
 	stmt := `SELECT quantity FROM bread WHERE id = $1`
@@ -361,8 +361,6 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		countBread = false
 		return countBread, err
 	}
-
-	countBread = true
 
 	return countBread, nil
 
