@@ -208,12 +208,6 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		}
 
 	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
 
 	return nil
 
@@ -532,12 +526,6 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 		breadRemoved.Breads = append(breadRemoved.Breads, bread)
 
 	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
 
 	return &pb.BreadResponse{Breads: &breadRemoved}, nil
 }
@@ -599,12 +587,6 @@ func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.
 			return err
 		}
 	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
 
 	return nil
 }
