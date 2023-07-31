@@ -208,6 +208,12 @@ func (s *MakeBreadServer) MadeBreadStream(_ *pb.BreadRequest, stream pb.MakeBrea
 		}
 
 	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
 
 	return nil
 
@@ -377,6 +383,12 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to add bread order to queue: %v", err)
 		}
+		defer func(ch *rabbitmq.Channel) {
+			err := ch.Close()
+			if err != nil {
+				log.Errorf("Failed to close channel: %v", err)
+			}
+		}(channel)
 
 		orderStatus := &OrderStatus{
 			Ch:      make(chan *pb.BreadResponse, 1),
@@ -520,6 +532,12 @@ func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadReque
 		breadRemoved.Breads = append(breadRemoved.Breads, bread)
 
 	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
 
 	return &pb.BreadResponse{Breads: &breadRemoved}, nil
 }
@@ -581,6 +599,12 @@ func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.
 			return err
 		}
 	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			log.Errorf("Failed to close channel: %v", err)
+		}
+	}(channel)
 
 	return nil
 }
