@@ -306,9 +306,9 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 
 		log.Println("This is the newQuantity attempted", newQuantity)
 
-		if newQuantity < 0 {
-			newQuantity = 0
-			log.Warningf("New intended bread quantity cannot be adjusted below 0, setting to 0")
+		if newQuantity < 0 || newQuantity > 100 {
+			quantityChange = 0
+			log.Warningf("New intended bread quantity cannot be adjusted below 0 or greater than 100, setting to 0")
 		}
 
 		// Check if the new quantity is within the allowed range
