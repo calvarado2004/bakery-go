@@ -392,12 +392,13 @@ func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer
 	return true, nil
 }
 
+// GetAvailableBread returns all breads that have a quantity greater or equal than 0
 func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT * FROM bread WHERE quantity > 0`
+	stmt := `SELECT * FROM bread WHERE quantity >= 0`
 
 	rows, err := db.QueryContext(ctx, stmt)
 	if err != nil {
