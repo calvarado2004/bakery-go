@@ -312,12 +312,6 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 		log.Errorf("Failed to open a channel: %v", err)
 		return nil, err
 	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
 
 	buyOrder := data.BuyOrder{}
 
