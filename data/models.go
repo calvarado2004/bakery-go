@@ -254,6 +254,13 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 			if err != nil {
 				log.Errorf("Error adjusting bread quantity: %v", err)
 			}
+
+			// Delete the row from order_details for this bread when the quantity is 0
+			_, err = tx.ExecContext(ctx, `DELETE FROM order_details WHERE buy_order_id = $1 AND bread_id = $2`, newID, bread.ID)
+			if err != nil {
+				log.Errorf("Error deleting from order details: %v", err)
+			}
+
 			// Rollback the transaction for this bread
 			err := tx.Rollback()
 			if err != nil {
