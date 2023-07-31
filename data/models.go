@@ -208,11 +208,13 @@ func (u *PostgresRepository) InsertBreadMaker(baker BreadMaker) (int, error) {
 	return newID, nil
 }
 
+// InsertBuyOrder inserts a new buy order into the database, along with the order details, and returns the new ID
 func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
+	var countBread bool
 	var newID int
 	stmt := `INSERT INTO buy_order (customer_id, buy_order_uuid) VALUES ($1, $2) RETURNING id`
 
@@ -225,23 +227,55 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 		return 0, err
 	}
 
+	// Start a transaction
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Errorf("Error starting a transaction: %v", err)
+		return 0, err
+	}
+
 	for _, bread := range breads {
 		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price) VALUES ($1, $2, $3, $4)`
 
-		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
+		_, err := tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
 
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)
-			return 0, err
+			// Rollback the transaction for this bread
+			err := tx.Rollback()
+			if err != nil {
+				return 0, err
+			}
+			continue // This will skip to the next bread in the loop
 		}
 
-		err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
+		countBread, err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
 		if err != nil {
 			log.Errorf("Error adjusting bread quantity: %v", err)
+			// Rollback the transaction for this bread
+			err := tx.Rollback()
+			if err != nil {
+				return 0, err
+			}
+			continue // This will skip to the next bread in the loop
+		}
+
+		if !countBread {
+			// If countBread is false, rollback the transaction for this bread
+			err := tx.Rollback()
+			if err != nil {
+				return 0, err
+			}
+			continue // This will skip to the next bread in the loop
+		}
+
+		// If everything went well, commit the transaction for this bread
+		err = tx.Commit()
+		if err != nil {
+			log.Errorf("Error committing transaction: %v", err)
 			return 0, err
 		}
 	}
-
 	return newID, nil
 }
 
@@ -274,7 +308,7 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 			return 0, err
 		}
 
-		err = u.AdjustBreadQuantity(bread.ID, bread.Quantity)
+		_, err = u.AdjustBreadQuantity(bread.ID, bread.Quantity)
 		if err != nil {
 			log.Errorf("Error adjusting bread quantity: %v", err)
 			return 0, err
@@ -285,9 +319,13 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 }
 
 // AdjustBreadQuantity adjusts the quantity of a bread by the given amount, and returns an error if the quantity goes below 0 after 3 attempts
-func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int) error {
+func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
+
+	var countBread bool
+
+	countBread = false
 
 	for i := 0; i < 10; i++ {
 		// Fetch the current quantity of the bread
@@ -298,7 +336,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		err := row.Scan(&currentQuantity)
 		if err != nil {
 			log.Errorf("Error fetching bread quantity: %v", err)
-			return err
+			return countBread, err
 		}
 
 		// Calculate the new quantity after the adjustment
@@ -309,6 +347,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		if newQuantity < 0 || newQuantity > 100 {
 			quantityChange = 0
 			log.Warningf("New intended bread quantity cannot be adjusted below 0 or greater than 100, setting to 0")
+			countBread = false
 		}
 
 		// Check if the new quantity is within the allowed range
@@ -319,7 +358,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		}
 
 		if newQuantity > 100 {
-			return fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 100")
+			return countBread, fmt.Errorf("bread quantity cannot be adjusted outside the range of 0 to 100")
 		}
 
 		// Update the bread quantity
@@ -327,13 +366,16 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		_, err = db.ExecContext(ctx, stmt, quantityChange, breadID)
 		if err != nil {
 			log.Errorf("Error updating bread quantity: %v", err)
-			return err
+			countBread = false
+			return countBread, err
 		}
 
-		return nil
+		countBread = true
+
+		return countBread, nil
 	}
 
-	return fmt.Errorf("bread quantity could not be adjusted within 10 attempts")
+	return countBread, fmt.Errorf("bread quantity could not be adjusted within 10 attempts")
 }
 
 func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
