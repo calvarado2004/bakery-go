@@ -227,44 +227,37 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 		return 0, err
 	}
 
-	// Start a transaction
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		log.Errorf("Error starting a transaction: %v", err)
-		return 0, err
-	}
-
 	for _, bread := range breads {
+		// Start a transaction
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			log.Errorf("Error starting a transaction: %v", err)
+			return 0, err
+		}
+
 		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price) VALUES ($1, $2, $3, $4)`
 
-		_, err := tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
+		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
 
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)
 			// Rollback the transaction for this bread
 			err := tx.Rollback()
 			if err != nil {
-				return 0, err
+				log.Error("Error rolling back transaction: %v", err)
 			}
 			continue // This will skip to the next bread in the loop
 		}
 
 		countBread, err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
-		if err != nil {
-			log.Errorf("Error adjusting bread quantity: %v", err)
+		if err != nil || !countBread {
+			if err != nil {
+				log.Errorf("Error adjusting bread quantity: %v", err)
+			}
 			// Rollback the transaction for this bread
 			err := tx.Rollback()
 			if err != nil {
-				return 0, err
-			}
-			continue // This will skip to the next bread in the loop
-		}
-
-		if !countBread {
-			// If countBread is false, rollback the transaction for this bread
-			err := tx.Rollback()
-			if err != nil {
-				return 0, err
+				log.Error("Error rolling back transaction: %v", err)
 			}
 			continue // This will skip to the next bread in the loop
 		}
