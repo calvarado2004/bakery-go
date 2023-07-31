@@ -140,7 +140,7 @@ func listenForMakeBread(pgConn *sql.DB) error {
 			return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)
 		}
 
-		err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
+		_, err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
 		if err != nil {
 			return err
 		}
