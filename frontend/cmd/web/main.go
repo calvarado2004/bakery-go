@@ -170,7 +170,7 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {
-			log.Fatalf("Failed to close gRPC connection: %v", err)
+			log.Printf("Failed to close gRPC connection: %v", err)
 		}
 	}(conn)
 
@@ -192,7 +192,8 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			http.Error(w, "Error reading from the stream", http.StatusInternalServerError)
+			log.Printf("Failed to receive from stream: %v", err)
+			http.Error(w, fmt.Sprintf("Error reading from the stream: %v", err), http.StatusInternalServerError)
 			return
 		}
 
