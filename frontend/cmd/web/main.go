@@ -209,6 +209,8 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.Println("Response from server: ", buyOrderResponse.GetBuyOrders())
+
 		// Flush the response writer to send the data immediately
 		flusher, ok := w.(http.Flusher)
 		if !ok {
