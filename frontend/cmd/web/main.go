@@ -38,6 +38,7 @@ func main() {
 
 	router.HandleFunc("/", homeHandler)
 	router.HandleFunc("/stream", streamHandler)
+	router.HandleFunc("/order-stream", orderStreamHandler)
 
 	fs := http.FileServer(http.Dir("/cmd/web/templates/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
@@ -152,5 +153,68 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 				log.Errorf("Failed to flush")
 			}
 		}
+	}
+}
+
+func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Setup the connection to the server
+	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		http.Error(w, "Failed to connect to gRPC server", http.StatusInternalServerError)
+		return
+	}
+	defer func(conn *grpc.ClientConn) {
+		err := conn.Close()
+		if err != nil {
+			log.Fatalf("Failed to close gRPC connection: %v", err)
+		}
+	}(conn)
+
+	// Initialize the client
+	client := pb.NewBuyOrderServiceClient(conn)
+
+	// Call gRPC stream
+	stream, err := client.BuyOrderStream(context.Background(), &pb.BuyOrderRequest{})
+	if err != nil {
+		http.Error(w, "Error calling BreadUpdates service", http.StatusInternalServerError)
+		return
+	}
+
+	// Read from the stream and write to the HTTP response
+	for {
+		buyOrderResponse, err := stream.Recv()
+		if err == io.EOF {
+			// If the stream has ended, break the loop
+			break
+		}
+		if err != nil {
+			http.Error(w, "Error reading from the stream", http.StatusInternalServerError)
+			return
+		}
+
+		// Convert the response to JSON
+		jsonData, err := json.Marshal(buyOrderResponse)
+		if err != nil {
+			http.Error(w, "Error converting the response to JSON", http.StatusInternalServerError)
+			return
+		}
+
+		// Write the response in Server-Sent Events (SSE) format
+		_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+		if err != nil {
+			return
+		}
+
+		// Flush the response writer to send the data immediately
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+		flusher.Flush()
 	}
 }
