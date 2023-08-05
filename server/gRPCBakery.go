@@ -534,69 +534,86 @@ func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequ
 
 func (s *BuyOrderServiceServer) BuyOrderStream(in *pb.BuyOrderRequest, stream pb.BuyOrderService_BuyOrderStreamServer) error {
 
-	// Retrieve BuyOrder by UUID
-	buyOrderByUUID, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to get buy order by UUID: %v", err)
-	}
+	var buyOrdersToProcess []data.BuyOrder // declare as slice
+	var err error                          // declare error variable here to use it throughout the function
 
-	// Retrieve BuyOrder total cost
-	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(buyOrderByUUID.ID)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to get total cost: %v", err)
-	}
+	if in.BuyOrderUuid != "" {
+		// Retrieve BuyOrder by UUID
+		buyOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to get buy order by UUID: %v", err)
+		}
+		buyOrdersToProcess = append(buyOrdersToProcess, buyOrder) // add the single order to the slice
 
-	// Convert breads to proto Bread
-	breads := make([]*pb.Bread, len(buyOrderByUUID.Breads))
-	for i, bread := range buyOrderByUUID.Breads {
-		breads[i] = &pb.Bread{
-			Name:        bread.Name,
-			Description: bread.Description,
-			Price:       bread.Price,
-			Quantity:    int32(bread.Quantity),
-			Type:        bread.Type,
-			Image:       bread.Image,
-			Status:      bread.Status,
-			Id:          int32(bread.ID),
+	} else {
+		// If no UUID is provided, get all orders
+		buyOrdersToProcess, err = s.RabbitMQBakery.Repo.GetAllBuyOrders() // directly assign the slice of orders
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to get all buy orders: %v", err)
 		}
 	}
 
-	// Create BuyOrderDetails
-	details := make([]*pb.BuyOrderDetails, len(breads))
-	for _, bread := range breads {
-		details = append(details, &pb.BuyOrderDetails{
-			BreadId:      bread.Id,
-			Quantity:     bread.Quantity,
-			Price:        bread.Price,
-			Status:       bread.Status,
-			BuyOrderId:   int32(buyOrderByUUID.ID),
-			BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
-		})
-	}
+	for _, buyOrderToProcess := range buyOrdersToProcess {
 
-	// Create BuyOrder
-	buyOrders := make([]*pb.BuyOrder, 1)
-	buyOrders[0] = &pb.BuyOrder{
-		BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
-		Id:           int32(buyOrderByUUID.ID),
-		CustomerId:   int32(buyOrderByUUID.CustomerID),
-		TotalCost:    totalCost,
-	}
+		// Retrieve BuyOrder total cost
+		totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(buyOrderToProcess.ID)
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to get total cost: %v", err)
+		}
 
-	// Create BuyOrderList
-	buyOrdersResponse := &pb.BuyOrderList{
-		BuyOrderDetails: details,
-		BuyOrders:       buyOrders,
-	}
+		// Convert breads to proto Bread
+		breads := make([]*pb.Bread, len(buyOrderToProcess.Breads))
+		for i, bread := range buyOrderToProcess.Breads {
+			breads[i] = &pb.Bread{
+				Name:        bread.Name,
+				Description: bread.Description,
+				Price:       bread.Price,
+				Quantity:    int32(bread.Quantity),
+				Type:        bread.Type,
+				Image:       bread.Image,
+				Status:      bread.Status,
+				Id:          int32(bread.ID),
+			}
+		}
 
-	// Create BuyOrderResponse
-	buyOrderResponse := &pb.BuyOrderResponse{
-		BuyOrders: buyOrdersResponse,
-	}
+		// Create BuyOrderDetails
+		details := make([]*pb.BuyOrderDetails, len(breads))
+		for _, bread := range breads {
+			details = append(details, &pb.BuyOrderDetails{
+				BreadId:      bread.Id,
+				Quantity:     bread.Quantity,
+				Price:        bread.Price,
+				Status:       bread.Status,
+				BuyOrderId:   int32(buyOrderToProcess.ID),
+				BuyOrderUuid: buyOrderToProcess.BuyOrderUUID,
+			})
+		}
 
-	// Send the response to the client
-	if err := stream.Send(buyOrderResponse); err != nil {
-		return status.Errorf(codes.Internal, "Failed to send buy order: %v", err)
+		// Create BuyOrder
+		buyOrders := make([]*pb.BuyOrder, 1)
+		buyOrders[0] = &pb.BuyOrder{
+			BuyOrderUuid: buyOrderToProcess.BuyOrderUUID,
+			Id:           int32(buyOrderToProcess.ID),
+			CustomerId:   int32(buyOrderToProcess.CustomerID),
+			TotalCost:    totalCost,
+		}
+
+		// Create BuyOrderList
+		buyOrdersResponse := &pb.BuyOrderList{
+			BuyOrderDetails: details,
+			BuyOrders:       buyOrders,
+		}
+
+		// Create BuyOrderResponse
+		buyOrderResponse := &pb.BuyOrderResponse{
+			BuyOrders: buyOrdersResponse,
+		}
+
+		// Send the response to the client
+		if err := stream.Send(buyOrderResponse); err != nil {
+			return status.Errorf(codes.Internal, "Failed to send buy order: %v", err)
+		}
+
 	}
 
 	return nil

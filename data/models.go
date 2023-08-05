@@ -649,6 +649,77 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 
 }
 
+// GetAllBuyOrders returns all buy orders from the database
+func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT * FROM buy_order`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying buy orders: %v", err)
+		return nil, err
+	}
+
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching buy orders: %v", err)
+		}
+	}(rows)
+
+	for rows.Next() {
+		var order BuyOrder
+		err := rows.Scan(&order.ID, &order.CustomerID, &order.BuyOrderUUID, &order.Status)
+		if err != nil {
+			log.Errorf("Error scanning buy orders: %v", err)
+			return nil, err
+		}
+
+		stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+
+		rows, err := db.QueryContext(ctx, stmt, order.ID)
+		if err != nil {
+			log.Errorf("Error querying order details: %v", err)
+			return nil, err
+		}
+
+		defer func(rows *sql.Rows) {
+			err := rows.Close()
+			if err != nil {
+				log.Errorf("Error closing rows while fetching order details: %v", err)
+			}
+		}(rows)
+
+		var breads []Bread
+
+		for rows.Next() {
+			var breadID, quantity int
+			err := rows.Scan(&breadID, &quantity)
+			if err != nil {
+				log.Errorf("Error scanning order details: %v", err)
+				return nil, err
+			}
+
+			bread, err := u.GetBreadByID(breadID)
+			if err != nil {
+				log.Errorf("Error fetching bread by ID: %v", err)
+				return nil, err
+			}
+
+			bread.Quantity = quantity
+			breads = append(breads, bread)
+		}
+
+		order.Breads = breads
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
 // InsertOutboxMessage inserts a message into the outbox table for later processing
 func (u *PostgresRepository) InsertOutboxMessage(message OutboxMessage) error {
 
