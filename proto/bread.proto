@@ -148,3 +148,15 @@ service RemoveOldBread {
       }
 
 }
+
+service MakeOrderService {
+
+      rpc MakeOrder(BreadRequest) returns (BreadResponse) {
+
+      }
+
+      rpc MakeOrderStream(BreadRequest) returns (stream BreadResponse) {
+
+      }
+
+}

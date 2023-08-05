@@ -803,3 +803,153 @@ var RemoveOldBread_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "proto/bread.proto",
 }
+
+// MakeOrderServiceClient is the client API for MakeOrderService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MakeOrderServiceClient interface {
+	MakeOrder(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error)
+	MakeOrderStream(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (MakeOrderService_MakeOrderStreamClient, error)
+}
+
+type makeOrderServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMakeOrderServiceClient(cc grpc.ClientConnInterface) MakeOrderServiceClient {
+	return &makeOrderServiceClient{cc}
+}
+
+func (c *makeOrderServiceClient) MakeOrder(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (*BreadResponse, error) {
+	out := new(BreadResponse)
+	err := c.cc.Invoke(ctx, "/bread.MakeOrderService/MakeOrder", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *makeOrderServiceClient) MakeOrderStream(ctx context.Context, in *BreadRequest, opts ...grpc.CallOption) (MakeOrderService_MakeOrderStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &MakeOrderService_ServiceDesc.Streams[0], "/bread.MakeOrderService/MakeOrderStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &makeOrderServiceMakeOrderStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type MakeOrderService_MakeOrderStreamClient interface {
+	Recv() (*BreadResponse, error)
+	grpc.ClientStream
+}
+
+type makeOrderServiceMakeOrderStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *makeOrderServiceMakeOrderStreamClient) Recv() (*BreadResponse, error) {
+	m := new(BreadResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// MakeOrderServiceServer is the server API for MakeOrderService service.
+// All implementations must embed UnimplementedMakeOrderServiceServer
+// for forward compatibility
+type MakeOrderServiceServer interface {
+	MakeOrder(context.Context, *BreadRequest) (*BreadResponse, error)
+	MakeOrderStream(*BreadRequest, MakeOrderService_MakeOrderStreamServer) error
+	mustEmbedUnimplementedMakeOrderServiceServer()
+}
+
+// UnimplementedMakeOrderServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedMakeOrderServiceServer struct {
+}
+
+func (UnimplementedMakeOrderServiceServer) MakeOrder(context.Context, *BreadRequest) (*BreadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeOrder not implemented")
+}
+func (UnimplementedMakeOrderServiceServer) MakeOrderStream(*BreadRequest, MakeOrderService_MakeOrderStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method MakeOrderStream not implemented")
+}
+func (UnimplementedMakeOrderServiceServer) mustEmbedUnimplementedMakeOrderServiceServer() {}
+
+// UnsafeMakeOrderServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MakeOrderServiceServer will
+// result in compilation errors.
+type UnsafeMakeOrderServiceServer interface {
+	mustEmbedUnimplementedMakeOrderServiceServer()
+}
+
+func RegisterMakeOrderServiceServer(s grpc.ServiceRegistrar, srv MakeOrderServiceServer) {
+	s.RegisterService(&MakeOrderService_ServiceDesc, srv)
+}
+
+func _MakeOrderService_MakeOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MakeOrderServiceServer).MakeOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.MakeOrderService/MakeOrder",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MakeOrderServiceServer).MakeOrder(ctx, req.(*BreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MakeOrderService_MakeOrderStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(BreadRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(MakeOrderServiceServer).MakeOrderStream(m, &makeOrderServiceMakeOrderStreamServer{stream})
+}
+
+type MakeOrderService_MakeOrderStreamServer interface {
+	Send(*BreadResponse) error
+	grpc.ServerStream
+}
+
+type makeOrderServiceMakeOrderStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *makeOrderServiceMakeOrderStreamServer) Send(m *BreadResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+// MakeOrderService_ServiceDesc is the grpc.ServiceDesc for MakeOrderService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MakeOrderService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.MakeOrderService",
+	HandlerType: (*MakeOrderServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "MakeOrder",
+			Handler:    _MakeOrderService_MakeOrder_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "MakeOrderStream",
+			Handler:       _MakeOrderService_MakeOrderStream_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "proto/bread.proto",
+}
