@@ -197,7 +197,7 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Convert the response to JSON
-		jsonData, err := json.Marshal(buyOrderResponse)
+		jsonData, err := json.Marshal(buyOrderResponse.GetBuyOrders())
 		if err != nil {
 			http.Error(w, "Error converting the response to JSON", http.StatusInternalServerError)
 			return
