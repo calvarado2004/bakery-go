@@ -504,6 +504,156 @@ var BuyBread_ServiceDesc = grpc.ServiceDesc{
 	Metadata: "proto/bread.proto",
 }
 
+// BuyOrderServiceClient is the client API for BuyOrderService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BuyOrderServiceClient interface {
+	BuyOrder(ctx context.Context, in *BuyOrderRequest, opts ...grpc.CallOption) (*BuyOrderResponse, error)
+	BuyOrderStream(ctx context.Context, in *BuyOrderRequest, opts ...grpc.CallOption) (BuyOrderService_BuyOrderStreamClient, error)
+}
+
+type buyOrderServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBuyOrderServiceClient(cc grpc.ClientConnInterface) BuyOrderServiceClient {
+	return &buyOrderServiceClient{cc}
+}
+
+func (c *buyOrderServiceClient) BuyOrder(ctx context.Context, in *BuyOrderRequest, opts ...grpc.CallOption) (*BuyOrderResponse, error) {
+	out := new(BuyOrderResponse)
+	err := c.cc.Invoke(ctx, "/bread.BuyOrderService/BuyOrder", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *buyOrderServiceClient) BuyOrderStream(ctx context.Context, in *BuyOrderRequest, opts ...grpc.CallOption) (BuyOrderService_BuyOrderStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &BuyOrderService_ServiceDesc.Streams[0], "/bread.BuyOrderService/BuyOrderStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &buyOrderServiceBuyOrderStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type BuyOrderService_BuyOrderStreamClient interface {
+	Recv() (*BuyOrderResponse, error)
+	grpc.ClientStream
+}
+
+type buyOrderServiceBuyOrderStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *buyOrderServiceBuyOrderStreamClient) Recv() (*BuyOrderResponse, error) {
+	m := new(BuyOrderResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// BuyOrderServiceServer is the server API for BuyOrderService service.
+// All implementations must embed UnimplementedBuyOrderServiceServer
+// for forward compatibility
+type BuyOrderServiceServer interface {
+	BuyOrder(context.Context, *BuyOrderRequest) (*BuyOrderResponse, error)
+	BuyOrderStream(*BuyOrderRequest, BuyOrderService_BuyOrderStreamServer) error
+	mustEmbedUnimplementedBuyOrderServiceServer()
+}
+
+// UnimplementedBuyOrderServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedBuyOrderServiceServer struct {
+}
+
+func (UnimplementedBuyOrderServiceServer) BuyOrder(context.Context, *BuyOrderRequest) (*BuyOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BuyOrder not implemented")
+}
+func (UnimplementedBuyOrderServiceServer) BuyOrderStream(*BuyOrderRequest, BuyOrderService_BuyOrderStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method BuyOrderStream not implemented")
+}
+func (UnimplementedBuyOrderServiceServer) mustEmbedUnimplementedBuyOrderServiceServer() {}
+
+// UnsafeBuyOrderServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BuyOrderServiceServer will
+// result in compilation errors.
+type UnsafeBuyOrderServiceServer interface {
+	mustEmbedUnimplementedBuyOrderServiceServer()
+}
+
+func RegisterBuyOrderServiceServer(s grpc.ServiceRegistrar, srv BuyOrderServiceServer) {
+	s.RegisterService(&BuyOrderService_ServiceDesc, srv)
+}
+
+func _BuyOrderService_BuyOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BuyOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BuyOrderServiceServer).BuyOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bread.BuyOrderService/BuyOrder",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BuyOrderServiceServer).BuyOrder(ctx, req.(*BuyOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BuyOrderService_BuyOrderStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(BuyOrderRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BuyOrderServiceServer).BuyOrderStream(m, &buyOrderServiceBuyOrderStreamServer{stream})
+}
+
+type BuyOrderService_BuyOrderStreamServer interface {
+	Send(*BuyOrderResponse) error
+	grpc.ServerStream
+}
+
+type buyOrderServiceBuyOrderStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *buyOrderServiceBuyOrderStreamServer) Send(m *BuyOrderResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+// BuyOrderService_ServiceDesc is the grpc.ServiceDesc for BuyOrderService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BuyOrderService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.BuyOrderService",
+	HandlerType: (*BuyOrderServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "BuyOrder",
+			Handler:    _BuyOrderService_BuyOrder_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "BuyOrderStream",
+			Handler:       _BuyOrderService_BuyOrderStream_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "proto/bread.proto",
+}
+
 // RemoveOldBreadClient is the client API for RemoveOldBread service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.

@@ -53,6 +53,11 @@ type RemoveOldBreadServer struct {
 	RabbitMQBakery *RabbitMQBakery
 }
 
+type BuyOrderServiceServer struct {
+	pb.BuyOrderServiceServer
+	RabbitMQBakery *RabbitMQBakery
+}
+
 type Config struct {
 	Repo   data.Repository
 	Client *http.Client
@@ -166,10 +171,15 @@ func main() {
 		RabbitMQBakery: rabbitMQBakery,
 	}
 
+	buyOrderServiceServer := &BuyOrderServiceServer{
+		RabbitMQBakery: rabbitMQBakery,
+	}
+
 	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
 	pb.RegisterMakeBreadServer(server, makeBreadServer)
 	pb.RegisterBuyBreadServer(server, buyBreadServer)
 	pb.RegisterRemoveOldBreadServer(server, removeOldBreadServer)
+	pb.RegisterBuyOrderServiceServer(server, buyOrderServiceServer)
 
 	// Register reflection service on gRPC server.
 	reflection.Register(server)

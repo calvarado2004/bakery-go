@@ -23,10 +23,13 @@ message Bread {
 message BuyOrder {
   int32 id = 1;
   int32 customerId = 2;
+  string buyOrderUuid = 3;
+  float totalCost = 4;
 }
 
 message BuyOrderDetails {
   int32 buyOrderId = 1;
+  string buyOrderUuid = 6;
   int32 breadId = 2;
   int32 quantity = 3;
   float price = 4;
@@ -35,6 +38,18 @@ message BuyOrderDetails {
 
 message BuyOrderList {
   repeated BuyOrder buyOrders = 1;
+  repeated BuyOrderDetails buyOrderDetails = 2;
+}
+
+message BuyOrderRequest {
+  BuyOrderList buyOrders = 3;
+  string buy_order_uuid = 2;
+}
+
+message BuyOrderResponse {
+  string message = 1;
+  BuyOrderList buyOrders = 3;
+  string error = 4;
 }
 
 message MakeOrder {
@@ -105,6 +120,18 @@ service BuyBread {
       }
 
       rpc BuyBreadStream(BreadRequest) returns (stream BreadResponse) {
+
+      }
+
+}
+
+service BuyOrderService {
+
+      rpc BuyOrder(BuyOrderRequest) returns (BuyOrderResponse) {
+
+      }
+
+      rpc BuyOrderStream(BuyOrderRequest) returns (stream BuyOrderResponse) {
 
       }
 

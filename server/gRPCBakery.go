@@ -466,6 +466,142 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 	return nil
 }
 
+func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequest) (*pb.BuyOrderResponse, error) {
+
+	// Retrieve BuyOrder by UUID
+	buyOrderByUUID, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get buy order by UUID: %v", err)
+	}
+
+	// Retrieve BuyOrder total cost
+	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(buyOrderByUUID.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get total cost: %v", err)
+	}
+
+	// Convert breads to proto Bread
+	breads := make([]*pb.Bread, len(buyOrderByUUID.Breads))
+	for i, bread := range buyOrderByUUID.Breads {
+		breads[i] = &pb.Bread{
+			Name:        bread.Name,
+			Description: bread.Description,
+			Price:       bread.Price,
+			Quantity:    int32(bread.Quantity),
+			Type:        bread.Type,
+			Image:       bread.Image,
+			Status:      bread.Status,
+			Id:          int32(bread.ID),
+		}
+	}
+
+	// Create BuyOrderDetails
+	details := make([]*pb.BuyOrderDetails, len(breads))
+	for _, bread := range breads {
+		details = append(details, &pb.BuyOrderDetails{
+			BreadId:      bread.Id,
+			Quantity:     bread.Quantity,
+			Price:        bread.Price,
+			Status:       bread.Status,
+			BuyOrderId:   int32(buyOrderByUUID.ID),
+			BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
+		})
+	}
+
+	// Create BuyOrder
+	buyOrders := make([]*pb.BuyOrder, 1)
+	buyOrders[0] = &pb.BuyOrder{
+		BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
+		Id:           int32(buyOrderByUUID.ID),
+		CustomerId:   int32(buyOrderByUUID.CustomerID),
+		TotalCost:    totalCost,
+	}
+
+	// Create BuyOrderList
+	buyOrdersResponse := &pb.BuyOrderList{
+		BuyOrderDetails: details,
+		BuyOrders:       buyOrders,
+	}
+
+	// Create BuyOrderResponse
+	buyOrderResponse := &pb.BuyOrderResponse{
+		BuyOrders: buyOrdersResponse,
+	}
+
+	return buyOrderResponse, nil
+
+}
+
+func (s *BuyOrderServiceServer) BuyOrderStream(in *pb.BuyOrderRequest, stream pb.BuyOrderService_BuyOrderStreamServer) error {
+
+	// Retrieve BuyOrder by UUID
+	buyOrderByUUID, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to get buy order by UUID: %v", err)
+	}
+
+	// Retrieve BuyOrder total cost
+	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(buyOrderByUUID.ID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to get total cost: %v", err)
+	}
+
+	// Convert breads to proto Bread
+	breads := make([]*pb.Bread, len(buyOrderByUUID.Breads))
+	for i, bread := range buyOrderByUUID.Breads {
+		breads[i] = &pb.Bread{
+			Name:        bread.Name,
+			Description: bread.Description,
+			Price:       bread.Price,
+			Quantity:    int32(bread.Quantity),
+			Type:        bread.Type,
+			Image:       bread.Image,
+			Status:      bread.Status,
+			Id:          int32(bread.ID),
+		}
+	}
+
+	// Create BuyOrderDetails
+	details := make([]*pb.BuyOrderDetails, len(breads))
+	for _, bread := range breads {
+		details = append(details, &pb.BuyOrderDetails{
+			BreadId:      bread.Id,
+			Quantity:     bread.Quantity,
+			Price:        bread.Price,
+			Status:       bread.Status,
+			BuyOrderId:   int32(buyOrderByUUID.ID),
+			BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
+		})
+	}
+
+	// Create BuyOrder
+	buyOrders := make([]*pb.BuyOrder, 1)
+	buyOrders[0] = &pb.BuyOrder{
+		BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
+		Id:           int32(buyOrderByUUID.ID),
+		CustomerId:   int32(buyOrderByUUID.CustomerID),
+		TotalCost:    totalCost,
+	}
+
+	// Create BuyOrderList
+	buyOrdersResponse := &pb.BuyOrderList{
+		BuyOrderDetails: details,
+		BuyOrders:       buyOrders,
+	}
+
+	// Create BuyOrderResponse
+	buyOrderResponse := &pb.BuyOrderResponse{
+		BuyOrders: buyOrdersResponse,
+	}
+
+	// Send the response to the client
+	if err := stream.Send(buyOrderResponse); err != nil {
+		return status.Errorf(codes.Internal, "Failed to send buy order: %v", err)
+	}
+
+	return nil
+}
+
 func (s *RemoveOldBreadServer) RemoveBread(cx context.Context, in *pb.BreadRequest) (*pb.BreadResponse, error) {
 
 	connection, err := rabbitmq.Dial(s.RabbitMQBakery.rabbitmqURL)
