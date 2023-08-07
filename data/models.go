@@ -553,7 +553,7 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 		return order, err
 	}
 
-	stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+	stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 	rows, err := db.QueryContext(ctx, stmt, orderID)
 	if err != nil {
@@ -612,7 +612,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 		return order, err
 	}
 
-	stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+	stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 	rows, err := db.QueryContext(ctx, stmt, order.ID)
 	if err != nil {
@@ -682,7 +682,7 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 			return nil, err
 		}
 
-		stmt = `SELECT bread_id, quantity FROM order_details WHERE buy_order_id = $1`
+		stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 		rows, err := db.QueryContext(ctx, stmt, order.ID)
 		if err != nil {
