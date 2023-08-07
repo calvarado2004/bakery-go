@@ -572,7 +572,7 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 
 	for rows.Next() {
 		var breadID, quantity int
-		err := rows.Scan(&breadID, &quantity)
+		err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
 		if err != nil {
 			log.Errorf("Error scanning order details: %v", err)
 			return order, err
@@ -631,7 +631,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 
 	for rows.Next() {
 		var breadID, quantity int
-		err := rows.Scan(&breadID, &quantity)
+		err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
 		if err != nil {
 			log.Errorf("Error scanning order details: %v", err)
 			return order, err
@@ -701,7 +701,7 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 
 		for rows.Next() {
 			var breadID, quantity int
-			err := rows.Scan(&breadID, &quantity)
+			err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
 			if err != nil {
 				log.Errorf("Error scanning order details: %v", err)
 				return nil, err
