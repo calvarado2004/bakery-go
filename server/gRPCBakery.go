@@ -505,6 +505,8 @@ func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequ
 			Status:       bread.Status,
 			BuyOrderId:   int32(buyOrderByUUID.ID),
 			BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
+			CreatedAt:    buyOrderByUUID.CreatedAt.String(),
+			UpdatedAt:    buyOrderByUUID.UpdatedAt.String(),
 		})
 	}
 
@@ -586,6 +588,8 @@ func (s *BuyOrderServiceServer) BuyOrderStream(in *pb.BuyOrderRequest, stream pb
 				Status:       bread.Status,
 				BuyOrderId:   int32(buyOrderToProcess.ID),
 				BuyOrderUuid: buyOrderToProcess.BuyOrderUUID,
+				CreatedAt:    buyOrderToProcess.CreatedAt.String(),
+				UpdatedAt:    buyOrderToProcess.UpdatedAt.String(),
 			})
 		}
 
