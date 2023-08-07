@@ -34,6 +34,8 @@ message BuyOrderDetails {
   int32 quantity = 3;
   float price = 4;
   string status = 5;
+  string created_at = 7;
+  string updated_at = 8;
 }
 
 message BuyOrderList {
@@ -63,6 +65,8 @@ message MakeOrderDetails {
   int32 quantity = 3;
   float price = 4;
   string status = 5;
+  string created_at = 7;
+  string updated_at = 8;
 }
 
 message BreadList {

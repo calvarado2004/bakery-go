@@ -48,12 +48,14 @@ type Bread struct {
 }
 
 type BuyOrder struct {
-	ID           int      `json:"id"`
-	CustomerID   int      `json:"customer_id"`
-	BuyOrderUUID string   `json:"buy_order_uuid"`
-	Customer     Customer `json:"customer"`
-	Breads       []Bread  `json:"breads"`
-	Status       string   `json:"status"`
+	ID           int       `json:"id"`
+	CustomerID   int       `json:"customer_id"`
+	BuyOrderUUID string    `json:"buy_order_uuid"`
+	Customer     Customer  `json:"customer"`
+	Breads       []Bread   `json:"breads"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type OrdersProcessed struct {
@@ -81,6 +83,8 @@ type MakeOrder struct {
 	MakeOrderUUID string     `json:"make_order_uuid"`
 	BreadMaker    BreadMaker `json:"bread_maker"`
 	Breads        []Bread    `json:"breads"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 type OutboxMessage struct {
@@ -234,9 +238,9 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 			return 0, err
 		}
 
-		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price) VALUES ($1, $2, $3, $4)`
+		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 
-		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price)
+		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price, time.Now(), time.Now())
 
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)

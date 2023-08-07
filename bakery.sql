@@ -116,6 +116,8 @@ CREATE TABLE public.order_details (
                                       bread_id integer NOT NULL,
                                       quantity integer,
                                       price float,
+                                      created_at timestamp without time zone,
+                                      updated_at timestamp without time zone,
                                       PRIMARY KEY (buy_order_id, bread_id),
                                       FOREIGN KEY (buy_order_id) REFERENCES public.buy_order(id),
                                       FOREIGN KEY (bread_id) REFERENCES public.bread(id)
