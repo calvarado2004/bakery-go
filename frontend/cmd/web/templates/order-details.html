@@ -94,6 +94,24 @@
   var source = new EventSource("/order-stream");
 
 
+  function appendOrderToDOM(order) {
+    var orderElement = document.createElement('div');
+    orderElement.innerHTML = createOrderTableHTML(order);
+    orderContainer.appendChild(orderElement);
+  }
+
+  function appendDetailToDOM(detail) {
+    var detailElement = document.createElement('tr');
+    detailElement.setAttribute('data-uuid', detail.buyOrderUuid);
+    detailElement.setAttribute('data-bread-id', detail.breadId);
+    detailElement.innerHTML = createOrderDetailHTML(detail);
+
+    var detailsTable = document.querySelector(`table[data-uuid="${detail.buyOrderUuid}"] tbody`);
+    if (detailsTable) {
+      detailsTable.appendChild(detailElement);
+    }
+  }
+
   source.onmessage = function(event) {
     var orderData = JSON.parse(event.data);
 
@@ -105,25 +123,21 @@
           details: []
         };
         // Add new order table for this order
-        orderContainer.innerHTML += createOrderTableHTML(order);
+        appendOrderToDOM(order);
       }
     });
 
     // Now populate details for each order
     orderData.buyOrderDetails.forEach(detail => {
       // Check if essential fields are defined before processing further
-      if(detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
+      if (detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
         if (!buyOrders[detail.buyOrderUuid].details.find(d => d.breadId === detail.breadId)) {
           buyOrders[detail.buyOrderUuid].details.push(detail);
-
-          var detailsTable = document.querySelector(`table[data-uuid="${detail.buyOrderUuid}"] tbody`);
-          if(detailsTable) {
-            detailsTable.innerHTML += createOrderDetailHTML(detail);
-          }
+          appendDetailToDOM(detail);
         } else {
           // Update the logic for existing rows here if needed
           var orderRow = document.querySelector(`tr[data-uuid="${detail.buyOrderUuid}"][data-bread-id="${detail.breadId}"]`);
-          if(orderRow) {
+          if (orderRow) {
             orderRow.cells[1].innerText = detail.breadId;
             orderRow.cells[2].innerText = detail.quantity;
             orderRow.cells[3].innerText = detail.price;
