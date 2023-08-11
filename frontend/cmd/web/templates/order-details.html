@@ -53,8 +53,8 @@
   function createOrderHTML(order, detailHTML) {
     return `
         <tr id="order-${order.buyOrderUuid}">
-            <td>${order.buyOrderUuid}</td>
-            <td>${order.totalCost}</td>
+            <td>${order.buyOrderUuid ? order.buyOrderUuid : ''}</td>
+            <td>${order.totalCost ? order.totalCost : ''}</td>
             <td>
               <table>
                 <thead>
@@ -78,14 +78,15 @@
   function createOrderDetailHTML(detail) {
     return `
         <tr>
-            <td>${detail.breadId}</td>
-            <td>${detail.quantity}</td>
-            <td>${detail.price}</td>
-            <td>${detail.status}</td>
-            <td>${detail.created_at}</td>
-            <td>${detail.updated_at}</td>
+            <td>${detail.breadId ? detail.breadId : ''}</td>
+            <td>${detail.quantity ? detail.quantity : ''}</td>
+            <td>${detail.price ? detail.price : ''}</td>
+            <td>${detail.status ? detail.status : ''}</td>
+            <td>${detail.created_at ? detail.created_at : ''}</td>
+            <td>${detail.updated_at ? detail.updated_at : ''}</td>
         </tr>`;
   }
+
 
   var source = new EventSource("/order-stream");
 
