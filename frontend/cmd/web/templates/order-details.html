@@ -97,8 +97,9 @@
   source.onmessage = function(event) {
     var orderData = JSON.parse(event.data);
 
+    // Ensure all the order tables are present
     orderData.buyOrders.forEach(order => {
-      if(!buyOrders[order.buyOrderUuid]) {
+      if (!buyOrders[order.buyOrderUuid]) {
         buyOrders[order.buyOrderUuid] = {
           header: order,
           details: []
@@ -108,6 +109,7 @@
       }
     });
 
+    // Now populate details for each order
     orderData.buyOrderDetails.forEach(detail => {
       // Check if essential fields are defined before processing further
       if(detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
@@ -115,22 +117,24 @@
           buyOrders[detail.buyOrderUuid].details.push(detail);
 
           var detailsTable = document.querySelector(`table[data-uuid="${detail.buyOrderUuid}"] tbody`);
-          detailsTable.innerHTML += createOrderDetailHTML(detail);
+          if(detailsTable) {
+            detailsTable.innerHTML += createOrderDetailHTML(detail);
+          }
         } else {
           // Update the logic for existing rows here if needed
           var orderRow = document.querySelector(`tr[data-uuid="${detail.buyOrderUuid}"][data-bread-id="${detail.breadId}"]`);
-
-          orderRow.cells[1].innerText = detail.breadId;
-          orderRow.cells[2].innerText = detail.quantity;
-          orderRow.cells[3].innerText = detail.price;
-          orderRow.cells[4].innerText = detail.status;
-          orderRow.cells[5].innerText = detail.created_at;
-          orderRow.cells[6].innerText = detail.updated_at;
+          if(orderRow) {
+            orderRow.cells[1].innerText = detail.breadId;
+            orderRow.cells[2].innerText = detail.quantity;
+            orderRow.cells[3].innerText = detail.price;
+            orderRow.cells[4].innerText = detail.status;
+            orderRow.cells[5].innerText = detail.created_at;
+            orderRow.cells[6].innerText = detail.updated_at;
+          }
         }
       }
     });
   };
-
 
 
 </script>
