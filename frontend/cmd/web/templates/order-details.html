@@ -37,27 +37,47 @@
   <thead>
   <tr>
     <th>Buy Order UUID</th>
-    <th>Bread ID</th>
-    <th>Quantity</th>
-    <th>Price</th>
-    <th>Status</th>
-    <th>Created At</th>
-    <th>Updated At</th>
+    <th>Total Cost</th>
+    <th>Order Details</th>
   </tr>
   </thead>
-  <tbody id="orderDetailsContainer">
+  <tbody id="orderContainer">
   <!-- The actual data will be populated here using JavaScript -->
   </tbody>
 </table>
 
 <script>
-  var orderDetailsContainer = document.getElementById('orderDetailsContainer');
-  var buyOrders = {}; // Store buy orders by their UUID
+  var orderContainer = document.getElementById('orderContainer');
+  var buyOrders = {};
+
+  function createOrderHTML(order, detailHTML) {
+    return `
+        <tr id="order-${order.buyOrderUuid}">
+            <td>${order.buyOrderUuid}</td>
+            <td>${order.totalCost}</td>
+            <td>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bread ID</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
+                  </tr>
+                </thead>
+                <tbody id="details-${order.buyOrderUuid}">
+                  ${detailHTML}
+                </tbody>
+              </table>
+            </td>
+        </tr>`;
+  }
 
   function createOrderDetailHTML(detail) {
     return `
-        <tr id="${detail.buyOrderUuid}">
-            <td>${detail.buyOrderUuid}</td>
+        <tr>
             <td>${detail.breadId}</td>
             <td>${detail.quantity}</td>
             <td>${detail.price}</td>
@@ -72,20 +92,17 @@
   source.onmessage = function(event) {
     var orderData = JSON.parse(event.data);
 
-    orderData.buyOrderDetails.forEach(detail => {
-      if (!buyOrders[detail.buyOrderUuid]) {
-        buyOrders[detail.buyOrderUuid] = detail;
-        orderDetailsContainer.innerHTML += createOrderDetailHTML(detail);
+    orderData.buyOrders.forEach(order => {
+      if (!buyOrders[order.buyOrderUuid]) {
+        buyOrders[order.buyOrderUuid] = order;
+        var detailsHTML = orderData.buyOrderDetails.filter(detail => detail.buyOrderUuid === order.buyOrderUuid)
+                .map(detail => createOrderDetailHTML(detail)).join('');
+        orderContainer.innerHTML += createOrderHTML(order, detailsHTML);
       } else {
-        // Assuming you want to update existing rows if they're streamed again
-        var orderRow = document.getElementById(detail.buyOrderUuid);
-
-        orderRow.cells[1].innerText = detail.breadId;
-        orderRow.cells[2].innerText = detail.quantity;
-        orderRow.cells[3].innerText = detail.price;
-        orderRow.cells[4].innerText = detail.status;
-        orderRow.cells[5].innerText = detail.created_at;
-        orderRow.cells[6].innerText = detail.updated_at;
+        var detailsContainer = document.getElementById(`details-${order.buyOrderUuid}`);
+        orderData.buyOrderDetails.forEach(detail => {
+          detailsContainer.innerHTML += createOrderDetailHTML(detail);
+        });
       }
     });
   };
