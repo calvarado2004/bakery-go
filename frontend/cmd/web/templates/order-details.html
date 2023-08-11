@@ -76,37 +76,60 @@
   }
 
   function createOrderDetailHTML(detail) {
-    return `
-        <tr>
-            <td>${detail.breadId ? detail.breadId : ''}</td>
-            <td>${detail.quantity ? detail.quantity : ''}</td>
-            <td>${detail.price ? detail.price : ''}</td>
-            <td>${detail.status ? detail.status : ''}</td>
-            <td>${detail.created_at ? detail.created_at : ''}</td>
-            <td>${detail.updated_at ? detail.updated_at : ''}</td>
+    // Check if essential fields are defined
+    if(detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
+      return `
+        <tr data-uuid="${detail.buyOrderUuid}" data-bread-id="${detail.breadId}">
+            <td>${detail.buyOrderUuid}</td>
+            <td>${detail.breadId}</td>
+            <td>${detail.quantity}</td>
+            <td>${detail.price}</td>
+            <td>${detail.status}</td>
+            <td>${detail.created_at}</td>
+            <td>${detail.updated_at}</td>
         </tr>`;
+    } else {
+      return ''; // If essential fields aren't defined, return an empty string, effectively skipping this detail
+    }
   }
 
-
   var source = new EventSource("/order-stream");
+
+
+
 
   source.onmessage = function(event) {
     var orderData = JSON.parse(event.data);
 
-    orderData.buyOrders.forEach(order => {
-      if (!buyOrders[order.buyOrderUuid]) {
-        buyOrders[order.buyOrderUuid] = order;
-        var detailsHTML = orderData.buyOrderDetails.filter(detail => detail.buyOrderUuid === order.buyOrderUuid)
-                .map(detail => createOrderDetailHTML(detail)).join('');
-        orderContainer.innerHTML += createOrderHTML(order, detailsHTML);
-      } else {
-        var detailsContainer = document.getElementById(`details-${order.buyOrderUuid}`);
-        orderData.buyOrderDetails.forEach(detail => {
-          detailsContainer.innerHTML += createOrderDetailHTML(detail);
-        });
+    orderData.buyOrderDetails.forEach(detail => {
+      // Check if essential fields are defined before processing further
+      if(detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
+        if (!buyOrders[detail.buyOrderUuid]) {
+          buyOrders[detail.buyOrderUuid] = [];
+        }
+
+        // Check if this detail is already added to the order
+        let existingDetail = buyOrders[detail.buyOrderUuid].find(d => d.breadId === detail.breadId);
+
+        if (!existingDetail) {
+          buyOrders[detail.buyOrderUuid].push(detail);
+          orderDetailsContainer.innerHTML += createOrderDetailHTML(detail);
+        } else {
+          // Update the logic for existing rows here if needed
+          // This is based on the assumption that the combination of buyOrderUuid and breadId is unique for each row
+          var orderRow = document.querySelector(`tr[data-uuid="${detail.buyOrderUuid}"][data-bread-id="${detail.breadId}"]`);
+
+          orderRow.cells[1].innerText = detail.breadId;
+          orderRow.cells[2].innerText = detail.quantity;
+          orderRow.cells[3].innerText = detail.price;
+          orderRow.cells[4].innerText = detail.status;
+          orderRow.cells[5].innerText = detail.created_at;
+          orderRow.cells[6].innerText = detail.updated_at;
+        }
       }
     });
   };
+
 
 </script>
 </body>
