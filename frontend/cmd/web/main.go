@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 type BreadLog struct {
@@ -24,6 +25,29 @@ type BreadLog struct {
 	Quantity int
 	Price    float32
 	Image    string
+}
+
+type BuyOrder struct {
+	ID           int     `json:"id"`
+	CustomerID   int     `json:"customerId"`
+	BuyOrderUuid string  `json:"buyOrderUuid"`
+	TotalCost    float64 `json:"totalCost"`
+}
+
+type BuyOrderDetail struct {
+	BuyOrderID   int       `json:"buyOrderId"`
+	BuyOrderUuid string    `json:"buyOrderUuid"`
+	BreadID      int       `json:"breadId"`
+	Quantity     int       `json:"quantity"`
+	Price        float64   `json:"price"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type OrderData struct {
+	BuyOrders       []BuyOrder       `json:"buyOrders"`
+	BuyOrderDetails []BuyOrderDetail `json:"buyOrderDetails"`
 }
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -39,6 +63,7 @@ func main() {
 	router.HandleFunc("/", homeHandler)
 	router.HandleFunc("/stream", streamHandler)
 	router.HandleFunc("/order-stream", orderStreamHandler)
+	router.HandleFunc("/orders", orderDetailsHandler)
 
 	fs := http.FileServer(http.Dir("/cmd/web/templates/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
@@ -86,6 +111,26 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	err = tmpl.Execute(w, breadLogs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func orderDetailsHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Initialize an empty slice of OrderData
+	// Note: Populate this slice if you have actual data to pass to the template
+	orderDetails := make([]OrderData, 0)
+
+	// Parse the template
+	tmpl, err := template.ParseFiles("./cmd/web/templates/order-details.html")
+	if err != nil {
+		http.Error(w, "Error parsing template: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Execute and render the template with the provided data
+	err = tmpl.Execute(w, orderDetails)
+	if err != nil {
+		http.Error(w, "Error rendering template: "+err.Error(), http.StatusInternalServerError)
 	}
 }
 

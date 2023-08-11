@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+    }
+
+    thead {
+      background-color: #f2f2f2;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    tr:hover {
+      background-color: #eaeaea;
+    }
+
+  </style>
+
+  <title>Order Details</title>
+</head>
+<body>
+
+<table>
+  <thead>
+  <tr>
+    <th>Buy Order UUID</th>
+    <th>Bread ID</th>
+    <th>Quantity</th>
+    <th>Price</th>
+    <th>Status</th>
+    <th>Created At</th>
+    <th>Updated At</th>
+  </tr>
+  </thead>
+  <tbody id="orderDetailsContainer">
+  <!-- The actual data will be populated here using JavaScript -->
+  </tbody>
+</table>
+
+<script>
+  var orderDetailsContainer = document.getElementById('orderDetailsContainer');
+  var buyOrders = {}; // Store buy orders by their UUID
+
+  function createOrderDetailHTML(detail) {
+    return `
+        <tr id="${detail.buyOrderUuid}">
+            <td>${detail.buyOrderUuid}</td>
+            <td>${detail.breadId}</td>
+            <td>${detail.quantity}</td>
+            <td>${detail.price}</td>
+            <td>${detail.status}</td>
+            <td>${detail.created_at}</td>
+            <td>${detail.updated_at}</td>
+        </tr>`;
+  }
+
+  var source = new EventSource("/order-stream");
+
+  source.onmessage = function(event) {
+    var orderData = JSON.parse(event.data);
+
+    orderData.buyOrderDetails.forEach(detail => {
+      if (!buyOrders[detail.buyOrderUuid]) {
+        buyOrders[detail.buyOrderUuid] = detail;
+        orderDetailsContainer.innerHTML += createOrderDetailHTML(detail);
+      } else {
+        // Assuming you want to update existing rows if they're streamed again
+        var orderRow = document.getElementById(detail.buyOrderUuid);
+
+        orderRow.cells[1].innerText = detail.breadId;
+        orderRow.cells[2].innerText = detail.quantity;
+        orderRow.cells[3].innerText = detail.price;
+        orderRow.cells[4].innerText = detail.status;
+        orderRow.cells[5].innerText = detail.created_at;
+        orderRow.cells[6].innerText = detail.updated_at;
+      }
+    });
+  };
+
+</script>
+</body>
+</html>
