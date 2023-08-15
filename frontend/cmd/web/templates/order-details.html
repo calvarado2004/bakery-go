@@ -1,131 +1,350 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <meta charset="utf-8">
+    <title>Bakery Go!</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
 
-  <title>Order Details</title>
+    <!-- Favicon -->
+    <link href="./static/img/favicon.ico" rel="icon">
+
+    <!-- Google Web Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"> 
+
+    <!-- Icon Font Stylesheet -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Libraries Stylesheet -->
+    <link href="./static/lib/animate/animate.min.css" rel="stylesheet">
+    <link href="./static/lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
+
+    <!-- Customized Bootstrap Stylesheet -->
+    <link href="./static/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Template Stylesheet -->
+    <link href="./static/css/style.css" rel="stylesheet">
 </head>
-<body class="container mt-4"> <!-- Added container class for some padding around content -->
 
-<table class="table table-striped table-hover"> <!-- Bootstrap classes for table -->
-  <thead class="thead-light"> <!-- Changed the color to light using Bootstrap class -->
-  <tr>
-    <th>Buy Order UUID</th>
-    <th>Total Cost</th>
-    <th>Order Details</th>
-  </tr>
-  </thead>
-  <tbody id="orderContainer">
-  <!-- The actual data will be populated here using JavaScript -->
-  </tbody>
-</table>
-
-<script>
-  var orderContainer = document.getElementById('orderContainer');
-  var buyOrders = {};
-
-  function createOrderTableHTML(order) {
-    return `
-    <h2>Order: ${order.buyOrderUuid}</h2>
-    <table class="table table-bordered table-striped table-hover" data-uuid="${order.buyOrderUuid}"> <!-- Bootstrap classes for table -->
-        <thead class="thead-light"> <!-- Changed the color to light using Bootstrap class -->
-            <tr>
-                <th>Buy Order UUID</th>
-                <th>Bread ID</th>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Created At</th>
-                <th>Updated At</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
-    <h3>Grand Total: ${order.totalCost}</h3>
-    `;
-  }
-
-  function createOrderDetailHTML(detail) {
-    // Check if essential fields are defined
-    if(detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
-      return `
-        <tr data-uuid="${detail.buyOrderUuid}" data-bread-id="${detail.breadId}">
-            <td>${detail.buyOrderUuid}</td>
-            <td>${detail.breadId}</td>
-            <td>${detail.quantity}</td>
-            <td>${detail.price}</td>
-            <td>${detail.status}</td>
-            <td>${detail.created_at}</td>
-            <td>${detail.updated_at}</td>
-        </tr>`;
-    } else {
-      return ''; // If essential fields aren't defined, return an empty string, effectively skipping this detail
-    }
-  }
-
-  var source = new EventSource("/order-stream");
+<body>
+    <!-- Spinner Start -->
+    <div id="spinner" class="show bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
+        <div class="spinner-grow text-primary" role="status"></div>
+    </div>
+    <!-- Spinner End -->
 
 
-  function appendOrderToDOM(order) {
-    var orderElement = document.createElement('div');
-    orderElement.innerHTML = createOrderTableHTML(order);
-    orderContainer.appendChild(orderElement);
-  }
+    <!-- Topbar Start -->
+    <div class="container-fluid top-bar bg-dark text-light px-0 wow fadeIn" data-wow-delay="0.1s">
+        <div class="row gx-0 align-items-center d-none d-lg-flex">
+            <div class="col-lg-6 px-5 text-start">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a class="small text-light" href="/">Home</a></li>
+                    <li class="breadcrumb-item"><a class="small text-light" href="#">Orders</a></li>
+                    <li class="breadcrumb-item"><a class="small text-light" href="#">Terms</a></li>
+                    <li class="breadcrumb-item"><a class="small text-light" href="#">Privacy</a></li>
+                </ol>
+            </div>
+            <div class="col-lg-6 px-5 text-end">
+                <small>Follow us:</small>
+                <div class="h-100 d-inline-flex align-items-center">
+                    <a class="btn-lg-square text-primary border-end rounded-0" href=""><i class="fab fa-facebook-f"></i></a>
+                    <a class="btn-lg-square text-primary border-end rounded-0" href=""><i class="fab fa-twitter"></i></a>
+                    <a class="btn-lg-square text-primary border-end rounded-0" href=""><i class="fab fa-linkedin-in"></i></a>
+                    <a class="btn-lg-square text-primary pe-0" href=""><i class="fab fa-instagram"></i></a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Topbar End -->
 
-  function appendDetailToDOM(detail) {
-    var detailElement = document.createElement('tr');
-    detailElement.setAttribute('data-uuid', detail.buyOrderUuid);
-    detailElement.setAttribute('data-bread-id', detail.breadId);
-    detailElement.innerHTML = createOrderDetailHTML(detail);
 
-    var detailsTable = document.querySelector(`table[data-uuid="${detail.buyOrderUuid}"] tbody`);
-    if (detailsTable) {
-      detailsTable.appendChild(detailElement);
-    }
-  }
+    <!-- Navbar Start -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top py-lg-0 px-lg-5 wow fadeIn" data-wow-delay="0.1s">
+        <a href="index.html" class="navbar-brand ms-4 ms-lg-0">
+            <h1 class="text-primary m-0">Bakery Go!</h1>
+        </a>
+        <button type="button" class="navbar-toggler me-4" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarCollapse">
+            <div class="navbar-nav mx-auto p-4 p-lg-0">
+                <a href="index.html" class="nav-item nav-link">Home</a>
+                <a href="about.html" class="nav-item nav-link">About</a>
+                <a href="service.html" class="nav-item nav-link">Services</a>
+                <a href="product.html" class="nav-item nav-link">Products</a>
+                <div class="nav-item dropdown">
+                    <a href="#" class="nav-link dropdown-toggle active" data-bs-toggle="dropdown">Pages</a>
+                    <div class="dropdown-menu m-0">
+                        <a href="team.html" class="dropdown-item active">Our Team</a>
+                        <a href="testimonial.html" class="dropdown-item">Testimonial</a>
+                        <a href="404.html" class="dropdown-item">404 Page</a>
+                    </div>
+                </div>
+                <a href="contact.html" class="nav-item nav-link">Contact</a>
+            </div>
+            <div class=" d-none d-lg-flex">
+                <div class="flex-shrink-0 btn-lg-square border border-light rounded-circle">
+                    <i class="fa fa-phone text-primary"></i>
+                </div>
+                <div class="ps-3">
+                    <small class="text-primary mb-0">Call Us</small>
+                    <p class="text-light fs-5 mb-0">+012 345 6789</p>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- Navbar End -->
 
-  source.onmessage = function(event) {
-    var orderData = JSON.parse(event.data);
 
-    // Ensure all the order tables are present
-    orderData.buyOrders.forEach(order => {
-      if (!buyOrders[order.buyOrderUuid]) {
-        buyOrders[order.buyOrderUuid] = {
-          header: order,
-          details: []
-        };
-        // Add new order table for this order
-        appendOrderToDOM(order);
+    <!-- Page Header Start -->
+    <div class="container-fluid page-header py-6 wow fadeIn" data-wow-delay="0.1s">
+        <div class="container text-center pt-5 pb-3">
+            <h1 class="display-4 text-white animated slideInDown mb-3">Bakery Orders</h1>
+            <nav aria-label="breadcrumb animated slideInDown">
+                <ol class="breadcrumb justify-content-center mb-0">
+                    <li class="breadcrumb-item"><a class="text-white" href="#">Home</a></li>
+                    <li class="breadcrumb-item"><a class="text-white" href="#">Pages</a></li>
+                    <li class="breadcrumb-item text-primary active" aria-current="page">Bakery Orders</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    <!-- Page Header End -->
+
+
+
+    <!-- Team Start -->
+    <div class="container-xxl py-6">
+        <div class="container">
+            <div class="text-center mx-auto mb-5 wow fadeInUp" data-wow-delay="0.1s" style="max-width: 500px;">
+                <p class="text-primary text-uppercase mb-2">Bakery orders</p>
+                <h1 class="display-6 mb-4">Retrieving orders on gRPC!</h1>
+            </div>
+            <div class="row g-4">
+                <table class="table table-striped table-hover"> <!-- Bootstrap classes for table -->
+                  <thead class="thead-light"> <!-- Changed the color to light using Bootstrap class -->
+                  <tr>
+                    <th>Buy Order UUID</th>
+                    <th>Total Cost</th>
+                    <th>Order Details</th>
+                  </tr>
+                  </thead>
+                  <tbody id="orderContainer">
+                  <!-- The actual data will be populated here using JavaScript -->
+                  </tbody>
+                </table>
+
+            </div>
+        </div>
+    </div>
+    <!-- Team End -->
+
+    <!-- Footer Start -->
+    <div class="container-fluid bg-dark text-light footer my-6 mb-0 py-5 wow fadeIn" data-wow-delay="0.1s">
+        <div class="container py-5">
+            <div class="row g-5">
+                <div class="col-lg-3 col-md-6">
+                    <h4 class="text-light mb-4">Office Address</h4>
+                    <p class="mb-2"><i class="fa fa-map-marker-alt me-3"></i>123 Street, New York, USA</p>
+                    <p class="mb-2"><i class="fa fa-phone-alt me-3"></i>+012 345 67890</p>
+                    <p class="mb-2"><i class="fa fa-envelope me-3"></i>info@example.com</p>
+                    <div class="d-flex pt-2">
+                        <a class="btn btn-square btn-outline-light rounded-circle me-1" href=""><i class="fab fa-twitter"></i></a>
+                        <a class="btn btn-square btn-outline-light rounded-circle me-1" href=""><i class="fab fa-facebook-f"></i></a>
+                        <a class="btn btn-square btn-outline-light rounded-circle me-1" href=""><i class="fab fa-youtube"></i></a>
+                        <a class="btn btn-square btn-outline-light rounded-circle me-0" href=""><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h4 class="text-light mb-4">Quick Links</h4>
+                    <a class="btn btn-link" href="">About Us</a>
+                    <a class="btn btn-link" href="">Contact Us</a>
+                    <a class="btn btn-link" href="">Our Services</a>
+                    <a class="btn btn-link" href="">Terms & Condition</a>
+                    <a class="btn btn-link" href="">Support</a>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h4 class="text-light mb-4">Quick Links</h4>
+                    <a class="btn btn-link" href="">About Us</a>
+                    <a class="btn btn-link" href="">Contact Us</a>
+                    <a class="btn btn-link" href="">Our Services</a>
+                    <a class="btn btn-link" href="">Terms & Condition</a>
+                    <a class="btn btn-link" href="">Support</a>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h4 class="text-light mb-4">Photo Gallery</h4>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-1.jpg" alt="Image">
+                        </div>
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-2.jpg" alt="Image">
+                        </div>
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-3.jpg" alt="Image">
+                        </div>
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-2.jpg" alt="Image">
+                        </div>
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-3.jpg" alt="Image">
+                        </div>
+                        <div class="col-4">
+                            <img class="img-fluid bg-light rounded p-1" src="./static/img/product-1.jpg" alt="Image">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Footer End -->
+
+
+    <!-- Copyright Start -->
+    <div class="container-fluid copyright text-light py-4 wow fadeIn" data-wow-delay="0.1s">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 text-center text-md-start mb-3 mb-md-0">
+                    &copy; <a href="#">Your Site Name</a>, All Right Reserved.
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
+                    Designed By <a href="https://htmlcodex.com">HTML Codex</a>
+                    <br>Distributed By: <a class="border-bottom" href="https://calvarado04.com" target="_blank">Carlos Alvarado</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Copyright End -->
+
+
+    <!-- Back to Top -->
+    <a href="#" class="btn btn-lg btn-primary btn-lg-square rounded-circle back-to-top"><i class="bi bi-arrow-up"></i></a>
+
+
+    <!-- JavaScript Libraries -->
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="./static/lib/wow/wow.min.js"></script>
+    <script src="./static/lib/easing/easing.min.js"></script>
+    <script src="./static/lib/waypoints/waypoints.min.js"></script>
+    <script src="./static/lib/counterup/counterup.min.js"></script>
+    <script src="./static/lib/owlcarousel/owl.carousel.min.js"></script>
+
+    <script>
+      var orderContainer = document.getElementById('orderContainer');
+      var buyOrders = {};
+
+      function createOrderTableHTML(order) {
+        return `
+        <h2>Order: ${order.buyOrderUuid}</h2>
+        <table class="table table-bordered table-striped table-hover" data-uuid="${order.buyOrderUuid}"> <!-- Bootstrap classes for table -->
+            <thead class="thead-light"> <!-- Changed the color to light using Bootstrap class -->
+                <tr>
+                    <th>Buy Order UUID</th>
+                    <th>Bread ID</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <h3>Grand Total: ${order.totalCost}</h3>
+        `;
       }
-    });
 
-    // Now populate details for each order
-    orderData.buyOrderDetails.forEach(detail => {
-      // Check if essential fields are defined before processing further
-      if (detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
-        if (!buyOrders[detail.buyOrderUuid].details.find(d => d.breadId === detail.breadId)) {
-          buyOrders[detail.buyOrderUuid].details.push(detail);
-          appendDetailToDOM(detail);
+      function createOrderDetailHTML(detail) {
+        // Check if essential fields are defined
+        if(detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
+          return `
+            <tr data-uuid="${detail.buyOrderUuid}" data-bread-id="${detail.breadId}">
+                <td>${detail.buyOrderUuid}</td>
+                <td>${detail.breadId}</td>
+                <td>${detail.quantity}</td>
+                <td>${detail.price}</td>
+                <td>${detail.status}</td>
+                <td>${detail.created_at}</td>
+                <td>${detail.updated_at}</td>
+            </tr>`;
         } else {
-          // Update the logic for existing rows here if needed
-          var orderRow = document.querySelector(`tr[data-uuid="${detail.buyOrderUuid}"][data-bread-id="${detail.breadId}"]`);
-          if (orderRow) {
-            orderRow.cells[1].innerText = detail.breadId;
-            orderRow.cells[2].innerText = detail.quantity;
-            orderRow.cells[3].innerText = detail.price;
-            orderRow.cells[4].innerText = detail.status;
-            orderRow.cells[5].innerText = detail.created_at;
-            orderRow.cells[6].innerText = detail.updated_at;
-          }
+          return ''; // If essential fields aren't defined, return an empty string, effectively skipping this detail
         }
       }
-    });
-  };
+
+      var source = new EventSource("/order-stream");
 
 
-</script>
+      function appendOrderToDOM(order) {
+        var orderElement = document.createElement('div');
+        orderElement.innerHTML = createOrderTableHTML(order);
+        orderContainer.appendChild(orderElement);
+      }
+
+      function appendDetailToDOM(detail) {
+        var detailElement = document.createElement('tr');
+        detailElement.setAttribute('data-uuid', detail.buyOrderUuid);
+        detailElement.setAttribute('data-bread-id', detail.breadId);
+        detailElement.innerHTML = createOrderDetailHTML(detail);
+
+        var detailsTable = document.querySelector(`table[data-uuid="${detail.buyOrderUuid}"] tbody`);
+        if (detailsTable) {
+          detailsTable.appendChild(detailElement);
+        }
+      }
+
+      source.onmessage = function(event) {
+        var orderData = JSON.parse(event.data);
+
+        // Ensure all the order tables are present
+        orderData.buyOrders.forEach(order => {
+          if (!buyOrders[order.buyOrderUuid]) {
+            buyOrders[order.buyOrderUuid] = {
+              header: order,
+              details: []
+            };
+            // Add new order table for this order
+            appendOrderToDOM(order);
+          }
+        });
+
+        // Now populate details for each order
+        orderData.buyOrderDetails.forEach(detail => {
+          // Check if essential fields are defined before processing further
+          if (detail.buyOrderUuid && detail.breadId && detail.quantity && detail.price && detail.status && detail.created_at && detail.updated_at) {
+            if (!buyOrders[detail.buyOrderUuid].details.find(d => d.breadId === detail.breadId)) {
+              buyOrders[detail.buyOrderUuid].details.push(detail);
+              appendDetailToDOM(detail);
+            } else {
+              // Update the logic for existing rows here if needed
+              var orderRow = document.querySelector(`tr[data-uuid="${detail.buyOrderUuid}"][data-bread-id="${detail.breadId}"]`);
+              if (orderRow) {
+                orderRow.cells[1].innerText = detail.breadId;
+                orderRow.cells[2].innerText = detail.quantity;
+                orderRow.cells[3].innerText = detail.price;
+                orderRow.cells[4].innerText = detail.status;
+                orderRow.cells[5].innerText = detail.created_at;
+                orderRow.cells[6].innerText = detail.updated_at;
+              }
+            }
+          }
+        });
+      };
+
+
+    </script>
+
+    <!-- Template Javascript -->
+    <script src="./static/js/main.js"></script>
 </body>
+
 </html>
