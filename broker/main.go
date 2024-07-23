@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
-	rabbitmq "github.com/streadway/amqp"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 	"net/http"
 	"os"
 	"sync"

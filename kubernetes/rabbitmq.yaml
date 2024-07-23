@@ -34,7 +34,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: rabbitmq
-          image: rabbitmq:3.9-management-alpine
+          image: rabbitmq:3.9-management
           resources:
             requests:
               cpu: 200m

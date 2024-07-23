@@ -223,7 +223,7 @@ spec:
               subPath: create_tables.sql
               readOnly: true
           terminationMessagePolicy: File
-          image: 'postgres:15.3'
+          image: 'postgres:16'
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
-	rabbitmq "github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"
@@ -343,7 +343,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 	breadsBought, err := channel.Consume(
 		"bread-bought", // queue
 		"",             // consumer
-		false,           // auto-ack
+		false,          // auto-ack
 		false,          // exclusive
 		false,          // no-local
 		false,          // no-wait

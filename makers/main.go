@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/calvarado2004/bakery-go/data"
-	rabbitmq "github.com/streadway/amqp"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
