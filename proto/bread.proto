@@ -164,3 +164,120 @@ service MakeOrderService {
       }
 
 }
+
+// Admin Service messages
+message Empty {}
+
+message DashboardStats {
+  int32 totalOrders = 1;
+  float totalRevenue = 2;
+  int32 totalProducts = 3;
+  int32 totalCustomers = 4;
+  int32 totalBreadMakers = 5;
+  int32 lowStockCount = 6;
+}
+
+message Customer {
+  int32 id = 1;
+  string name = 2;
+  string email = 3;
+  string createdAt = 4;
+  string updatedAt = 5;
+}
+
+message CustomerList {
+  repeated Customer customers = 1;
+}
+
+message BreadMakerProto {
+  int32 id = 1;
+  string name = 2;
+  string email = 3;
+  string createdAt = 4;
+  string updatedAt = 5;
+}
+
+message BreadMakerList {
+  repeated BreadMakerProto breadMakers = 1;
+}
+
+message CreateBreadRequest {
+  string name = 1;
+  float price = 2;
+  int32 quantity = 3;
+  string description = 4;
+  string type = 5;
+  string image = 6;
+}
+
+message UpdateBreadRequest {
+  int32 id = 1;
+  string name = 2;
+  float price = 3;
+  int32 quantity = 4;
+  string description = 5;
+  string type = 6;
+  string image = 7;
+}
+
+message DeleteBreadRequest {
+  int32 id = 1;
+}
+
+message UpdateOrderStatusRequest {
+  string buyOrderUuid = 1;
+  string status = 2;
+}
+
+message BreadIdRequest {
+  int32 id = 1;
+}
+
+message CustomerIdRequest {
+  int32 id = 1;
+}
+
+message BreadMakerIdRequest {
+  int32 id = 1;
+}
+
+message CustomerOrdersResponse {
+  Customer customer = 1;
+  repeated BuyOrder orders = 2;
+}
+
+message MakerOrdersResponse {
+  BreadMakerProto maker = 1;
+  repeated MakeOrderProto orders = 2;
+}
+
+message MakeOrderProto {
+  int32 id = 1;
+  int32 breadMakerId = 2;
+  string makeOrderUuid = 3;
+  string createdAt = 4;
+  string updatedAt = 5;
+  repeated Bread breads = 6;
+}
+
+message MakeOrderList {
+  repeated MakeOrderProto makeOrders = 1;
+}
+
+// Admin Service
+service AdminService {
+  rpc GetDashboardStats(Empty) returns (DashboardStats);
+  rpc GetAllCustomers(Empty) returns (CustomerList);
+  rpc GetAllBreadMakers(Empty) returns (BreadMakerList);
+  rpc GetAllBread(Empty) returns (BreadList);
+  rpc GetBreadById(BreadIdRequest) returns (Bread);
+  rpc CreateBread(CreateBreadRequest) returns (Bread);
+  rpc UpdateBread(UpdateBreadRequest) returns (Bread);
+  rpc DeleteBread(DeleteBreadRequest) returns (Empty);
+  rpc GetLowStockAlerts(Empty) returns (BreadList);
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (BuyOrder);
+  rpc GetCustomerOrders(CustomerIdRequest) returns (CustomerOrdersResponse);
+  rpc GetMakerOrders(BreadMakerIdRequest) returns (MakerOrdersResponse);
+  rpc GetAllOrders(Empty) returns (BuyOrderList);
+  rpc GetAllMakeOrders(Empty) returns (MakeOrderList);
+}

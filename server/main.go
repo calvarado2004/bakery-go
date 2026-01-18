@@ -175,11 +175,16 @@ func main() {
 		RabbitMQBakery: rabbitMQBakery,
 	}
 
+	adminServiceServer := &AdminServiceServer{
+		RabbitMQBakery: rabbitMQBakery,
+	}
+
 	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
 	pb.RegisterMakeBreadServer(server, makeBreadServer)
 	pb.RegisterBuyBreadServer(server, buyBreadServer)
 	pb.RegisterRemoveOldBreadServer(server, removeOldBreadServer)
 	pb.RegisterBuyOrderServiceServer(server, buyOrderServiceServer)
+	pb.RegisterAdminServiceServer(server, adminServiceServer)
 
 	// Register reflection service on gRPC server.
 	reflection.Register(server)

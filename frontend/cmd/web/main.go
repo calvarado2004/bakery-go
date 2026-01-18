@@ -60,10 +60,32 @@ func main() {
 	})
 	router := mux.NewRouter()
 
+	// Public routes
 	router.HandleFunc("/", homeHandler)
 	router.HandleFunc("/stream", streamHandler)
 	router.HandleFunc("/order-stream", orderStreamHandler)
 	router.HandleFunc("/orders", orderDetailsHandler)
+
+	// Admin routes
+	router.HandleFunc("/admin", AdminDashboardHandler).Methods("GET")
+	router.HandleFunc("/admin/bread", AdminBreadListHandler).Methods("GET")
+	router.HandleFunc("/admin/bread/new", AdminBreadNewHandler).Methods("GET")
+	router.HandleFunc("/admin/bread/create", AdminBreadCreateHandler).Methods("POST")
+	router.HandleFunc("/admin/bread/{id}/edit", AdminBreadEditHandler).Methods("GET")
+	router.HandleFunc("/admin/bread/{id}/update", AdminBreadUpdateHandler).Methods("POST")
+	router.HandleFunc("/admin/bread/{id}/delete", AdminBreadDeleteHandler).Methods("POST")
+	router.HandleFunc("/admin/orders", AdminOrdersHandler).Methods("GET")
+	router.HandleFunc("/admin/orders/{id}/status", AdminOrderStatusHandler).Methods("POST")
+	router.HandleFunc("/admin/customers", AdminCustomersHandler).Methods("GET")
+	router.HandleFunc("/admin/customers/{id}", AdminCustomerDetailHandler).Methods("GET")
+	router.HandleFunc("/admin/makers", AdminMakersHandler).Methods("GET")
+	router.HandleFunc("/admin/makers/{id}", AdminMakerDetailHandler).Methods("GET")
+	router.HandleFunc("/admin/alerts", AdminAlertsHandler).Methods("GET")
+	router.HandleFunc("/admin/alerts/{id}/adjust", AdminAdjustQuantityHandler).Methods("POST")
+
+	// Admin SSE streams
+	router.HandleFunc("/admin/dashboard-stream", AdminDashboardStreamHandler).Methods("GET")
+	router.HandleFunc("/admin/alerts-stream", AdminAlertsStreamHandler).Methods("GET")
 
 	fs := http.FileServer(http.Dir("/cmd/web/templates/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))

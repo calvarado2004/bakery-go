@@ -1,0 +1,119 @@
+{{define "content"}}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">
+        <i class="bi bi-basket me-2"></i>
+        {{if .Bread}}Edit Bread{{else}}New Bread{{end}}
+    </h4>
+    <a href="/admin/bread" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to List
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{if .Bread}}/admin/bread/{{.Bread.Id}}/update{{else}}/admin/bread/create{{end}}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name"
+                                value="{{if .Bread}}{{.Bread.Name}}{{end}}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="type" class="form-label">Type <span class="text-danger">*</span></label>
+                            <select class="form-select" id="type" name="type" required>
+                                <option value="">Select type...</option>
+                                <option value="sweet" {{if and .Bread (eq .Bread.Type "sweet")}}selected{{end}}>Sweet</option>
+                                <option value="savory" {{if and .Bread (eq .Bread.Type "savory")}}selected{{end}}>Savory</option>
+                                <option value="sourdough" {{if and .Bread (eq .Bread.Type "sourdough")}}selected{{end}}>Sourdough</option>
+                                <option value="whole wheat" {{if and .Bread (eq .Bread.Type "whole wheat")}}selected{{end}}>Whole Wheat</option>
+                                <option value="white" {{if and .Bread (eq .Bread.Type "white")}}selected{{end}}>White</option>
+                                <option value="specialty" {{if and .Bread (eq .Bread.Type "specialty")}}selected{{end}}>Specialty</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="price" class="form-label">Price ($) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="price" name="price" step="0.01" min="0"
+                                value="{{if .Bread}}{{printf "%.2f" .Bread.Price}}{{end}}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" min="0"
+                                value="{{if .Bread}}{{.Bread.Quantity}}{{else}}0{{end}}" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{if .Bread}}{{.Bread.Description}}{{end}}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Image URL</label>
+                        <input type="url" class="form-control" id="image" name="image"
+                            value="{{if .Bread}}{{.Bread.Image}}{{end}}" placeholder="https://...">
+                        <div class="form-text">Enter a URL for the bread image</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>
+                            {{if .Bread}}Update Bread{{else}}Create Bread{{end}}
+                        </button>
+                        <a href="/admin/bread" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-eye me-2"></i>Preview</h6>
+            </div>
+            <div class="card-body text-center">
+                <img id="previewImage" src="{{if and .Bread .Bread.Image}}{{.Bread.Image}}{{else}}/static/img/product-1.jpg{{end}}"
+                    alt="Preview" class="img-fluid rounded mb-3" style="max-height: 200px;">
+                <h5 id="previewName">{{if .Bread}}{{.Bread.Name}}{{else}}Bread Name{{end}}</h5>
+                <p id="previewDescription" class="text-muted small">{{if .Bread}}{{.Bread.Description}}{{else}}Description{{end}}</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <span class="badge bg-primary fs-6" id="previewPrice">${{if .Bread}}{{printf "%.2f" .Bread.Price}}{{else}}0.00{{end}}</span>
+                    <span class="badge bg-secondary fs-6" id="previewQuantity">{{if .Bread}}{{.Bread.Quantity}}{{else}}0{{end}} in stock</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    // Live preview
+    document.getElementById('name').addEventListener('input', function() {
+        document.getElementById('previewName').textContent = this.value || 'Bread Name';
+    });
+    document.getElementById('description').addEventListener('input', function() {
+        document.getElementById('previewDescription').textContent = this.value || 'Description';
+    });
+    document.getElementById('price').addEventListener('input', function() {
+        document.getElementById('previewPrice').textContent = '$' + (parseFloat(this.value) || 0).toFixed(2);
+    });
+    document.getElementById('quantity').addEventListener('input', function() {
+        document.getElementById('previewQuantity').textContent = (parseInt(this.value) || 0) + ' in stock';
+    });
+    document.getElementById('image').addEventListener('input', function() {
+        var img = document.getElementById('previewImage');
+        if (this.value) {
+            img.src = this.value;
+        } else {
+            img.src = '/static/img/product-1.jpg';
+        }
+    });
+</script>
+{{end}}

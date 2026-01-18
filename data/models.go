@@ -792,3 +792,414 @@ func (u *PostgresRepository) DeleteOutboxMessage(id int) error {
 
 	return nil
 }
+
+// GetAllCustomers returns all customers from the database
+func (u *PostgresRepository) GetAllCustomers() ([]Customer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, name, email, created_at, updated_at FROM customer ORDER BY id`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying customers: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching customers: %v", err)
+		}
+	}(rows)
+
+	var customers []Customer
+	for rows.Next() {
+		var customer Customer
+		err := rows.Scan(&customer.ID, &customer.Name, &customer.Email, &customer.CreatedAt, &customer.UpdatedAt)
+		if err != nil {
+			log.Errorf("Error scanning customer: %v", err)
+			return nil, err
+		}
+		customers = append(customers, customer)
+	}
+
+	return customers, nil
+}
+
+// GetAllBreadMakers returns all bread makers from the database
+func (u *PostgresRepository) GetAllBreadMakers() ([]BreadMaker, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, name, email, created_at, updated_at FROM bread_maker ORDER BY id`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying bread makers: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching bread makers: %v", err)
+		}
+	}(rows)
+
+	var makers []BreadMaker
+	for rows.Next() {
+		var maker BreadMaker
+		err := rows.Scan(&maker.ID, &maker.Name, &maker.Email, &maker.CreatedAt, &maker.UpdatedAt)
+		if err != nil {
+			log.Errorf("Error scanning bread maker: %v", err)
+			return nil, err
+		}
+		makers = append(makers, maker)
+	}
+
+	return makers, nil
+}
+
+// GetDashboardStats returns aggregate stats for the admin dashboard
+func (u *PostgresRepository) GetDashboardStats() (*DashboardStats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stats := &DashboardStats{}
+
+	// Total orders
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM buy_order`).Scan(&stats.TotalOrders)
+	if err != nil {
+		log.Errorf("Error getting total orders: %v", err)
+	}
+
+	// Total revenue
+	err = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(od.price * od.quantity), 0) FROM order_details od`).Scan(&stats.TotalRevenue)
+	if err != nil {
+		log.Errorf("Error getting total revenue: %v", err)
+	}
+
+	// Total products
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bread`).Scan(&stats.TotalProducts)
+	if err != nil {
+		log.Errorf("Error getting total products: %v", err)
+	}
+
+	// Total customers
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM customer`).Scan(&stats.TotalCustomers)
+	if err != nil {
+		log.Errorf("Error getting total customers: %v", err)
+	}
+
+	// Total bread makers
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bread_maker`).Scan(&stats.TotalBreadMakers)
+	if err != nil {
+		log.Errorf("Error getting total bread makers: %v", err)
+	}
+
+	// Low stock count (quantity < 10)
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bread WHERE quantity < 10`).Scan(&stats.LowStockCount)
+	if err != nil {
+		log.Errorf("Error getting low stock count: %v", err)
+	}
+
+	return stats, nil
+}
+
+// UpdateBread updates an existing bread in the database
+func (u *PostgresRepository) UpdateBread(bread Bread) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE bread SET name = $1, price = $2, quantity = $3, description = $4, type = $5, image = $6, updated_at = $7 WHERE id = $8`
+
+	_, err := db.ExecContext(ctx, stmt, bread.Name, bread.Price, bread.Quantity, bread.Description, bread.Type, bread.Image, time.Now(), bread.ID)
+	if err != nil {
+		log.Errorf("Error updating bread: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// DeleteBread removes a bread from the database
+func (u *PostgresRepository) DeleteBread(breadID int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `DELETE FROM bread WHERE id = $1`
+
+	_, err := db.ExecContext(ctx, stmt, breadID)
+	if err != nil {
+		log.Errorf("Error deleting bread: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetLowStockBread returns breads with quantity below threshold
+func (u *PostgresRepository) GetLowStockBread(threshold int) ([]Bread, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, name, price, quantity, description, type, status, created_at, updated_at, image FROM bread WHERE quantity < $1 ORDER BY quantity ASC`
+
+	rows, err := db.QueryContext(ctx, stmt, threshold)
+	if err != nil {
+		log.Errorf("Error querying low stock bread: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching low stock bread: %v", err)
+		}
+	}(rows)
+
+	var breads []Bread
+	for rows.Next() {
+		var bread Bread
+		err := rows.Scan(
+			&bread.ID,
+			&bread.Name,
+			&bread.Price,
+			&bread.Quantity,
+			&bread.Description,
+			&bread.Type,
+			&bread.Status,
+			&bread.CreatedAt,
+			&bread.UpdatedAt,
+			&bread.Image,
+		)
+		if err != nil {
+			log.Errorf("Error scanning low stock bread: %v", err)
+			return nil, err
+		}
+		breads = append(breads, bread)
+	}
+
+	return breads, nil
+}
+
+// GetCustomerOrders returns all orders for a specific customer
+func (u *PostgresRepository) GetCustomerOrders(customerID int) ([]BuyOrder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, customer_id, buy_order_uuid, status FROM buy_order WHERE customer_id = $1 ORDER BY id DESC`
+
+	rows, err := db.QueryContext(ctx, stmt, customerID)
+	if err != nil {
+		log.Errorf("Error querying customer orders: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching customer orders: %v", err)
+		}
+	}(rows)
+
+	var orders []BuyOrder
+	for rows.Next() {
+		var order BuyOrder
+		err := rows.Scan(&order.ID, &order.CustomerID, &order.BuyOrderUUID, &order.Status)
+		if err != nil {
+			log.Errorf("Error scanning customer order: %v", err)
+			return nil, err
+		}
+
+		// Get order details
+		detailStmt := `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
+		if err != nil {
+			log.Errorf("Error querying order details: %v", err)
+			continue
+		}
+
+		for detailRows.Next() {
+			var breadID, quantity int
+			err := detailRows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+			if err != nil {
+				log.Errorf("Error scanning order details: %v", err)
+				continue
+			}
+
+			bread, err := u.GetBreadByID(breadID)
+			if err != nil {
+				continue
+			}
+			bread.Quantity = quantity
+			order.Breads = append(order.Breads, bread)
+		}
+		detailRows.Close()
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+// GetMakerOrders returns all orders for a specific bread maker
+func (u *PostgresRepository) GetMakerOrders(makerID int) ([]MakeOrder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, bread_maker_id, make_order_uuid FROM make_order WHERE bread_maker_id = $1 ORDER BY id DESC`
+
+	rows, err := db.QueryContext(ctx, stmt, makerID)
+	if err != nil {
+		log.Errorf("Error querying maker orders: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching maker orders: %v", err)
+		}
+	}(rows)
+
+	var orders []MakeOrder
+	for rows.Next() {
+		var order MakeOrder
+		err := rows.Scan(&order.ID, &order.BreadMakerID, &order.MakeOrderUUID)
+		if err != nil {
+			log.Errorf("Error scanning maker order: %v", err)
+			return nil, err
+		}
+
+		// Get order details
+		detailStmt := `SELECT bread_id, quantity FROM make_order_details WHERE make_order_id = $1`
+		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
+		if err != nil {
+			log.Errorf("Error querying make order details: %v", err)
+			continue
+		}
+
+		for detailRows.Next() {
+			var breadID, quantity int
+			err := detailRows.Scan(&breadID, &quantity)
+			if err != nil {
+				log.Errorf("Error scanning make order details: %v", err)
+				continue
+			}
+
+			bread, err := u.GetBreadByID(breadID)
+			if err != nil {
+				continue
+			}
+			bread.Quantity = quantity
+			order.Breads = append(order.Breads, bread)
+		}
+		detailRows.Close()
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+// GetCustomerByID returns a customer by ID
+func (u *PostgresRepository) GetCustomerByID(customerID int) (Customer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var customer Customer
+	stmt := `SELECT id, name, email, created_at, updated_at FROM customer WHERE id = $1`
+
+	err := db.QueryRowContext(ctx, stmt, customerID).Scan(
+		&customer.ID,
+		&customer.Name,
+		&customer.Email,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting customer by ID: %v", err)
+		return customer, err
+	}
+
+	return customer, nil
+}
+
+// GetBreadMakerByID returns a bread maker by ID
+func (u *PostgresRepository) GetBreadMakerByID(makerID int) (BreadMaker, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var maker BreadMaker
+	stmt := `SELECT id, name, email, created_at, updated_at FROM bread_maker WHERE id = $1`
+
+	err := db.QueryRowContext(ctx, stmt, makerID).Scan(
+		&maker.ID,
+		&maker.Name,
+		&maker.Email,
+		&maker.CreatedAt,
+		&maker.UpdatedAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting bread maker by ID: %v", err)
+		return maker, err
+	}
+
+	return maker, nil
+}
+
+// GetAllMakeOrders returns all make orders from the database
+func (u *PostgresRepository) GetAllMakeOrders() ([]MakeOrder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, bread_maker_id, make_order_uuid FROM make_order ORDER BY id DESC`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying make orders: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows while fetching make orders: %v", err)
+		}
+	}(rows)
+
+	var orders []MakeOrder
+	for rows.Next() {
+		var order MakeOrder
+		err := rows.Scan(&order.ID, &order.BreadMakerID, &order.MakeOrderUUID)
+		if err != nil {
+			log.Errorf("Error scanning make order: %v", err)
+			return nil, err
+		}
+
+		// Get order details
+		detailStmt := `SELECT bread_id, quantity FROM make_order_details WHERE make_order_id = $1`
+		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
+		if err != nil {
+			log.Errorf("Error querying make order details: %v", err)
+			continue
+		}
+
+		for detailRows.Next() {
+			var breadID, quantity int
+			err := detailRows.Scan(&breadID, &quantity)
+			if err != nil {
+				log.Errorf("Error scanning make order details: %v", err)
+				continue
+			}
+
+			bread, err := u.GetBreadByID(breadID)
+			if err != nil {
+				continue
+			}
+			bread.Quantity = quantity
+			order.Breads = append(order.Breads, bread)
+		}
+		detailRows.Close()
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}

@@ -1,5 +1,14 @@
 package data
 
+type DashboardStats struct {
+	TotalOrders     int
+	TotalRevenue    float32
+	TotalProducts   int
+	TotalCustomers  int
+	TotalBreadMakers int
+	LowStockCount   int
+}
+
 type Repository interface {
 	InsertCustomer(customer Customer) (int, error)
 	InsertBread(bread Bread) (int, error)
@@ -20,4 +29,16 @@ type Repository interface {
 	DeleteOutboxMessage(id int) error
 	InsertOutboxMessage(message OutboxMessage) error
 	GetUnprocessedOutboxMessages() ([]OutboxMessage, error)
+	// Admin methods
+	GetAllCustomers() ([]Customer, error)
+	GetAllBreadMakers() ([]BreadMaker, error)
+	GetDashboardStats() (*DashboardStats, error)
+	UpdateBread(bread Bread) error
+	DeleteBread(breadID int) error
+	GetLowStockBread(threshold int) ([]Bread, error)
+	GetCustomerOrders(customerID int) ([]BuyOrder, error)
+	GetMakerOrders(makerID int) ([]MakeOrder, error)
+	GetCustomerByID(customerID int) (Customer, error)
+	GetBreadMakerByID(makerID int) (BreadMaker, error)
+	GetAllMakeOrders() ([]MakeOrder, error)
 }

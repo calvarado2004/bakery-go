@@ -1,0 +1,176 @@
+{{define "content"}}
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Total Orders</h6>
+                        <h2 class="mb-0" id="totalOrders">{{if .Stats}}{{.Stats.TotalOrders}}{{else}}0{{end}}</h2>
+                    </div>
+                    <i class="bi bi-receipt fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Revenue</h6>
+                        <h2 class="mb-0" id="totalRevenue">${{if .Stats}}{{printf "%.2f" .Stats.TotalRevenue}}{{else}}0.00{{end}}</h2>
+                    </div>
+                    <i class="bi bi-currency-dollar fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Products</h6>
+                        <h2 class="mb-0" id="totalProducts">{{if .Stats}}{{.Stats.TotalProducts}}{{else}}0{{end}}</h2>
+                    </div>
+                    <i class="bi bi-basket fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Customers</h6>
+                        <h2 class="mb-0" id="totalCustomers">{{if .Stats}}{{.Stats.TotalCustomers}}{{else}}0{{end}}</h2>
+                    </div>
+                    <i class="bi bi-people fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-dark text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Bread Makers</h6>
+                        <h2 class="mb-0" id="totalBreadMakers">{{if .Stats}}{{.Stats.TotalBreadMakers}}{{else}}0{{end}}</h2>
+                    </div>
+                    <i class="bi bi-person-workspace fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-uppercase mb-1">Low Stock</h6>
+                        <h2 class="mb-0" id="lowStockCount">{{if .Stats}}{{.Stats.LowStockCount}}{{else}}0{{end}}</h2>
+                    </div>
+                    <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Orders -->
+    <div class="col-lg-8 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Recent Orders</h5>
+                <a href="/admin/orders" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Order UUID</th>
+                                <th>Customer ID</th>
+                                <th>Total</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{if .Orders}}
+                            {{range .Orders}}
+                            <tr>
+                                <td><code>{{.BuyOrderUuid}}</code></td>
+                                <td>{{.CustomerId}}</td>
+                                <td>${{printf "%.2f" .TotalCost}}</td>
+                                <td>
+                                    <a href="/admin/customers/{{.CustomerId}}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {{end}}
+                            {{else}}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">No recent orders</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Low Stock Alerts -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Low Stock Alerts</h5>
+                <a href="/admin/alerts" class="btn btn-sm btn-outline-warning">View All</a>
+            </div>
+            <div class="card-body" id="alertsContainer">
+                {{if .Alerts}}
+                <ul class="list-group list-group-flush">
+                    {{range .Alerts}}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{.Name}}</strong>
+                            <br>
+                            <small class="text-muted">{{.Type}}</small>
+                        </div>
+                        <span class="badge bg-danger rounded-pill">{{.Quantity}} left</span>
+                    </li>
+                    {{end}}
+                </ul>
+                {{else}}
+                <p class="text-center text-muted mb-0">No low stock alerts</p>
+                {{end}}
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    // SSE for real-time dashboard updates
+    var dashboardSource = new EventSource("/admin/dashboard-stream");
+    dashboardSource.onmessage = function(event) {
+        var stats = JSON.parse(event.data);
+        document.getElementById('totalOrders').textContent = stats.totalOrders || 0;
+        document.getElementById('totalRevenue').textContent = '$' + (stats.totalRevenue || 0).toFixed(2);
+        document.getElementById('totalProducts').textContent = stats.totalProducts || 0;
+        document.getElementById('totalCustomers').textContent = stats.totalCustomers || 0;
+        document.getElementById('totalBreadMakers').textContent = stats.totalBreadMakers || 0;
+        document.getElementById('lowStockCount').textContent = stats.lowStockCount || 0;
+    };
+    dashboardSource.onerror = function(error) {
+        console.error('Dashboard SSE error:', error);
+    };
+</script>
+{{end}}
