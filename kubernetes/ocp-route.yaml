@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/instance: bakery-golang
   name: bakery-go
 spec:
-  host: bakery-go-bakery.apps.okd.calvarado04.com
+  host: bakery-go-bakery.apps.ocp-think.levelg.io
   port:
     targetPort: http
   tls:
