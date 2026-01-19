@@ -1,0 +1,110 @@
+{{define "title"}}Invoice {{.Invoice.InvoiceNumber}}{{end}}
+
+{{define "content"}}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt me-2"></i>Invoice {{.Invoice.InvoiceNumber}}</h2>
+    <a href="/portal/invoices" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Invoices
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-ul me-2"></i>Invoice Items</span>
+                <span class="badge badge-status badge-{{.Invoice.Status}}">{{.Invoice.Status}}</span>
+            </div>
+            <div class="card-body">
+                {{if .Invoice.Items}}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Invoice.Items}}
+                            <tr>
+                                <td>{{.BreadName}}</td>
+                                <td>{{.Quantity}}</td>
+                                <td>${{printf "%.2f" .UnitPrice}}</td>
+                                <td>${{printf "%.2f" .Total}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="text-end"><strong>Subtotal:</strong></td>
+                                <td>${{printf "%.2f" .Invoice.Subtotal}}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="text-end"><strong>Tax (8%):</strong></td>
+                                <td>${{printf "%.2f" .Invoice.Tax}}</td>
+                            </tr>
+                            <tr class="table-success">
+                                <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                <td><strong>${{printf "%.2f" .Invoice.Total}}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {{else}}
+                <p class="text-muted mb-0">No items in this invoice.</p>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>Invoice Details
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Invoice #:</dt>
+                    <dd class="col-6">{{.Invoice.InvoiceNumber}}</dd>
+
+                    <dt class="col-6">Order ID:</dt>
+                    <dd class="col-6">#{{.Invoice.BuyOrderId}}</dd>
+
+                    <dt class="col-6">Status:</dt>
+                    <dd class="col-6">
+                        <span class="badge badge-status badge-{{.Invoice.Status}}">{{.Invoice.Status}}</span>
+                    </dd>
+
+                    <dt class="col-6">Created:</dt>
+                    <dd class="col-6"><small>{{.Invoice.CreatedAt}}</small></dd>
+
+                    <dt class="col-6">Due Date:</dt>
+                    <dd class="col-6"><small>{{.Invoice.DueDate}}</small></dd>
+
+                    {{if .Invoice.PaidAt}}
+                    <dt class="col-6">Paid At:</dt>
+                    <dd class="col-6"><small>{{.Invoice.PaidAt}}</small></dd>
+                    {{end}}
+                </dl>
+                <hr>
+                <div class="text-center">
+                    <h4 class="text-success mb-0">${{printf "%.2f" .Invoice.Total}}</h4>
+                    <small class="text-muted">Total Amount</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body text-center">
+                <i class="bi bi-printer text-muted" style="font-size: 32px;"></i>
+                <p class="mb-2 mt-2">Need a copy?</p>
+                <button class="btn btn-outline-success btn-sm" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i>Print Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

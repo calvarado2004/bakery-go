@@ -1,0 +1,56 @@
+{{define "title"}}My Invoices{{end}}
+
+{{define "content"}}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt me-2"></i>My Invoices</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {{if .Invoices}}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Order ID</th>
+                        <th>Subtotal</th>
+                        <th>Tax</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Due Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Invoices}}
+                    <tr>
+                        <td><strong>{{.InvoiceNumber}}</strong></td>
+                        <td>#{{.BuyOrderId}}</td>
+                        <td>${{printf "%.2f" .Subtotal}}</td>
+                        <td>${{printf "%.2f" .Tax}}</td>
+                        <td><strong>${{printf "%.2f" .Total}}</strong></td>
+                        <td>
+                            <span class="badge badge-status badge-{{.Status}}">{{.Status}}</span>
+                        </td>
+                        <td>{{.DueDate}}</td>
+                        <td>
+                            <a href="/portal/invoices/{{.Id}}" class="btn btn-sm btn-success">
+                                <i class="bi bi-eye me-1"></i>View
+                            </a>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <div class="text-center py-5">
+            <i class="bi bi-receipt-cutoff text-muted" style="font-size: 64px;"></i>
+            <h4 class="mt-3 text-muted">No Invoices Yet</h4>
+            <p class="text-muted">You don't have any invoices yet.</p>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}

@@ -1,12 +1,49 @@
 package data
 
+import "time"
+
 type DashboardStats struct {
-	TotalOrders     int
-	TotalRevenue    float32
-	TotalProducts   int
-	TotalCustomers  int
+	TotalOrders      int
+	TotalRevenue     float32
+	TotalProducts    int
+	TotalCustomers   int
 	TotalBreadMakers int
-	LowStockCount   int
+	LowStockCount    int
+}
+
+type AdminUser struct {
+	ID        int       `json:"id"`
+	Username  string    `json:"username"`
+	Email     string    `json:"email"`
+	Password  string    `json:"-"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Invoice struct {
+	ID            int           `json:"id"`
+	BuyOrderID    int           `json:"buy_order_id"`
+	CustomerID    int           `json:"customer_id"`
+	InvoiceNumber string        `json:"invoice_number"`
+	Subtotal      float32       `json:"subtotal"`
+	Tax           float32       `json:"tax"`
+	Total         float32       `json:"total"`
+	Status        string        `json:"status"`
+	CreatedAt     time.Time     `json:"created_at"`
+	DueDate       time.Time     `json:"due_date"`
+	PaidAt        *time.Time    `json:"paid_at,omitempty"`
+	Items         []InvoiceItem `json:"items"`
+}
+
+type InvoiceItem struct {
+	ID        int     `json:"id"`
+	InvoiceID int     `json:"invoice_id"`
+	BreadID   int     `json:"bread_id"`
+	BreadName string  `json:"bread_name"`
+	Quantity  int     `json:"quantity"`
+	UnitPrice float32 `json:"unit_price"`
+	Total     float32 `json:"total"`
 }
 
 type Repository interface {
@@ -41,4 +78,15 @@ type Repository interface {
 	GetCustomerByID(customerID int) (Customer, error)
 	GetBreadMakerByID(makerID int) (BreadMaker, error)
 	GetAllMakeOrders() ([]MakeOrder, error)
+	// Auth methods
+	GetAdminUserByUsername(username string) (AdminUser, error)
+	GetAdminUserByID(id int) (AdminUser, error)
+	InsertAdminUser(user AdminUser) (int, error)
+	GetCustomerByEmail(email string) (Customer, error)
+	// Invoice methods
+	InsertInvoice(invoice Invoice) (int, error)
+	GetInvoiceByID(id int) (Invoice, error)
+	GetInvoicesByCustomerID(customerID int) ([]Invoice, error)
+	GetAllInvoices() ([]Invoice, error)
+	GetInvoiceByOrderID(orderID int) (Invoice, error)
 }

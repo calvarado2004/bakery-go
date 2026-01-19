@@ -1806,6 +1806,1000 @@ func (x *MakeOrderList) GetMakeOrders() []*MakeOrderProto {
 	return nil
 }
 
+// Authentication messages
+type AdminUser struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=createdAt,proto3" json:"createdAt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminUser) Reset() {
+	*x = AdminUser{}
+	mi := &file_proto_bread_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminUser) ProtoMessage() {}
+
+func (x *AdminUser) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminUser.ProtoReflect.Descriptor instead.
+func (*AdminUser) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *AdminUser) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *AdminUser) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *AdminUser) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *AdminUser) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *AdminUser) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type LoginRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginRequest) Reset() {
+	*x = LoginRequest{}
+	mi := &file_proto_bread_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoginRequest) ProtoMessage() {}
+
+func (x *LoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
+func (*LoginRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *LoginRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *LoginRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type LoginResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Token         string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	User          *AdminUser             `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginResponse) Reset() {
+	*x = LoginResponse{}
+	mi := &file_proto_bread_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LoginResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoginResponse) ProtoMessage() {}
+
+func (x *LoginResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
+func (*LoginResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *LoginResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *LoginResponse) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *LoginResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *LoginResponse) GetUser() *AdminUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type CustomerLoginRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CustomerLoginRequest) Reset() {
+	*x = CustomerLoginRequest{}
+	mi := &file_proto_bread_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CustomerLoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CustomerLoginRequest) ProtoMessage() {}
+
+func (x *CustomerLoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CustomerLoginRequest.ProtoReflect.Descriptor instead.
+func (*CustomerLoginRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *CustomerLoginRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CustomerLoginRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type CustomerLoginResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Token         string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Customer      *Customer              `protobuf:"bytes,4,opt,name=customer,proto3" json:"customer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CustomerLoginResponse) Reset() {
+	*x = CustomerLoginResponse{}
+	mi := &file_proto_bread_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CustomerLoginResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CustomerLoginResponse) ProtoMessage() {}
+
+func (x *CustomerLoginResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CustomerLoginResponse.ProtoReflect.Descriptor instead.
+func (*CustomerLoginResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *CustomerLoginResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CustomerLoginResponse) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *CustomerLoginResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CustomerLoginResponse) GetCustomer() *Customer {
+	if x != nil {
+		return x.Customer
+	}
+	return nil
+}
+
+type ValidateTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenRequest) Reset() {
+	*x = ValidateTokenRequest{}
+	mi := &file_proto_bread_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateTokenRequest) ProtoMessage() {}
+
+func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
+func (*ValidateTokenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ValidateTokenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+type ValidateTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=userId,proto3" json:"userId,omitempty"`
+	UserType      string                 `protobuf:"bytes,3,opt,name=userType,proto3" json:"userType,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenResponse) Reset() {
+	*x = ValidateTokenResponse{}
+	mi := &file_proto_bread_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateTokenResponse) ProtoMessage() {}
+
+func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
+func (*ValidateTokenResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ValidateTokenResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidateTokenResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ValidateTokenResponse) GetUserType() string {
+	if x != nil {
+		return x.UserType
+	}
+	return ""
+}
+
+// Invoice messages
+type Invoice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	BuyOrderId    int32                  `protobuf:"varint,2,opt,name=buyOrderId,proto3" json:"buyOrderId,omitempty"`
+	CustomerId    int32                  `protobuf:"varint,3,opt,name=customerId,proto3" json:"customerId,omitempty"`
+	InvoiceNumber string                 `protobuf:"bytes,4,opt,name=invoiceNumber,proto3" json:"invoiceNumber,omitempty"`
+	Subtotal      float32                `protobuf:"fixed32,5,opt,name=subtotal,proto3" json:"subtotal,omitempty"`
+	Tax           float32                `protobuf:"fixed32,6,opt,name=tax,proto3" json:"tax,omitempty"`
+	Total         float32                `protobuf:"fixed32,7,opt,name=total,proto3" json:"total,omitempty"`
+	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,9,opt,name=createdAt,proto3" json:"createdAt,omitempty"`
+	DueDate       string                 `protobuf:"bytes,10,opt,name=dueDate,proto3" json:"dueDate,omitempty"`
+	PaidAt        string                 `protobuf:"bytes,11,opt,name=paidAt,proto3" json:"paidAt,omitempty"`
+	Items         []*InvoiceItem         `protobuf:"bytes,12,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Invoice) Reset() {
+	*x = Invoice{}
+	mi := &file_proto_bread_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Invoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Invoice) ProtoMessage() {}
+
+func (x *Invoice) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Invoice.ProtoReflect.Descriptor instead.
+func (*Invoice) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *Invoice) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Invoice) GetBuyOrderId() int32 {
+	if x != nil {
+		return x.BuyOrderId
+	}
+	return 0
+}
+
+func (x *Invoice) GetCustomerId() int32 {
+	if x != nil {
+		return x.CustomerId
+	}
+	return 0
+}
+
+func (x *Invoice) GetInvoiceNumber() string {
+	if x != nil {
+		return x.InvoiceNumber
+	}
+	return ""
+}
+
+func (x *Invoice) GetSubtotal() float32 {
+	if x != nil {
+		return x.Subtotal
+	}
+	return 0
+}
+
+func (x *Invoice) GetTax() float32 {
+	if x != nil {
+		return x.Tax
+	}
+	return 0
+}
+
+func (x *Invoice) GetTotal() float32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *Invoice) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Invoice) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *Invoice) GetDueDate() string {
+	if x != nil {
+		return x.DueDate
+	}
+	return ""
+}
+
+func (x *Invoice) GetPaidAt() string {
+	if x != nil {
+		return x.PaidAt
+	}
+	return ""
+}
+
+func (x *Invoice) GetItems() []*InvoiceItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type InvoiceItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	InvoiceId     int32                  `protobuf:"varint,2,opt,name=invoiceId,proto3" json:"invoiceId,omitempty"`
+	BreadId       int32                  `protobuf:"varint,3,opt,name=breadId,proto3" json:"breadId,omitempty"`
+	BreadName     string                 `protobuf:"bytes,4,opt,name=breadName,proto3" json:"breadName,omitempty"`
+	Quantity      int32                  `protobuf:"varint,5,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	UnitPrice     float32                `protobuf:"fixed32,6,opt,name=unitPrice,proto3" json:"unitPrice,omitempty"`
+	Total         float32                `protobuf:"fixed32,7,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvoiceItem) Reset() {
+	*x = InvoiceItem{}
+	mi := &file_proto_bread_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvoiceItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvoiceItem) ProtoMessage() {}
+
+func (x *InvoiceItem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvoiceItem.ProtoReflect.Descriptor instead.
+func (*InvoiceItem) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *InvoiceItem) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *InvoiceItem) GetInvoiceId() int32 {
+	if x != nil {
+		return x.InvoiceId
+	}
+	return 0
+}
+
+func (x *InvoiceItem) GetBreadId() int32 {
+	if x != nil {
+		return x.BreadId
+	}
+	return 0
+}
+
+func (x *InvoiceItem) GetBreadName() string {
+	if x != nil {
+		return x.BreadName
+	}
+	return ""
+}
+
+func (x *InvoiceItem) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *InvoiceItem) GetUnitPrice() float32 {
+	if x != nil {
+		return x.UnitPrice
+	}
+	return 0
+}
+
+func (x *InvoiceItem) GetTotal() float32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type InvoiceList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Invoices      []*Invoice             `protobuf:"bytes,1,rep,name=invoices,proto3" json:"invoices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvoiceList) Reset() {
+	*x = InvoiceList{}
+	mi := &file_proto_bread_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvoiceList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvoiceList) ProtoMessage() {}
+
+func (x *InvoiceList) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvoiceList.ProtoReflect.Descriptor instead.
+func (*InvoiceList) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *InvoiceList) GetInvoices() []*Invoice {
+	if x != nil {
+		return x.Invoices
+	}
+	return nil
+}
+
+type CreateInvoiceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BuyOrderId    int32                  `protobuf:"varint,1,opt,name=buyOrderId,proto3" json:"buyOrderId,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateInvoiceRequest) Reset() {
+	*x = CreateInvoiceRequest{}
+	mi := &file_proto_bread_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateInvoiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateInvoiceRequest) ProtoMessage() {}
+
+func (x *CreateInvoiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateInvoiceRequest.ProtoReflect.Descriptor instead.
+func (*CreateInvoiceRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CreateInvoiceRequest) GetBuyOrderId() int32 {
+	if x != nil {
+		return x.BuyOrderId
+	}
+	return 0
+}
+
+type InvoiceIdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvoiceIdRequest) Reset() {
+	*x = InvoiceIdRequest{}
+	mi := &file_proto_bread_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvoiceIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvoiceIdRequest) ProtoMessage() {}
+
+func (x *InvoiceIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvoiceIdRequest.ProtoReflect.Descriptor instead.
+func (*InvoiceIdRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *InvoiceIdRequest) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type CustomerInvoicesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CustomerId    int32                  `protobuf:"varint,1,opt,name=customerId,proto3" json:"customerId,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CustomerInvoicesRequest) Reset() {
+	*x = CustomerInvoicesRequest{}
+	mi := &file_proto_bread_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CustomerInvoicesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CustomerInvoicesRequest) ProtoMessage() {}
+
+func (x *CustomerInvoicesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CustomerInvoicesRequest.ProtoReflect.Descriptor instead.
+func (*CustomerInvoicesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *CustomerInvoicesRequest) GetCustomerId() int32 {
+	if x != nil {
+		return x.CustomerId
+	}
+	return 0
+}
+
+type CreateAdminUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAdminUserRequest) Reset() {
+	*x = CreateAdminUserRequest{}
+	mi := &file_proto_bread_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAdminUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAdminUserRequest) ProtoMessage() {}
+
+func (x *CreateAdminUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAdminUserRequest.ProtoReflect.Descriptor instead.
+func (*CreateAdminUserRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *CreateAdminUserRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *CreateAdminUserRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CreateAdminUserRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *CreateAdminUserRequest) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+type BuyOrderIdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuyOrderIdRequest) Reset() {
+	*x = BuyOrderIdRequest{}
+	mi := &file_proto_bread_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyOrderIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyOrderIdRequest) ProtoMessage() {}
+
+func (x *BuyOrderIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyOrderIdRequest.ProtoReflect.Descriptor instead.
+func (*BuyOrderIdRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *BuyOrderIdRequest) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type BuyOrderDetailsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Order         *BuyOrder              `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	Details       []*BuyOrderDetails     `protobuf:"bytes,2,rep,name=details,proto3" json:"details,omitempty"`
+	TotalCost     float32                `protobuf:"fixed32,3,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuyOrderDetailsResponse) Reset() {
+	*x = BuyOrderDetailsResponse{}
+	mi := &file_proto_bread_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyOrderDetailsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyOrderDetailsResponse) ProtoMessage() {}
+
+func (x *BuyOrderDetailsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyOrderDetailsResponse.ProtoReflect.Descriptor instead.
+func (*BuyOrderDetailsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *BuyOrderDetailsResponse) GetOrder() *BuyOrder {
+	if x != nil {
+		return x.Order
+	}
+	return nil
+}
+
+func (x *BuyOrderDetailsResponse) GetDetails() []*BuyOrderDetails {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *BuyOrderDetailsResponse) GetTotalCost() float32 {
+	if x != nil {
+		return x.TotalCost
+	}
+	return 0
+}
+
 var File_proto_bread_proto protoreflect.FileDescriptor
 
 const file_proto_bread_proto_rawDesc = "" +
@@ -1947,7 +2941,84 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\rMakeOrderList\x125\n" +
 	"\n" +
 	"makeOrders\x18\x01 \x03(\v2\x15.bread.MakeOrderProtoR\n" +
-	"makeOrders2\xc9\x01\n" +
+	"makeOrders\"\x7f\n" +
+	"\tAdminUser\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x1c\n" +
+	"\tcreatedAt\x18\x05 \x01(\tR\tcreatedAt\"F\n" +
+	"\fLoginRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x7f\n" +
+	"\rLoginResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12$\n" +
+	"\x04user\x18\x04 \x01(\v2\x10.bread.AdminUserR\x04user\"H\n" +
+	"\x14CustomerLoginRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x8e\x01\n" +
+	"\x15CustomerLoginResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12+\n" +
+	"\bcustomer\x18\x04 \x01(\v2\x0f.bread.CustomerR\bcustomer\",\n" +
+	"\x14ValidateTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"a\n" +
+	"\x15ValidateTokenResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x16\n" +
+	"\x06userId\x18\x02 \x01(\tR\x06userId\x12\x1a\n" +
+	"\buserType\x18\x03 \x01(\tR\buserType\"\xd5\x02\n" +
+	"\aInvoice\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1e\n" +
+	"\n" +
+	"buyOrderId\x18\x02 \x01(\x05R\n" +
+	"buyOrderId\x12\x1e\n" +
+	"\n" +
+	"customerId\x18\x03 \x01(\x05R\n" +
+	"customerId\x12$\n" +
+	"\rinvoiceNumber\x18\x04 \x01(\tR\rinvoiceNumber\x12\x1a\n" +
+	"\bsubtotal\x18\x05 \x01(\x02R\bsubtotal\x12\x10\n" +
+	"\x03tax\x18\x06 \x01(\x02R\x03tax\x12\x14\n" +
+	"\x05total\x18\a \x01(\x02R\x05total\x12\x16\n" +
+	"\x06status\x18\b \x01(\tR\x06status\x12\x1c\n" +
+	"\tcreatedAt\x18\t \x01(\tR\tcreatedAt\x12\x18\n" +
+	"\adueDate\x18\n" +
+	" \x01(\tR\adueDate\x12\x16\n" +
+	"\x06paidAt\x18\v \x01(\tR\x06paidAt\x12(\n" +
+	"\x05items\x18\f \x03(\v2\x12.bread.InvoiceItemR\x05items\"\xc3\x01\n" +
+	"\vInvoiceItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1c\n" +
+	"\tinvoiceId\x18\x02 \x01(\x05R\tinvoiceId\x12\x18\n" +
+	"\abreadId\x18\x03 \x01(\x05R\abreadId\x12\x1c\n" +
+	"\tbreadName\x18\x04 \x01(\tR\tbreadName\x12\x1a\n" +
+	"\bquantity\x18\x05 \x01(\x05R\bquantity\x12\x1c\n" +
+	"\tunitPrice\x18\x06 \x01(\x02R\tunitPrice\x12\x14\n" +
+	"\x05total\x18\a \x01(\x02R\x05total\"9\n" +
+	"\vInvoiceList\x12*\n" +
+	"\binvoices\x18\x01 \x03(\v2\x0e.bread.InvoiceR\binvoices\"6\n" +
+	"\x14CreateInvoiceRequest\x12\x1e\n" +
+	"\n" +
+	"buyOrderId\x18\x01 \x01(\x05R\n" +
+	"buyOrderId\"\"\n" +
+	"\x10InvoiceIdRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\"9\n" +
+	"\x17CustomerInvoicesRequest\x12\x1e\n" +
+	"\n" +
+	"customerId\x18\x01 \x01(\x05R\n" +
+	"customerId\"z\n" +
+	"\x16CreateAdminUserRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\"#\n" +
+	"\x11BuyOrderIdRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\"\x90\x01\n" +
+	"\x17BuyOrderDetailsResponse\x12%\n" +
+	"\x05order\x18\x01 \x01(\v2\x0f.bread.BuyOrderR\x05order\x120\n" +
+	"\adetails\x18\x02 \x03(\v2\x16.bread.BuyOrderDetailsR\adetails\x12\x1c\n" +
+	"\ttotalCost\x18\x03 \x01(\x02R\ttotalCost2\xc9\x01\n" +
 	"\tMakeBread\x128\n" +
 	"\tBakeBread\x12\x13.bread.BreadRequest\x1a\x14.bread.BreadResponse\"\x00\x12@\n" +
 	"\x11SendBreadToBakery\x12\x13.bread.BreadRequest\x1a\x14.bread.BreadResponse\"\x00\x12@\n" +
@@ -1981,7 +3052,23 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\x11GetCustomerOrders\x12\x18.bread.CustomerIdRequest\x1a\x1d.bread.CustomerOrdersResponse\x12H\n" +
 	"\x0eGetMakerOrders\x12\x1a.bread.BreadMakerIdRequest\x1a\x1a.bread.MakerOrdersResponse\x121\n" +
 	"\fGetAllOrders\x12\f.bread.Empty\x1a\x13.bread.BuyOrderList\x126\n" +
-	"\x10GetAllMakeOrders\x12\f.bread.Empty\x1a\x14.bread.MakeOrderListB*Z(github.com/calvarado2004/bakery-go/breadb\x06proto3"
+	"\x10GetAllMakeOrders\x12\f.bread.Empty\x1a\x14.bread.MakeOrderList2\xa2\x02\n" +
+	"\vAuthService\x127\n" +
+	"\n" +
+	"AdminLogin\x12\x13.bread.LoginRequest\x1a\x14.bread.LoginResponse\x12J\n" +
+	"\rCustomerLogin\x12\x1b.bread.CustomerLoginRequest\x1a\x1c.bread.CustomerLoginResponse\x12J\n" +
+	"\rValidateToken\x12\x1b.bread.ValidateTokenRequest\x1a\x1c.bread.ValidateTokenResponse\x12B\n" +
+	"\x0fCreateAdminUser\x12\x1d.bread.CreateAdminUserRequest\x1a\x10.bread.AdminUser2\x84\x02\n" +
+	"\x0eInvoiceService\x12<\n" +
+	"\rCreateInvoice\x12\x1b.bread.CreateInvoiceRequest\x1a\x0e.bread.Invoice\x125\n" +
+	"\n" +
+	"GetInvoice\x12\x17.bread.InvoiceIdRequest\x1a\x0e.bread.Invoice\x12I\n" +
+	"\x13GetCustomerInvoices\x12\x1e.bread.CustomerInvoicesRequest\x1a\x12.bread.InvoiceList\x122\n" +
+	"\x0eGetAllInvoices\x12\f.bread.Empty\x1a\x12.bread.InvoiceList2\xeb\x01\n" +
+	"\x15CustomerPortalService\x12F\n" +
+	"\vGetMyOrders\x12\x18.bread.CustomerIdRequest\x1a\x1d.bread.CustomerOrdersResponse\x12=\n" +
+	"\rGetMyInvoices\x12\x18.bread.CustomerIdRequest\x1a\x12.bread.InvoiceList\x12K\n" +
+	"\x0fGetOrderDetails\x12\x18.bread.BuyOrderIdRequest\x1a\x1e.bread.BuyOrderDetailsResponseB*Z(github.com/calvarado2004/bakery-go/breadb\x06proto3"
 
 var (
 	file_proto_bread_proto_rawDescOnce sync.Once
@@ -1995,7 +3082,7 @@ func file_proto_bread_proto_rawDescGZIP() []byte {
 	return file_proto_bread_proto_rawDescData
 }
 
-var file_proto_bread_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_proto_bread_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_proto_bread_proto_goTypes = []any{
 	(*Bread)(nil),                    // 0: bread.Bread
 	(*BuyOrder)(nil),                 // 1: bread.BuyOrder
@@ -2025,6 +3112,22 @@ var file_proto_bread_proto_goTypes = []any{
 	(*MakerOrdersResponse)(nil),      // 25: bread.MakerOrdersResponse
 	(*MakeOrderProto)(nil),           // 26: bread.MakeOrderProto
 	(*MakeOrderList)(nil),            // 27: bread.MakeOrderList
+	(*AdminUser)(nil),                // 28: bread.AdminUser
+	(*LoginRequest)(nil),             // 29: bread.LoginRequest
+	(*LoginResponse)(nil),            // 30: bread.LoginResponse
+	(*CustomerLoginRequest)(nil),     // 31: bread.CustomerLoginRequest
+	(*CustomerLoginResponse)(nil),    // 32: bread.CustomerLoginResponse
+	(*ValidateTokenRequest)(nil),     // 33: bread.ValidateTokenRequest
+	(*ValidateTokenResponse)(nil),    // 34: bread.ValidateTokenResponse
+	(*Invoice)(nil),                  // 35: bread.Invoice
+	(*InvoiceItem)(nil),              // 36: bread.InvoiceItem
+	(*InvoiceList)(nil),              // 37: bread.InvoiceList
+	(*CreateInvoiceRequest)(nil),     // 38: bread.CreateInvoiceRequest
+	(*InvoiceIdRequest)(nil),         // 39: bread.InvoiceIdRequest
+	(*CustomerInvoicesRequest)(nil),  // 40: bread.CustomerInvoicesRequest
+	(*CreateAdminUserRequest)(nil),   // 41: bread.CreateAdminUserRequest
+	(*BuyOrderIdRequest)(nil),        // 42: bread.BuyOrderIdRequest
+	(*BuyOrderDetailsResponse)(nil),  // 43: bread.BuyOrderDetailsResponse
 }
 var file_proto_bread_proto_depIdxs = []int32{
 	1,  // 0: bread.BuyOrderList.buyOrders:type_name -> bread.BuyOrder
@@ -2042,65 +3145,93 @@ var file_proto_bread_proto_depIdxs = []int32{
 	26, // 12: bread.MakerOrdersResponse.orders:type_name -> bread.MakeOrderProto
 	0,  // 13: bread.MakeOrderProto.breads:type_name -> bread.Bread
 	26, // 14: bread.MakeOrderList.makeOrders:type_name -> bread.MakeOrderProto
-	9,  // 15: bread.MakeBread.BakeBread:input_type -> bread.BreadRequest
-	9,  // 16: bread.MakeBread.SendBreadToBakery:input_type -> bread.BreadRequest
-	9,  // 17: bread.MakeBread.MadeBreadStream:input_type -> bread.BreadRequest
-	9,  // 18: bread.CheckInventory.CheckBreadInventory:input_type -> bread.BreadRequest
-	9,  // 19: bread.CheckInventory.CheckBreadInventoryStream:input_type -> bread.BreadRequest
-	9,  // 20: bread.BuyBread.BuyBread:input_type -> bread.BreadRequest
-	9,  // 21: bread.BuyBread.BuyBreadStream:input_type -> bread.BreadRequest
-	4,  // 22: bread.BuyOrderService.BuyOrder:input_type -> bread.BuyOrderRequest
-	4,  // 23: bread.BuyOrderService.BuyOrderStream:input_type -> bread.BuyOrderRequest
-	9,  // 24: bread.RemoveOldBread.RemoveBread:input_type -> bread.BreadRequest
-	9,  // 25: bread.RemoveOldBread.RemoveBreadStream:input_type -> bread.BreadRequest
-	9,  // 26: bread.MakeOrderService.MakeOrder:input_type -> bread.BreadRequest
-	9,  // 27: bread.MakeOrderService.MakeOrderStream:input_type -> bread.BreadRequest
-	11, // 28: bread.AdminService.GetDashboardStats:input_type -> bread.Empty
-	11, // 29: bread.AdminService.GetAllCustomers:input_type -> bread.Empty
-	11, // 30: bread.AdminService.GetAllBreadMakers:input_type -> bread.Empty
-	11, // 31: bread.AdminService.GetAllBread:input_type -> bread.Empty
-	21, // 32: bread.AdminService.GetBreadById:input_type -> bread.BreadIdRequest
-	17, // 33: bread.AdminService.CreateBread:input_type -> bread.CreateBreadRequest
-	18, // 34: bread.AdminService.UpdateBread:input_type -> bread.UpdateBreadRequest
-	19, // 35: bread.AdminService.DeleteBread:input_type -> bread.DeleteBreadRequest
-	11, // 36: bread.AdminService.GetLowStockAlerts:input_type -> bread.Empty
-	20, // 37: bread.AdminService.UpdateOrderStatus:input_type -> bread.UpdateOrderStatusRequest
-	22, // 38: bread.AdminService.GetCustomerOrders:input_type -> bread.CustomerIdRequest
-	23, // 39: bread.AdminService.GetMakerOrders:input_type -> bread.BreadMakerIdRequest
-	11, // 40: bread.AdminService.GetAllOrders:input_type -> bread.Empty
-	11, // 41: bread.AdminService.GetAllMakeOrders:input_type -> bread.Empty
-	10, // 42: bread.MakeBread.BakeBread:output_type -> bread.BreadResponse
-	10, // 43: bread.MakeBread.SendBreadToBakery:output_type -> bread.BreadResponse
-	10, // 44: bread.MakeBread.MadeBreadStream:output_type -> bread.BreadResponse
-	10, // 45: bread.CheckInventory.CheckBreadInventory:output_type -> bread.BreadResponse
-	10, // 46: bread.CheckInventory.CheckBreadInventoryStream:output_type -> bread.BreadResponse
-	10, // 47: bread.BuyBread.BuyBread:output_type -> bread.BreadResponse
-	10, // 48: bread.BuyBread.BuyBreadStream:output_type -> bread.BreadResponse
-	5,  // 49: bread.BuyOrderService.BuyOrder:output_type -> bread.BuyOrderResponse
-	5,  // 50: bread.BuyOrderService.BuyOrderStream:output_type -> bread.BuyOrderResponse
-	10, // 51: bread.RemoveOldBread.RemoveBread:output_type -> bread.BreadResponse
-	10, // 52: bread.RemoveOldBread.RemoveBreadStream:output_type -> bread.BreadResponse
-	10, // 53: bread.MakeOrderService.MakeOrder:output_type -> bread.BreadResponse
-	10, // 54: bread.MakeOrderService.MakeOrderStream:output_type -> bread.BreadResponse
-	12, // 55: bread.AdminService.GetDashboardStats:output_type -> bread.DashboardStats
-	14, // 56: bread.AdminService.GetAllCustomers:output_type -> bread.CustomerList
-	16, // 57: bread.AdminService.GetAllBreadMakers:output_type -> bread.BreadMakerList
-	8,  // 58: bread.AdminService.GetAllBread:output_type -> bread.BreadList
-	0,  // 59: bread.AdminService.GetBreadById:output_type -> bread.Bread
-	0,  // 60: bread.AdminService.CreateBread:output_type -> bread.Bread
-	0,  // 61: bread.AdminService.UpdateBread:output_type -> bread.Bread
-	11, // 62: bread.AdminService.DeleteBread:output_type -> bread.Empty
-	8,  // 63: bread.AdminService.GetLowStockAlerts:output_type -> bread.BreadList
-	1,  // 64: bread.AdminService.UpdateOrderStatus:output_type -> bread.BuyOrder
-	24, // 65: bread.AdminService.GetCustomerOrders:output_type -> bread.CustomerOrdersResponse
-	25, // 66: bread.AdminService.GetMakerOrders:output_type -> bread.MakerOrdersResponse
-	3,  // 67: bread.AdminService.GetAllOrders:output_type -> bread.BuyOrderList
-	27, // 68: bread.AdminService.GetAllMakeOrders:output_type -> bread.MakeOrderList
-	42, // [42:69] is the sub-list for method output_type
-	15, // [15:42] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	28, // 15: bread.LoginResponse.user:type_name -> bread.AdminUser
+	13, // 16: bread.CustomerLoginResponse.customer:type_name -> bread.Customer
+	36, // 17: bread.Invoice.items:type_name -> bread.InvoiceItem
+	35, // 18: bread.InvoiceList.invoices:type_name -> bread.Invoice
+	1,  // 19: bread.BuyOrderDetailsResponse.order:type_name -> bread.BuyOrder
+	2,  // 20: bread.BuyOrderDetailsResponse.details:type_name -> bread.BuyOrderDetails
+	9,  // 21: bread.MakeBread.BakeBread:input_type -> bread.BreadRequest
+	9,  // 22: bread.MakeBread.SendBreadToBakery:input_type -> bread.BreadRequest
+	9,  // 23: bread.MakeBread.MadeBreadStream:input_type -> bread.BreadRequest
+	9,  // 24: bread.CheckInventory.CheckBreadInventory:input_type -> bread.BreadRequest
+	9,  // 25: bread.CheckInventory.CheckBreadInventoryStream:input_type -> bread.BreadRequest
+	9,  // 26: bread.BuyBread.BuyBread:input_type -> bread.BreadRequest
+	9,  // 27: bread.BuyBread.BuyBreadStream:input_type -> bread.BreadRequest
+	4,  // 28: bread.BuyOrderService.BuyOrder:input_type -> bread.BuyOrderRequest
+	4,  // 29: bread.BuyOrderService.BuyOrderStream:input_type -> bread.BuyOrderRequest
+	9,  // 30: bread.RemoveOldBread.RemoveBread:input_type -> bread.BreadRequest
+	9,  // 31: bread.RemoveOldBread.RemoveBreadStream:input_type -> bread.BreadRequest
+	9,  // 32: bread.MakeOrderService.MakeOrder:input_type -> bread.BreadRequest
+	9,  // 33: bread.MakeOrderService.MakeOrderStream:input_type -> bread.BreadRequest
+	11, // 34: bread.AdminService.GetDashboardStats:input_type -> bread.Empty
+	11, // 35: bread.AdminService.GetAllCustomers:input_type -> bread.Empty
+	11, // 36: bread.AdminService.GetAllBreadMakers:input_type -> bread.Empty
+	11, // 37: bread.AdminService.GetAllBread:input_type -> bread.Empty
+	21, // 38: bread.AdminService.GetBreadById:input_type -> bread.BreadIdRequest
+	17, // 39: bread.AdminService.CreateBread:input_type -> bread.CreateBreadRequest
+	18, // 40: bread.AdminService.UpdateBread:input_type -> bread.UpdateBreadRequest
+	19, // 41: bread.AdminService.DeleteBread:input_type -> bread.DeleteBreadRequest
+	11, // 42: bread.AdminService.GetLowStockAlerts:input_type -> bread.Empty
+	20, // 43: bread.AdminService.UpdateOrderStatus:input_type -> bread.UpdateOrderStatusRequest
+	22, // 44: bread.AdminService.GetCustomerOrders:input_type -> bread.CustomerIdRequest
+	23, // 45: bread.AdminService.GetMakerOrders:input_type -> bread.BreadMakerIdRequest
+	11, // 46: bread.AdminService.GetAllOrders:input_type -> bread.Empty
+	11, // 47: bread.AdminService.GetAllMakeOrders:input_type -> bread.Empty
+	29, // 48: bread.AuthService.AdminLogin:input_type -> bread.LoginRequest
+	31, // 49: bread.AuthService.CustomerLogin:input_type -> bread.CustomerLoginRequest
+	33, // 50: bread.AuthService.ValidateToken:input_type -> bread.ValidateTokenRequest
+	41, // 51: bread.AuthService.CreateAdminUser:input_type -> bread.CreateAdminUserRequest
+	38, // 52: bread.InvoiceService.CreateInvoice:input_type -> bread.CreateInvoiceRequest
+	39, // 53: bread.InvoiceService.GetInvoice:input_type -> bread.InvoiceIdRequest
+	40, // 54: bread.InvoiceService.GetCustomerInvoices:input_type -> bread.CustomerInvoicesRequest
+	11, // 55: bread.InvoiceService.GetAllInvoices:input_type -> bread.Empty
+	22, // 56: bread.CustomerPortalService.GetMyOrders:input_type -> bread.CustomerIdRequest
+	22, // 57: bread.CustomerPortalService.GetMyInvoices:input_type -> bread.CustomerIdRequest
+	42, // 58: bread.CustomerPortalService.GetOrderDetails:input_type -> bread.BuyOrderIdRequest
+	10, // 59: bread.MakeBread.BakeBread:output_type -> bread.BreadResponse
+	10, // 60: bread.MakeBread.SendBreadToBakery:output_type -> bread.BreadResponse
+	10, // 61: bread.MakeBread.MadeBreadStream:output_type -> bread.BreadResponse
+	10, // 62: bread.CheckInventory.CheckBreadInventory:output_type -> bread.BreadResponse
+	10, // 63: bread.CheckInventory.CheckBreadInventoryStream:output_type -> bread.BreadResponse
+	10, // 64: bread.BuyBread.BuyBread:output_type -> bread.BreadResponse
+	10, // 65: bread.BuyBread.BuyBreadStream:output_type -> bread.BreadResponse
+	5,  // 66: bread.BuyOrderService.BuyOrder:output_type -> bread.BuyOrderResponse
+	5,  // 67: bread.BuyOrderService.BuyOrderStream:output_type -> bread.BuyOrderResponse
+	10, // 68: bread.RemoveOldBread.RemoveBread:output_type -> bread.BreadResponse
+	10, // 69: bread.RemoveOldBread.RemoveBreadStream:output_type -> bread.BreadResponse
+	10, // 70: bread.MakeOrderService.MakeOrder:output_type -> bread.BreadResponse
+	10, // 71: bread.MakeOrderService.MakeOrderStream:output_type -> bread.BreadResponse
+	12, // 72: bread.AdminService.GetDashboardStats:output_type -> bread.DashboardStats
+	14, // 73: bread.AdminService.GetAllCustomers:output_type -> bread.CustomerList
+	16, // 74: bread.AdminService.GetAllBreadMakers:output_type -> bread.BreadMakerList
+	8,  // 75: bread.AdminService.GetAllBread:output_type -> bread.BreadList
+	0,  // 76: bread.AdminService.GetBreadById:output_type -> bread.Bread
+	0,  // 77: bread.AdminService.CreateBread:output_type -> bread.Bread
+	0,  // 78: bread.AdminService.UpdateBread:output_type -> bread.Bread
+	11, // 79: bread.AdminService.DeleteBread:output_type -> bread.Empty
+	8,  // 80: bread.AdminService.GetLowStockAlerts:output_type -> bread.BreadList
+	1,  // 81: bread.AdminService.UpdateOrderStatus:output_type -> bread.BuyOrder
+	24, // 82: bread.AdminService.GetCustomerOrders:output_type -> bread.CustomerOrdersResponse
+	25, // 83: bread.AdminService.GetMakerOrders:output_type -> bread.MakerOrdersResponse
+	3,  // 84: bread.AdminService.GetAllOrders:output_type -> bread.BuyOrderList
+	27, // 85: bread.AdminService.GetAllMakeOrders:output_type -> bread.MakeOrderList
+	30, // 86: bread.AuthService.AdminLogin:output_type -> bread.LoginResponse
+	32, // 87: bread.AuthService.CustomerLogin:output_type -> bread.CustomerLoginResponse
+	34, // 88: bread.AuthService.ValidateToken:output_type -> bread.ValidateTokenResponse
+	28, // 89: bread.AuthService.CreateAdminUser:output_type -> bread.AdminUser
+	35, // 90: bread.InvoiceService.CreateInvoice:output_type -> bread.Invoice
+	35, // 91: bread.InvoiceService.GetInvoice:output_type -> bread.Invoice
+	37, // 92: bread.InvoiceService.GetCustomerInvoices:output_type -> bread.InvoiceList
+	37, // 93: bread.InvoiceService.GetAllInvoices:output_type -> bread.InvoiceList
+	24, // 94: bread.CustomerPortalService.GetMyOrders:output_type -> bread.CustomerOrdersResponse
+	37, // 95: bread.CustomerPortalService.GetMyInvoices:output_type -> bread.InvoiceList
+	43, // 96: bread.CustomerPortalService.GetOrderDetails:output_type -> bread.BuyOrderDetailsResponse
+	59, // [59:97] is the sub-list for method output_type
+	21, // [21:59] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_proto_bread_proto_init() }
@@ -2114,9 +3245,9 @@ func file_proto_bread_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_bread_proto_rawDesc), len(file_proto_bread_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   44,
 			NumExtensions: 0,
-			NumServices:   7,
+			NumServices:   10,
 		},
 		GoTypes:           file_proto_bread_proto_goTypes,
 		DependencyIndexes: file_proto_bread_proto_depIdxs,

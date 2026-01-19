@@ -18,24 +18,36 @@ import (
 
 // AdminTemplateData holds common data for admin templates
 type AdminTemplateData struct {
-	Title       string
-	CurrentPage string
-	Stats       *pb.DashboardStats
-	Breads      []*pb.Bread
-	Bread       *pb.Bread
-	Customers   []*pb.Customer
-	Customer    *pb.Customer
-	Makers      []*pb.BreadMakerProto
-	Maker       *pb.BreadMakerProto
-	Orders      []*pb.BuyOrder
-	MakeOrders  []*pb.MakeOrderProto
-	Alerts      []*pb.Bread
-	Message     string
-	Error       string
+	Title         string
+	CurrentPage   string
+	AdminUsername string
+	AdminRole     string
+	Stats         *pb.DashboardStats
+	Breads        []*pb.Bread
+	Bread         *pb.Bread
+	Customers     []*pb.Customer
+	Customer      *pb.Customer
+	Makers        []*pb.BreadMakerProto
+	Maker         *pb.BreadMakerProto
+	Orders        []*pb.BuyOrder
+	MakeOrders    []*pb.MakeOrderProto
+	Alerts        []*pb.Bread
+	Message       string
+	Error         string
 }
 
 func getGRPCConnection() (*grpc.ClientConn, error) {
 	return grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+}
+
+func newAdminTemplateData(r *http.Request, title, currentPage string) AdminTemplateData {
+	_, username, role := getAdminUserFromToken(r)
+	return AdminTemplateData{
+		Title:         title,
+		CurrentPage:   currentPage,
+		AdminUsername: username,
+		AdminRole:     role,
+	}
 }
 
 func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,11 +78,8 @@ func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("Error getting orders: %v", err)
 	}
 
-	data := AdminTemplateData{
-		Title:       "Admin Dashboard",
-		CurrentPage: "dashboard",
-		Stats:       stats,
-	}
+	data := newAdminTemplateData(r, "Admin Dashboard", "dashboard")
+	data.Stats = stats
 	if alerts != nil {
 		data.Alerts = alerts.Breads
 	}
@@ -109,12 +118,9 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Bread Management",
-		CurrentPage: "bread",
-		Breads:      breads.Breads,
-		Message:     r.URL.Query().Get("message"),
-	}
+	data := newAdminTemplateData(r, "Bread Management", "bread")
+	data.Breads = breads.Breads
+	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -127,10 +133,7 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func AdminBreadNewHandler(w http.ResponseWriter, r *http.Request) {
-	data := AdminTemplateData{
-		Title:       "New Bread",
-		CurrentPage: "bread",
-	}
+	data := newAdminTemplateData(r, "New Bread", "bread")
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -202,11 +205,8 @@ func AdminBreadEditHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Edit Bread",
-		CurrentPage: "bread",
-		Bread:       bread,
-	}
+	data := newAdminTemplateData(r, "Edit Bread", "bread")
+	data.Bread = bread
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -304,12 +304,9 @@ func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Order Management",
-		CurrentPage: "orders",
-		Orders:      orders.BuyOrders,
-		Message:     r.URL.Query().Get("message"),
-	}
+	data := newAdminTemplateData(r, "Order Management", "orders")
+	data.Orders = orders.BuyOrders
+	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -374,11 +371,8 @@ func AdminCustomersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Customer Management",
-		CurrentPage: "customers",
-		Customers:   customers.Customers,
-	}
+	data := newAdminTemplateData(r, "Customer Management", "customers")
+	data.Customers = customers.Customers
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -412,12 +406,9 @@ func AdminCustomerDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Customer Details",
-		CurrentPage: "customers",
-		Customer:    response.Customer,
-		Orders:      response.Orders,
-	}
+	data := newAdminTemplateData(r, "Customer Details", "customers")
+	data.Customer = response.Customer
+	data.Orders = response.Orders
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -448,11 +439,8 @@ func AdminMakersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Bread Maker Management",
-		CurrentPage: "makers",
-		Makers:      makers.BreadMakers,
-	}
+	data := newAdminTemplateData(r, "Bread Maker Management", "makers")
+	data.Makers = makers.BreadMakers
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -486,12 +474,9 @@ func AdminMakerDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Bread Maker Details",
-		CurrentPage: "makers",
-		Maker:       response.Maker,
-		MakeOrders:  response.Orders,
-	}
+	data := newAdminTemplateData(r, "Bread Maker Details", "makers")
+	data.Maker = response.Maker
+	data.MakeOrders = response.Orders
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",
@@ -522,12 +507,9 @@ func AdminAlertsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := AdminTemplateData{
-		Title:       "Inventory Alerts",
-		CurrentPage: "alerts",
-		Alerts:      alerts.Breads,
-		Message:     r.URL.Query().Get("message"),
-	}
+	data := newAdminTemplateData(r, "Inventory Alerts", "alerts")
+	data.Alerts = alerts.Breads
+	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
 		"./cmd/web/templates/admin/base.html",

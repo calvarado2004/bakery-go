@@ -1,0 +1,67 @@
+{{define "title"}}Order #{{.Order.Id}}{{end}}
+
+{{define "content"}}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bag me-2"></i>Order #{{.Order.Id}}</h2>
+    <a href="/portal/orders" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Orders
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-list-ul me-2"></i>Order Items
+            </div>
+            <div class="card-body">
+                {{if .Details}}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Details}}
+                            <tr>
+                                <td>Bread #{{.BreadId}}</td>
+                                <td>{{.Quantity}}</td>
+                                <td>${{printf "%.2f" .Price}}</td>
+                                <td>${{printf "%.2f" .Price}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <p class="text-muted mb-0">No items in this order.</p>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>Order Summary
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Order ID:</dt>
+                    <dd class="col-6">#{{.Order.Id}}</dd>
+
+                    <dt class="col-6">Order UUID:</dt>
+                    <dd class="col-6"><small><code>{{.Order.BuyOrderUuid}}</code></small></dd>
+
+                    <dt class="col-6">Total Cost:</dt>
+                    <dd class="col-6"><strong class="text-success">${{printf "%.2f" .TotalCost}}</strong></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

@@ -1519,3 +1519,625 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/bread.proto",
 }
+
+const (
+	AuthService_AdminLogin_FullMethodName      = "/bread.AuthService/AdminLogin"
+	AuthService_CustomerLogin_FullMethodName   = "/bread.AuthService/CustomerLogin"
+	AuthService_ValidateToken_FullMethodName   = "/bread.AuthService/ValidateToken"
+	AuthService_CreateAdminUser_FullMethodName = "/bread.AuthService/CreateAdminUser"
+)
+
+// AuthServiceClient is the client API for AuthService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Auth Service
+type AuthServiceClient interface {
+	AdminLogin(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	CustomerLogin(ctx context.Context, in *CustomerLoginRequest, opts ...grpc.CallOption) (*CustomerLoginResponse, error)
+	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
+	CreateAdminUser(ctx context.Context, in *CreateAdminUserRequest, opts ...grpc.CallOption) (*AdminUser, error)
+}
+
+type authServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
+	return &authServiceClient{cc}
+}
+
+func (c *authServiceClient) AdminLogin(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_AdminLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CustomerLogin(ctx context.Context, in *CustomerLoginRequest, opts ...grpc.CallOption) (*CustomerLoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CustomerLoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_CustomerLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateTokenResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateAdminUser(ctx context.Context, in *CreateAdminUserRequest, opts ...grpc.CallOption) (*AdminUser, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminUser)
+	err := c.cc.Invoke(ctx, AuthService_CreateAdminUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AuthServiceServer is the server API for AuthService service.
+// All implementations must embed UnimplementedAuthServiceServer
+// for forward compatibility.
+//
+// Auth Service
+type AuthServiceServer interface {
+	AdminLogin(context.Context, *LoginRequest) (*LoginResponse, error)
+	CustomerLogin(context.Context, *CustomerLoginRequest) (*CustomerLoginResponse, error)
+	ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
+	CreateAdminUser(context.Context, *CreateAdminUserRequest) (*AdminUser, error)
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+// UnimplementedAuthServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAuthServiceServer struct{}
+
+func (UnimplementedAuthServiceServer) AdminLogin(context.Context, *LoginRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdminLogin not implemented")
+}
+func (UnimplementedAuthServiceServer) CustomerLogin(context.Context, *CustomerLoginRequest) (*CustomerLoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CustomerLogin not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateToken not implemented")
+}
+func (UnimplementedAuthServiceServer) CreateAdminUser(context.Context, *CreateAdminUserRequest) (*AdminUser, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAdminUser not implemented")
+}
+func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
+func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
+
+// UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AuthServiceServer will
+// result in compilation errors.
+type UnsafeAuthServiceServer interface {
+	mustEmbedUnimplementedAuthServiceServer()
+}
+
+func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
+	// If the following call panics, it indicates UnimplementedAuthServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AuthService_ServiceDesc, srv)
+}
+
+func _AuthService_AdminLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).AdminLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_AdminLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).AdminLogin(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CustomerLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CustomerLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CustomerLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CustomerLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CustomerLogin(ctx, req.(*CustomerLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ValidateToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateToken(ctx, req.(*ValidateTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateAdminUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAdminUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateAdminUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CreateAdminUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateAdminUser(ctx, req.(*CreateAdminUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AuthService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.AuthService",
+	HandlerType: (*AuthServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AdminLogin",
+			Handler:    _AuthService_AdminLogin_Handler,
+		},
+		{
+			MethodName: "CustomerLogin",
+			Handler:    _AuthService_CustomerLogin_Handler,
+		},
+		{
+			MethodName: "ValidateToken",
+			Handler:    _AuthService_ValidateToken_Handler,
+		},
+		{
+			MethodName: "CreateAdminUser",
+			Handler:    _AuthService_CreateAdminUser_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/bread.proto",
+}
+
+const (
+	InvoiceService_CreateInvoice_FullMethodName       = "/bread.InvoiceService/CreateInvoice"
+	InvoiceService_GetInvoice_FullMethodName          = "/bread.InvoiceService/GetInvoice"
+	InvoiceService_GetCustomerInvoices_FullMethodName = "/bread.InvoiceService/GetCustomerInvoices"
+	InvoiceService_GetAllInvoices_FullMethodName      = "/bread.InvoiceService/GetAllInvoices"
+)
+
+// InvoiceServiceClient is the client API for InvoiceService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Invoice Service
+type InvoiceServiceClient interface {
+	CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*Invoice, error)
+	GetInvoice(ctx context.Context, in *InvoiceIdRequest, opts ...grpc.CallOption) (*Invoice, error)
+	GetCustomerInvoices(ctx context.Context, in *CustomerInvoicesRequest, opts ...grpc.CallOption) (*InvoiceList, error)
+	GetAllInvoices(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*InvoiceList, error)
+}
+
+type invoiceServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewInvoiceServiceClient(cc grpc.ClientConnInterface) InvoiceServiceClient {
+	return &invoiceServiceClient{cc}
+}
+
+func (c *invoiceServiceClient) CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*Invoice, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Invoice)
+	err := c.cc.Invoke(ctx, InvoiceService_CreateInvoice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *invoiceServiceClient) GetInvoice(ctx context.Context, in *InvoiceIdRequest, opts ...grpc.CallOption) (*Invoice, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Invoice)
+	err := c.cc.Invoke(ctx, InvoiceService_GetInvoice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *invoiceServiceClient) GetCustomerInvoices(ctx context.Context, in *CustomerInvoicesRequest, opts ...grpc.CallOption) (*InvoiceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InvoiceList)
+	err := c.cc.Invoke(ctx, InvoiceService_GetCustomerInvoices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *invoiceServiceClient) GetAllInvoices(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*InvoiceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InvoiceList)
+	err := c.cc.Invoke(ctx, InvoiceService_GetAllInvoices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// InvoiceServiceServer is the server API for InvoiceService service.
+// All implementations must embed UnimplementedInvoiceServiceServer
+// for forward compatibility.
+//
+// Invoice Service
+type InvoiceServiceServer interface {
+	CreateInvoice(context.Context, *CreateInvoiceRequest) (*Invoice, error)
+	GetInvoice(context.Context, *InvoiceIdRequest) (*Invoice, error)
+	GetCustomerInvoices(context.Context, *CustomerInvoicesRequest) (*InvoiceList, error)
+	GetAllInvoices(context.Context, *Empty) (*InvoiceList, error)
+	mustEmbedUnimplementedInvoiceServiceServer()
+}
+
+// UnimplementedInvoiceServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedInvoiceServiceServer struct{}
+
+func (UnimplementedInvoiceServiceServer) CreateInvoice(context.Context, *CreateInvoiceRequest) (*Invoice, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateInvoice not implemented")
+}
+func (UnimplementedInvoiceServiceServer) GetInvoice(context.Context, *InvoiceIdRequest) (*Invoice, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetInvoice not implemented")
+}
+func (UnimplementedInvoiceServiceServer) GetCustomerInvoices(context.Context, *CustomerInvoicesRequest) (*InvoiceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCustomerInvoices not implemented")
+}
+func (UnimplementedInvoiceServiceServer) GetAllInvoices(context.Context, *Empty) (*InvoiceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAllInvoices not implemented")
+}
+func (UnimplementedInvoiceServiceServer) mustEmbedUnimplementedInvoiceServiceServer() {}
+func (UnimplementedInvoiceServiceServer) testEmbeddedByValue()                        {}
+
+// UnsafeInvoiceServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to InvoiceServiceServer will
+// result in compilation errors.
+type UnsafeInvoiceServiceServer interface {
+	mustEmbedUnimplementedInvoiceServiceServer()
+}
+
+func RegisterInvoiceServiceServer(s grpc.ServiceRegistrar, srv InvoiceServiceServer) {
+	// If the following call panics, it indicates UnimplementedInvoiceServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&InvoiceService_ServiceDesc, srv)
+}
+
+func _InvoiceService_CreateInvoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateInvoiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceServiceServer).CreateInvoice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InvoiceService_CreateInvoice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InvoiceServiceServer).CreateInvoice(ctx, req.(*CreateInvoiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InvoiceService_GetInvoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InvoiceIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceServiceServer).GetInvoice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InvoiceService_GetInvoice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InvoiceServiceServer).GetInvoice(ctx, req.(*InvoiceIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InvoiceService_GetCustomerInvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CustomerInvoicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceServiceServer).GetCustomerInvoices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InvoiceService_GetCustomerInvoices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InvoiceServiceServer).GetCustomerInvoices(ctx, req.(*CustomerInvoicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InvoiceService_GetAllInvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceServiceServer).GetAllInvoices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InvoiceService_GetAllInvoices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InvoiceServiceServer).GetAllInvoices(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// InvoiceService_ServiceDesc is the grpc.ServiceDesc for InvoiceService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var InvoiceService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.InvoiceService",
+	HandlerType: (*InvoiceServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateInvoice",
+			Handler:    _InvoiceService_CreateInvoice_Handler,
+		},
+		{
+			MethodName: "GetInvoice",
+			Handler:    _InvoiceService_GetInvoice_Handler,
+		},
+		{
+			MethodName: "GetCustomerInvoices",
+			Handler:    _InvoiceService_GetCustomerInvoices_Handler,
+		},
+		{
+			MethodName: "GetAllInvoices",
+			Handler:    _InvoiceService_GetAllInvoices_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/bread.proto",
+}
+
+const (
+	CustomerPortalService_GetMyOrders_FullMethodName     = "/bread.CustomerPortalService/GetMyOrders"
+	CustomerPortalService_GetMyInvoices_FullMethodName   = "/bread.CustomerPortalService/GetMyInvoices"
+	CustomerPortalService_GetOrderDetails_FullMethodName = "/bread.CustomerPortalService/GetOrderDetails"
+)
+
+// CustomerPortalServiceClient is the client API for CustomerPortalService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Customer Portal Service
+type CustomerPortalServiceClient interface {
+	GetMyOrders(ctx context.Context, in *CustomerIdRequest, opts ...grpc.CallOption) (*CustomerOrdersResponse, error)
+	GetMyInvoices(ctx context.Context, in *CustomerIdRequest, opts ...grpc.CallOption) (*InvoiceList, error)
+	GetOrderDetails(ctx context.Context, in *BuyOrderIdRequest, opts ...grpc.CallOption) (*BuyOrderDetailsResponse, error)
+}
+
+type customerPortalServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewCustomerPortalServiceClient(cc grpc.ClientConnInterface) CustomerPortalServiceClient {
+	return &customerPortalServiceClient{cc}
+}
+
+func (c *customerPortalServiceClient) GetMyOrders(ctx context.Context, in *CustomerIdRequest, opts ...grpc.CallOption) (*CustomerOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CustomerOrdersResponse)
+	err := c.cc.Invoke(ctx, CustomerPortalService_GetMyOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *customerPortalServiceClient) GetMyInvoices(ctx context.Context, in *CustomerIdRequest, opts ...grpc.CallOption) (*InvoiceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InvoiceList)
+	err := c.cc.Invoke(ctx, CustomerPortalService_GetMyInvoices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *customerPortalServiceClient) GetOrderDetails(ctx context.Context, in *BuyOrderIdRequest, opts ...grpc.CallOption) (*BuyOrderDetailsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BuyOrderDetailsResponse)
+	err := c.cc.Invoke(ctx, CustomerPortalService_GetOrderDetails_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CustomerPortalServiceServer is the server API for CustomerPortalService service.
+// All implementations must embed UnimplementedCustomerPortalServiceServer
+// for forward compatibility.
+//
+// Customer Portal Service
+type CustomerPortalServiceServer interface {
+	GetMyOrders(context.Context, *CustomerIdRequest) (*CustomerOrdersResponse, error)
+	GetMyInvoices(context.Context, *CustomerIdRequest) (*InvoiceList, error)
+	GetOrderDetails(context.Context, *BuyOrderIdRequest) (*BuyOrderDetailsResponse, error)
+	mustEmbedUnimplementedCustomerPortalServiceServer()
+}
+
+// UnimplementedCustomerPortalServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedCustomerPortalServiceServer struct{}
+
+func (UnimplementedCustomerPortalServiceServer) GetMyOrders(context.Context, *CustomerIdRequest) (*CustomerOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMyOrders not implemented")
+}
+func (UnimplementedCustomerPortalServiceServer) GetMyInvoices(context.Context, *CustomerIdRequest) (*InvoiceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMyInvoices not implemented")
+}
+func (UnimplementedCustomerPortalServiceServer) GetOrderDetails(context.Context, *BuyOrderIdRequest) (*BuyOrderDetailsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrderDetails not implemented")
+}
+func (UnimplementedCustomerPortalServiceServer) mustEmbedUnimplementedCustomerPortalServiceServer() {}
+func (UnimplementedCustomerPortalServiceServer) testEmbeddedByValue()                               {}
+
+// UnsafeCustomerPortalServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CustomerPortalServiceServer will
+// result in compilation errors.
+type UnsafeCustomerPortalServiceServer interface {
+	mustEmbedUnimplementedCustomerPortalServiceServer()
+}
+
+func RegisterCustomerPortalServiceServer(s grpc.ServiceRegistrar, srv CustomerPortalServiceServer) {
+	// If the following call panics, it indicates UnimplementedCustomerPortalServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&CustomerPortalService_ServiceDesc, srv)
+}
+
+func _CustomerPortalService_GetMyOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CustomerIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CustomerPortalServiceServer).GetMyOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CustomerPortalService_GetMyOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CustomerPortalServiceServer).GetMyOrders(ctx, req.(*CustomerIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CustomerPortalService_GetMyInvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CustomerIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CustomerPortalServiceServer).GetMyInvoices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CustomerPortalService_GetMyInvoices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CustomerPortalServiceServer).GetMyInvoices(ctx, req.(*CustomerIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CustomerPortalService_GetOrderDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BuyOrderIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CustomerPortalServiceServer).GetOrderDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CustomerPortalService_GetOrderDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CustomerPortalServiceServer).GetOrderDetails(ctx, req.(*BuyOrderIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// CustomerPortalService_ServiceDesc is the grpc.ServiceDesc for CustomerPortalService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var CustomerPortalService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bread.CustomerPortalService",
+	HandlerType: (*CustomerPortalServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetMyOrders",
+			Handler:    _CustomerPortalService_GetMyOrders_Handler,
+		},
+		{
+			MethodName: "GetMyInvoices",
+			Handler:    _CustomerPortalService_GetMyInvoices_Handler,
+		},
+		{
+			MethodName: "GetOrderDetails",
+			Handler:    _CustomerPortalService_GetOrderDetails_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/bread.proto",
+}

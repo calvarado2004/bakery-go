@@ -1203,3 +1203,319 @@ func (u *PostgresRepository) GetAllMakeOrders() ([]MakeOrder, error) {
 
 	return orders, nil
 }
+
+// GetAdminUserByUsername returns an admin user by username
+func (u *PostgresRepository) GetAdminUserByUsername(username string) (AdminUser, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var user AdminUser
+	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_user WHERE username = $1`
+
+	err := db.QueryRowContext(ctx, stmt, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting admin user by username: %v", err)
+		return user, err
+	}
+
+	return user, nil
+}
+
+// GetAdminUserByID returns an admin user by ID
+func (u *PostgresRepository) GetAdminUserByID(id int) (AdminUser, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var user AdminUser
+	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_user WHERE id = $1`
+
+	err := db.QueryRowContext(ctx, stmt, id).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting admin user by ID: %v", err)
+		return user, err
+	}
+
+	return user, nil
+}
+
+// InsertAdminUser inserts a new admin user into the database
+func (u *PostgresRepository) InsertAdminUser(user AdminUser) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
+	if err != nil {
+		return 0, err
+	}
+
+	var newID int
+	stmt := `INSERT INTO admin_user (username, email, password, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+
+	err = db.QueryRowContext(ctx, stmt,
+		user.Username,
+		user.Email,
+		hashedPassword,
+		user.Role,
+		time.Now(),
+		time.Now(),
+	).Scan(&newID)
+
+	if err != nil {
+		log.Errorf("Error inserting admin user: %v", err)
+		return 0, err
+	}
+
+	return newID, nil
+}
+
+// GetCustomerByEmail returns a customer by email
+func (u *PostgresRepository) GetCustomerByEmail(email string) (Customer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var customer Customer
+	stmt := `SELECT id, name, email, password, created_at, updated_at FROM customer WHERE email = $1`
+
+	err := db.QueryRowContext(ctx, stmt, email).Scan(
+		&customer.ID,
+		&customer.Name,
+		&customer.Email,
+		&customer.Password,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting customer by email: %v", err)
+		return customer, err
+	}
+
+	return customer, nil
+}
+
+// InsertInvoice inserts a new invoice into the database
+func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var newID int
+	stmt := `INSERT INTO invoice (buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+
+	err := db.QueryRowContext(ctx, stmt,
+		invoice.BuyOrderID,
+		invoice.CustomerID,
+		invoice.InvoiceNumber,
+		invoice.Subtotal,
+		invoice.Tax,
+		invoice.Total,
+		invoice.Status,
+		time.Now(),
+		invoice.DueDate,
+	).Scan(&newID)
+
+	if err != nil {
+		log.Errorf("Error inserting invoice: %v", err)
+		return 0, err
+	}
+
+	// Insert invoice items
+	for _, item := range invoice.Items {
+		itemStmt := `INSERT INTO invoice_item (invoice_id, bread_id, bread_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)`
+		_, err = db.ExecContext(ctx, itemStmt, newID, item.BreadID, item.BreadName, item.Quantity, item.UnitPrice, item.Total)
+		if err != nil {
+			log.Errorf("Error inserting invoice item: %v", err)
+		}
+	}
+
+	return newID, nil
+}
+
+// GetInvoiceByID returns an invoice by ID
+func (u *PostgresRepository) GetInvoiceByID(id int) (Invoice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var invoice Invoice
+	var paidAt sql.NullTime
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE id = $1`
+
+	err := db.QueryRowContext(ctx, stmt, id).Scan(
+		&invoice.ID,
+		&invoice.BuyOrderID,
+		&invoice.CustomerID,
+		&invoice.InvoiceNumber,
+		&invoice.Subtotal,
+		&invoice.Tax,
+		&invoice.Total,
+		&invoice.Status,
+		&invoice.CreatedAt,
+		&invoice.DueDate,
+		&paidAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting invoice by ID: %v", err)
+		return invoice, err
+	}
+
+	if paidAt.Valid {
+		invoice.PaidAt = &paidAt.Time
+	}
+
+	// Get invoice items
+	itemStmt := `SELECT id, invoice_id, bread_id, bread_name, quantity, unit_price, total FROM invoice_item WHERE invoice_id = $1`
+	rows, err := db.QueryContext(ctx, itemStmt, id)
+	if err != nil {
+		log.Errorf("Error querying invoice items: %v", err)
+		return invoice, nil
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item InvoiceItem
+		err := rows.Scan(&item.ID, &item.InvoiceID, &item.BreadID, &item.BreadName, &item.Quantity, &item.UnitPrice, &item.Total)
+		if err != nil {
+			log.Errorf("Error scanning invoice item: %v", err)
+			continue
+		}
+		invoice.Items = append(invoice.Items, item)
+	}
+
+	return invoice, nil
+}
+
+// GetInvoicesByCustomerID returns all invoices for a customer
+func (u *PostgresRepository) GetInvoicesByCustomerID(customerID int) ([]Invoice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE customer_id = $1 ORDER BY created_at DESC`
+
+	rows, err := db.QueryContext(ctx, stmt, customerID)
+	if err != nil {
+		log.Errorf("Error querying invoices by customer: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var invoices []Invoice
+	for rows.Next() {
+		var invoice Invoice
+		var paidAt sql.NullTime
+		err := rows.Scan(
+			&invoice.ID,
+			&invoice.BuyOrderID,
+			&invoice.CustomerID,
+			&invoice.InvoiceNumber,
+			&invoice.Subtotal,
+			&invoice.Tax,
+			&invoice.Total,
+			&invoice.Status,
+			&invoice.CreatedAt,
+			&invoice.DueDate,
+			&paidAt,
+		)
+		if err != nil {
+			log.Errorf("Error scanning invoice: %v", err)
+			continue
+		}
+		if paidAt.Valid {
+			invoice.PaidAt = &paidAt.Time
+		}
+		invoices = append(invoices, invoice)
+	}
+
+	return invoices, nil
+}
+
+// GetAllInvoices returns all invoices
+func (u *PostgresRepository) GetAllInvoices() ([]Invoice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice ORDER BY created_at DESC`
+
+	rows, err := db.QueryContext(ctx, stmt)
+	if err != nil {
+		log.Errorf("Error querying all invoices: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var invoices []Invoice
+	for rows.Next() {
+		var invoice Invoice
+		var paidAt sql.NullTime
+		err := rows.Scan(
+			&invoice.ID,
+			&invoice.BuyOrderID,
+			&invoice.CustomerID,
+			&invoice.InvoiceNumber,
+			&invoice.Subtotal,
+			&invoice.Tax,
+			&invoice.Total,
+			&invoice.Status,
+			&invoice.CreatedAt,
+			&invoice.DueDate,
+			&paidAt,
+		)
+		if err != nil {
+			log.Errorf("Error scanning invoice: %v", err)
+			continue
+		}
+		if paidAt.Valid {
+			invoice.PaidAt = &paidAt.Time
+		}
+		invoices = append(invoices, invoice)
+	}
+
+	return invoices, nil
+}
+
+// GetInvoiceByOrderID returns an invoice by order ID
+func (u *PostgresRepository) GetInvoiceByOrderID(orderID int) (Invoice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var invoice Invoice
+	var paidAt sql.NullTime
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE buy_order_id = $1`
+
+	err := db.QueryRowContext(ctx, stmt, orderID).Scan(
+		&invoice.ID,
+		&invoice.BuyOrderID,
+		&invoice.CustomerID,
+		&invoice.InvoiceNumber,
+		&invoice.Subtotal,
+		&invoice.Tax,
+		&invoice.Total,
+		&invoice.Status,
+		&invoice.CreatedAt,
+		&invoice.DueDate,
+		&paidAt,
+	)
+	if err != nil {
+		log.Errorf("Error getting invoice by order ID: %v", err)
+		return invoice, err
+	}
+
+	if paidAt.Valid {
+		invoice.PaidAt = &paidAt.Time
+	}
+
+	return invoice, nil
+}

@@ -281,3 +281,128 @@ service AdminService {
   rpc GetAllOrders(Empty) returns (BuyOrderList);
   rpc GetAllMakeOrders(Empty) returns (MakeOrderList);
 }
+
+// Authentication messages
+message AdminUser {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  string role = 4;
+  string createdAt = 5;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string token = 2;
+  string message = 3;
+  AdminUser user = 4;
+}
+
+message CustomerLoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message CustomerLoginResponse {
+  bool success = 1;
+  string token = 2;
+  string message = 3;
+  Customer customer = 4;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string userId = 2;
+  string userType = 3;
+}
+
+// Invoice messages
+message Invoice {
+  int32 id = 1;
+  int32 buyOrderId = 2;
+  int32 customerId = 3;
+  string invoiceNumber = 4;
+  float subtotal = 5;
+  float tax = 6;
+  float total = 7;
+  string status = 8;
+  string createdAt = 9;
+  string dueDate = 10;
+  string paidAt = 11;
+  repeated InvoiceItem items = 12;
+}
+
+message InvoiceItem {
+  int32 id = 1;
+  int32 invoiceId = 2;
+  int32 breadId = 3;
+  string breadName = 4;
+  int32 quantity = 5;
+  float unitPrice = 6;
+  float total = 7;
+}
+
+message InvoiceList {
+  repeated Invoice invoices = 1;
+}
+
+message CreateInvoiceRequest {
+  int32 buyOrderId = 1;
+}
+
+message InvoiceIdRequest {
+  int32 id = 1;
+}
+
+message CustomerInvoicesRequest {
+  int32 customerId = 1;
+}
+
+// Auth Service
+service AuthService {
+  rpc AdminLogin(LoginRequest) returns (LoginResponse);
+  rpc CustomerLogin(CustomerLoginRequest) returns (CustomerLoginResponse);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  rpc CreateAdminUser(CreateAdminUserRequest) returns (AdminUser);
+}
+
+message CreateAdminUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  string role = 4;
+}
+
+// Invoice Service
+service InvoiceService {
+  rpc CreateInvoice(CreateInvoiceRequest) returns (Invoice);
+  rpc GetInvoice(InvoiceIdRequest) returns (Invoice);
+  rpc GetCustomerInvoices(CustomerInvoicesRequest) returns (InvoiceList);
+  rpc GetAllInvoices(Empty) returns (InvoiceList);
+}
+
+// Customer Portal Service
+service CustomerPortalService {
+  rpc GetMyOrders(CustomerIdRequest) returns (CustomerOrdersResponse);
+  rpc GetMyInvoices(CustomerIdRequest) returns (InvoiceList);
+  rpc GetOrderDetails(BuyOrderIdRequest) returns (BuyOrderDetailsResponse);
+}
+
+message BuyOrderIdRequest {
+  int32 id = 1;
+}
+
+message BuyOrderDetailsResponse {
+  BuyOrder order = 1;
+  repeated BuyOrderDetails details = 2;
+  float totalCost = 3;
+}

@@ -1,0 +1,127 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{template "title" .}} - Customer Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #198754;
+            --secondary-color: #20c997;
+        }
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar-portal {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+        .sidebar {
+            background: white;
+            min-height: calc(100vh - 56px);
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .sidebar .nav-link {
+            color: #333;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 5px 10px;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #e8f5e9;
+            color: var(--primary-color);
+        }
+        .sidebar .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .card-header {
+            background: white;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+        }
+        .btn-portal {
+            background: var(--primary-color);
+            border: none;
+        }
+        .btn-portal:hover {
+            background: var(--secondary-color);
+        }
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        .badge-pending { background-color: #fff3cd; color: #856404; }
+        .badge-paid { background-color: #d4edda; color: #155724; }
+        .badge-completed { background-color: #d4edda; color: #155724; }
+        .badge-processing { background-color: #cce5ff; color: #004085; }
+    </style>
+    {{template "extra_css" .}}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-portal">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal">
+                <i class="bi bi-basket3 me-2"></i>Bakery Customer Portal
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="bi bi-person-circle me-1"></i>{{.CustomerName}}
+                </span>
+                <a href="/portal/logout" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar py-3">
+                <nav class="nav flex-column">
+                    <a class="nav-link {{if eq .ActivePage "dashboard"}}active{{end}}" href="/portal">
+                        <i class="bi bi-house"></i>Dashboard
+                    </a>
+                    <a class="nav-link {{if eq .ActivePage "orders"}}active{{end}}" href="/portal/orders">
+                        <i class="bi bi-bag"></i>My Orders
+                    </a>
+                    <a class="nav-link {{if eq .ActivePage "invoices"}}active{{end}}" href="/portal/invoices">
+                        <i class="bi bi-receipt"></i>My Invoices
+                    </a>
+                </nav>
+                <hr>
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="/">
+                        <i class="bi bi-shop"></i>Back to Store
+                    </a>
+                </nav>
+            </div>
+            <div class="col-md-10 main-content">
+                {{template "content" .}}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {{template "extra_js" .}}
+</body>
+</html>
+{{end}}
+
+{{define "extra_css"}}{{end}}
+{{define "extra_js"}}{{end}}
