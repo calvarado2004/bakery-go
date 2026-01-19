@@ -149,23 +149,104 @@ data:
                                   sent BOOLEAN NOT NULL DEFAULT false,
                                   created_at timestamp without time zone NOT NULL DEFAULT now()
     );
-  
-    ALTER TABLE public.outbox  OWNER TO postgres;
-  
-  
-    INSERT INTO public.customer (name, email, password, created_at, updated_at) VALUES (
-                                    'John Doe',
-                                    'john@doe.com',
-                                    '123456',
-                                    now(),
-                                    now()
+
+    ALTER TABLE public.outbox OWNER TO postgres;
+
+    -- Admin users table
+    CREATE SEQUENCE public.admin_user_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE TABLE public.admin_users (
+        id integer DEFAULT nextval('public.admin_user_id_seq'::regclass) NOT NULL,
+        username character varying(255) UNIQUE NOT NULL,
+        email character varying(255) UNIQUE NOT NULL,
+        password character varying(255) NOT NULL,
+        role character varying(50) DEFAULT 'admin',
+        created_at timestamp without time zone DEFAULT now(),
+        updated_at timestamp without time zone DEFAULT now(),
+        PRIMARY KEY (id)
     );
-  
+
+    ALTER TABLE public.admin_user_id_seq OWNER TO postgres;
+
+    -- Invoices table
+    CREATE SEQUENCE public.invoice_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE TABLE public.invoices (
+        id integer DEFAULT nextval('public.invoice_id_seq'::regclass) NOT NULL,
+        buy_order_id integer NOT NULL,
+        customer_id integer NOT NULL,
+        invoice_number character varying(50) UNIQUE NOT NULL,
+        subtotal float NOT NULL,
+        tax float NOT NULL,
+        total float NOT NULL,
+        status character varying(50) DEFAULT 'pending',
+        created_at timestamp without time zone DEFAULT now(),
+        due_date timestamp without time zone,
+        paid_at timestamp without time zone,
+        PRIMARY KEY (id),
+        FOREIGN KEY (buy_order_id) REFERENCES public.buy_order(id),
+        FOREIGN KEY (customer_id) REFERENCES public.customer(id)
+    );
+
+    ALTER TABLE public.invoice_id_seq OWNER TO postgres;
+
+    -- Invoice items table
+    CREATE SEQUENCE public.invoice_item_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    CREATE TABLE public.invoice_items (
+        id integer DEFAULT nextval('public.invoice_item_id_seq'::regclass) NOT NULL,
+        invoice_id integer NOT NULL,
+        bread_id integer NOT NULL,
+        bread_name character varying(255),
+        quantity integer NOT NULL,
+        unit_price float NOT NULL,
+        total float NOT NULL,
+        PRIMARY KEY (id),
+        FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (bread_id) REFERENCES public.bread(id)
+    );
+
+    ALTER TABLE public.invoice_item_id_seq OWNER TO postgres;
+
+    -- Insert default customer (password: password123 - bcrypt hash)
+    INSERT INTO public.customer (name, email, password, created_at, updated_at) VALUES (
+        'John Doe',
+        'john@doe.com',
+        '$2a$10$lWlfcAs2n8hT4z9PV/90EehZ5J04JQjz9B1fFO.GDUuVjyE/OlIr2',
+        now(),
+        now()
+    );
+
     INSERT INTO public.bread_maker (name, email, created_at, updated_at) VALUES (
-                                    'Jake Maker',
-                                    'jake@maker.com',
-                                    now(),
-                                    now()
+        'Jake Maker',
+        'jake@maker.com',
+        now(),
+        now()
+    );
+
+    -- Insert default admin user (username: admin, password: admin123 - bcrypt hash)
+    INSERT INTO public.admin_users (username, email, password, role, created_at, updated_at) VALUES (
+        'admin',
+        'admin@bakery.com',
+        '$2a$10$PHZBNmARXoZUa4WAHRbYpePNJiYGQPUTkeKWdzq28E8it2BfypDyq',
+        'admin',
+        now(),
+        now()
     );
         
 ---
@@ -217,7 +298,7 @@ spec:
           imagePullPolicy: Always
           volumeMounts:
             - name: postgres-pvc
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/postgresql
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d/create_tables.sql
               subPath: create_tables.sql
@@ -250,7 +331,7 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 5Gi
+            storage: 7Gi
         storageClassName: px-csi-db
         volumeMode: Filesystem
   serviceName: postgres-service
