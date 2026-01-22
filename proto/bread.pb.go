@@ -206,6 +206,13 @@ func (x *BuyOrder) GetTotalCost() float32 {
 	return 0
 }
 
+func (x *BuyOrder) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type BuyOrderDetails struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BuyOrderId    int32                  `protobuf:"varint,1,opt,name=buyOrderId,proto3" json:"buyOrderId,omitempty"`
@@ -2817,14 +2824,15 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\tcreatedAt\x18\b \x01(\tR\tcreatedAt\x12\x1c\n" +
 	"\tupdatedAt\x18\t \x01(\tR\tupdatedAt\x12\x14\n" +
 	"\x05image\x18\n" +
-	" \x01(\tR\x05image\"|\n" +
+	" \x01(\tR\x05image\"\x94\x01\n" +
 	"\bBuyOrder\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1e\n" +
 	"\n" +
 	"customerId\x18\x02 \x01(\x05R\n" +
 	"customerId\x12\"\n" +
 	"\fbuyOrderUuid\x18\x03 \x01(\tR\fbuyOrderUuid\x12\x1c\n" +
-	"\ttotalCost\x18\x04 \x01(\x02R\ttotalCost\"\xf7\x01\n" +
+	"\ttotalCost\x18\x04 \x01(\x02R\ttotalCost\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"\xf7\x01\n" +
 	"\x0fBuyOrderDetails\x12\x1e\n" +
 	"\n" +
 	"buyOrderId\x18\x01 \x01(\x05R\n" +

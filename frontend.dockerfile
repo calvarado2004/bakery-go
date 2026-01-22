@@ -1,7 +1,7 @@
-# makers Dockerfile
+# frontend Dockerfile
 
-# Start from the latest golang base image
-FROM --platform=linux/amd64 docker.io/golang:latest as builder
+# Start from golang 1.25 base image
+FROM --platform=linux/amd64 docker.io/golang:1.25 as builder
 
 # Add Maintainer Info
 LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"
@@ -14,11 +14,8 @@ COPY go.mod go.sum ./
 
 COPY proto ./proto
 
-
 # Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
-
-RUN go get github.com/sirupsen/logrus; go get github.com/calvarado2004/bakery-go/proto; go get google.golang.org/grpc; go get google.golang.org/grpc/codes; go get google.golang.org/grpc/reflection;  go get google.golang.org/grpc/status; go mod download
-
+RUN go mod download
 
 # Copy the source from the current directory to the Working Directory inside the container
 COPY frontend .

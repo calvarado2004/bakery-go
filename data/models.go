@@ -219,10 +219,10 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 
 	var countBread bool
 	var newID int
-	stmt := `INSERT INTO buy_order (customer_id, buy_order_uuid) VALUES ($1, $2) RETURNING id`
+	stmt := `INSERT INTO buy_order (customer_id, buy_order_uuid, status) VALUES ($1, $2, $3) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
-		order.CustomerID, order.BuyOrderUUID,
+		order.CustomerID, order.BuyOrderUUID, "processing",
 	).Scan(&newID)
 
 	if err != nil {
@@ -540,12 +540,13 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT * FROM buy_order WHERE id = $1`
+	stmt := `SELECT id, customer_id, buy_order_uuid, COALESCE(NULLIF(status, ''), 'processing') as status FROM buy_order WHERE id = $1`
 
 	err = db.QueryRowContext(ctx, stmt, orderID).Scan(
 		&order.ID,
 		&order.CustomerID,
 		&order.BuyOrderUUID,
+		&order.Status,
 	)
 
 	if err != nil {
@@ -598,7 +599,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT * FROM buy_order WHERE buy_order_uuid = $1`
+	stmt := `SELECT id, customer_id, buy_order_uuid, COALESCE(NULLIF(status, ''), 'processing') as status FROM buy_order WHERE buy_order_uuid = $1`
 
 	err = db.QueryRowContext(ctx, stmt, orderUUID).Scan(
 		&order.ID,
@@ -611,6 +612,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 		log.Errorf("Error scanning buy order by UUID: %v", err)
 		return order, err
 	}
+	log.Infof("GetBuyOrderByUUID: UUID=%s, scanned Status='%s'", orderUUID, order.Status)
 
 	stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
@@ -659,7 +661,7 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT * FROM buy_order`
+	stmt := `SELECT id, customer_id, buy_order_uuid, COALESCE(NULLIF(status, ''), 'processing') as status FROM buy_order`
 
 	rows, err := db.QueryContext(ctx, stmt)
 	if err != nil {
@@ -681,41 +683,38 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 			log.Errorf("Error scanning buy orders: %v", err)
 			return nil, err
 		}
+		log.Infof("GetAllBuyOrders: Scanned order ID=%d, Status='%s'", order.ID, order.Status)
 
-		stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+		detailStmt := `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
-		rows, err := db.QueryContext(ctx, stmt, order.ID)
+		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
 		if err != nil {
 			log.Errorf("Error querying order details: %v", err)
 			return nil, err
 		}
 
-		defer func(rows *sql.Rows) {
-			err := rows.Close()
-			if err != nil {
-				log.Errorf("Error closing rows while fetching order details: %v", err)
-			}
-		}(rows)
-
 		var breads []Bread
 
-		for rows.Next() {
+		for detailRows.Next() {
 			var breadID, quantity int
-			err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+			err := detailRows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
 			if err != nil {
 				log.Errorf("Error scanning order details: %v", err)
+				detailRows.Close()
 				return nil, err
 			}
 
 			bread, err := u.GetBreadByID(breadID)
 			if err != nil {
 				log.Errorf("Error fetching bread by ID: %v", err)
+				detailRows.Close()
 				return nil, err
 			}
 
 			bread.Quantity = quantity
 			breads = append(breads, bread)
 		}
+		detailRows.Close()
 
 		order.Breads = breads
 		orders = append(orders, order)
@@ -986,7 +985,7 @@ func (u *PostgresRepository) GetCustomerOrders(customerID int) ([]BuyOrder, erro
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT id, customer_id, buy_order_uuid, status FROM buy_order WHERE customer_id = $1 ORDER BY id DESC`
+	stmt := `SELECT id, customer_id, buy_order_uuid, COALESCE(NULLIF(status, ''), 'processing') as status FROM buy_order WHERE customer_id = $1 ORDER BY id DESC`
 
 	rows, err := db.QueryContext(ctx, stmt, customerID)
 	if err != nil {
@@ -1314,7 +1313,7 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 	defer cancel()
 
 	var newID int
-	stmt := `INSERT INTO invoices(buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+	stmt := `INSERT INTO invoices(buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
 		invoice.BuyOrderID,
@@ -1326,6 +1325,7 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 		invoice.Status,
 		time.Now(),
 		invoice.DueDate,
+		invoice.PaidAt,
 	).Scan(&newID)
 
 	if err != nil {

@@ -231,17 +231,20 @@ func (s *AdminServiceServer) GetLowStockAlerts(ctx context.Context, in *pb.Empty
 }
 
 func (s *AdminServiceServer) UpdateOrderStatus(ctx context.Context, in *pb.UpdateOrderStatusRequest) (*pb.BuyOrder, error) {
+	log.Infof("UpdateOrderStatus: UUID=%s, NewStatus='%s'", in.BuyOrderUuid, in.Status)
 	err := s.RabbitMQBakery.Repo.UpdateOrderStatus(in.BuyOrderUuid, in.Status)
 	if err != nil {
 		log.Errorf("Error updating order status: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to update order status: %v", err)
 	}
+	log.Infof("UpdateOrderStatus: Successfully updated order %s to status '%s'", in.BuyOrderUuid, in.Status)
 
 	order, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
 	if err != nil {
 		log.Errorf("Error getting updated order: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to get updated order: %v", err)
 	}
+	log.Infof("UpdateOrderStatus: After GetBuyOrderByUUID, order.Status='%s'", order.Status)
 
 	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(order.ID)
 	if err != nil {
@@ -259,12 +262,15 @@ func (s *AdminServiceServer) UpdateOrderStatus(ctx context.Context, in *pb.Updat
 		}
 	}
 
-	return &pb.BuyOrder{
+	result := &pb.BuyOrder{
 		Id:           int32(order.ID),
 		CustomerId:   int32(order.CustomerID),
 		BuyOrderUuid: order.BuyOrderUUID,
 		TotalCost:    totalCost,
-	}, nil
+		Status:       order.Status,
+	}
+	log.Infof("UpdateOrderStatus: Returning pb.BuyOrder with Status='%s'", result.Status)
+	return result, nil
 }
 
 // generateInvoiceForOrder creates an invoice when an order is completed
@@ -297,7 +303,8 @@ func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtot
 		invoiceItems = append(invoiceItems, item)
 	}
 
-	// Create the invoice
+	// Create the invoice - marked as paid since order is completed
+	paidAt := time.Now()
 	invoice := data.Invoice{
 		BuyOrderID:    order.ID,
 		CustomerID:    order.CustomerID,
@@ -305,8 +312,9 @@ func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtot
 		Subtotal:      subtotal,
 		Tax:           tax,
 		Total:         total,
-		Status:        "pending",
+		Status:        "paid",
 		DueDate:       time.Now().AddDate(0, 0, 30), // Due in 30 days
+		PaidAt:        &paidAt,
 		Items:         invoiceItems,
 	}
 
@@ -340,6 +348,7 @@ func (s *AdminServiceServer) GetCustomerOrders(ctx context.Context, in *pb.Custo
 			CustomerId:   int32(o.CustomerID),
 			BuyOrderUuid: o.BuyOrderUUID,
 			TotalCost:    totalCost,
+			Status:       o.Status,
 		})
 	}
 
@@ -415,11 +424,13 @@ func (s *AdminServiceServer) GetAllOrders(ctx context.Context, in *pb.Empty) (*p
 	var pbDetails []*pb.BuyOrderDetails
 	for _, o := range orders {
 		totalCost, _ := s.RabbitMQBakery.Repo.GetOrderTotalCost(o.ID)
+		log.Infof("GetAllOrders: Order ID=%d, UUID=%s, Status='%s'", o.ID, o.BuyOrderUUID, o.Status)
 		pbOrders = append(pbOrders, &pb.BuyOrder{
 			Id:           int32(o.ID),
 			CustomerId:   int32(o.CustomerID),
 			BuyOrderUuid: o.BuyOrderUUID,
 			TotalCost:    totalCost,
+			Status:       o.Status,
 		})
 
 		for _, b := range o.Breads {

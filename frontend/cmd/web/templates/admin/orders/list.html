@@ -28,49 +28,28 @@
                         </td>
                         <td><strong>${{printf "%.2f" .TotalCost}}</strong></td>
                         <td>
+                            {{if eq .Status "completed"}}
+                            <span class="badge bg-success">Completed</span>
+                            {{else if eq .Status "cancelled"}}
+                            <span class="badge bg-danger">Cancelled</span>
+                            {{else if eq .Status "pending"}}
+                            <span class="badge bg-warning">Pending</span>
+                            {{else if eq .Status "processing"}}
                             <span class="badge bg-info">Processing</span>
+                            {{else}}
+                            <span class="badge bg-secondary">{{if .Status}}{{.Status}}{{else}}Unknown{{end}}</span>
+                            {{end}}
                         </td>
                         <td>
-                            <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                    Update Status
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="dropdown-item-form">
-                                            <input type="hidden" name="status" value="pending">
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="bi bi-clock me-2"></i>Pending
-                                            </button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="dropdown-item-form">
-                                            <input type="hidden" name="status" value="processing">
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="bi bi-gear me-2"></i>Processing
-                                            </button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="dropdown-item-form">
-                                            <input type="hidden" name="status" value="completed">
-                                            <button type="submit" class="dropdown-item">
-                                                <i class="bi bi-check-circle me-2"></i>Completed
-                                            </button>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="dropdown-item-form">
-                                            <input type="hidden" name="status" value="cancelled">
-                                            <button type="submit" class="dropdown-item text-danger">
-                                                <i class="bi bi-x-circle me-2"></i>Cancelled
-                                            </button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
+                            <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="d-flex gap-2">
+                                <select name="status" class="form-select form-select-sm" style="width: auto;">
+                                    <option value="pending" {{if eq .Status "pending"}}selected{{end}}>Pending</option>
+                                    <option value="processing" {{if eq .Status "processing"}}selected{{end}}>Processing</option>
+                                    <option value="completed" {{if eq .Status "completed"}}selected{{end}}>Completed</option>
+                                    <option value="cancelled" {{if eq .Status "cancelled"}}selected{{end}}>Cancelled</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                            </form>
                         </td>
                     </tr>
                     {{end}}

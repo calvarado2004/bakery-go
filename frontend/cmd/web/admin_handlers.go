@@ -304,6 +304,11 @@ func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Debug logging
+	for _, o := range orders.BuyOrders {
+		log.Infof("Frontend received order: ID=%d, UUID=%s, Status='%s'", o.Id, o.BuyOrderUuid, o.Status)
+	}
+
 	data := newAdminTemplateData(r, "Order Management", "orders")
 	data.Orders = orders.BuyOrders
 	data.Message = r.URL.Query().Get("message")
@@ -328,6 +333,9 @@ func AdminOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newStatus := r.FormValue("status")
+	log.Infof("AdminOrderStatusHandler: Received request to update order %s to status '%s'", uuid, newStatus)
+
 	conn, err := getGRPCConnection()
 	if err != nil {
 		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
@@ -339,9 +347,9 @@ func AdminOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = client.UpdateOrderStatus(ctx, &pb.UpdateOrderStatusRequest{
+	result, err := client.UpdateOrderStatus(ctx, &pb.UpdateOrderStatusRequest{
 		BuyOrderUuid: uuid,
-		Status:       r.FormValue("status"),
+		Status:       newStatus,
 	})
 	if err != nil {
 		log.Errorf("Error updating order status: %v", err)
@@ -349,6 +357,7 @@ func AdminOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Infof("AdminOrderStatusHandler: Update successful, returned status='%s'", result.Status)
 	http.Redirect(w, r, "/admin/orders?message=Order+status+updated", http.StatusSeeOther)
 }
 
