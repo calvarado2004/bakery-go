@@ -143,6 +143,7 @@ type BuyOrder struct {
 	CustomerId    int32                  `protobuf:"varint,2,opt,name=customerId,proto3" json:"customerId,omitempty"`
 	BuyOrderUuid  string                 `protobuf:"bytes,3,opt,name=buyOrderUuid,proto3" json:"buyOrderUuid,omitempty"`
 	TotalCost     float32                `protobuf:"fixed32,4,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
+	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

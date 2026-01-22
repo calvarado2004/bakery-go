@@ -25,6 +25,7 @@ message BuyOrder {
   int32 customerId = 2;
   string buyOrderUuid = 3;
   float totalCost = 4;
+  string status = 5;
 }
 
 message BuyOrderDetails {

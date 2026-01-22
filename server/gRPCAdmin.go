@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
@@ -247,12 +248,75 @@ func (s *AdminServiceServer) UpdateOrderStatus(ctx context.Context, in *pb.Updat
 		log.Errorf("Error getting order total cost: %v", err)
 	}
 
+	// If status is changed to "completed", generate an invoice
+	if in.Status == "completed" {
+		err = s.generateInvoiceForOrder(order, totalCost)
+		if err != nil {
+			log.Errorf("Error generating invoice for order %d: %v", order.ID, err)
+			// Don't fail the status update if invoice generation fails
+		} else {
+			log.Infof("Invoice generated successfully for order %d", order.ID)
+		}
+	}
+
 	return &pb.BuyOrder{
 		Id:           int32(order.ID),
 		CustomerId:   int32(order.CustomerID),
 		BuyOrderUuid: order.BuyOrderUUID,
 		TotalCost:    totalCost,
 	}, nil
+}
+
+// generateInvoiceForOrder creates an invoice when an order is completed
+func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtotal float32) error {
+	// Check if an invoice already exists for this order
+	existingInvoice, err := s.RabbitMQBakery.Repo.GetInvoiceByOrderID(order.ID)
+	if err == nil && existingInvoice.ID > 0 {
+		log.Infof("Invoice already exists for order %d, skipping generation", order.ID)
+		return nil
+	}
+
+	// Calculate tax (10% tax rate)
+	taxRate := float32(0.10)
+	tax := subtotal * taxRate
+	total := subtotal + tax
+
+	// Generate invoice number (INV-ORDERID-TIMESTAMP)
+	invoiceNumber := fmt.Sprintf("INV-%d-%d", order.ID, time.Now().Unix())
+
+	// Create invoice items from order breads
+	var invoiceItems []data.InvoiceItem
+	for _, bread := range order.Breads {
+		item := data.InvoiceItem{
+			BreadID:   bread.ID,
+			BreadName: bread.Name,
+			Quantity:  bread.Quantity,
+			UnitPrice: bread.Price,
+			Total:     bread.Price * float32(bread.Quantity),
+		}
+		invoiceItems = append(invoiceItems, item)
+	}
+
+	// Create the invoice
+	invoice := data.Invoice{
+		BuyOrderID:    order.ID,
+		CustomerID:    order.CustomerID,
+		InvoiceNumber: invoiceNumber,
+		Subtotal:      subtotal,
+		Tax:           tax,
+		Total:         total,
+		Status:        "pending",
+		DueDate:       time.Now().AddDate(0, 0, 30), // Due in 30 days
+		Items:         invoiceItems,
+	}
+
+	invoiceID, err := s.RabbitMQBakery.Repo.InsertInvoice(invoice)
+	if err != nil {
+		return fmt.Errorf("failed to insert invoice: %v", err)
+	}
+
+	log.Infof("Created invoice #%s (ID: %d) for order %d with total $%.2f", invoiceNumber, invoiceID, order.ID, total)
+	return nil
 }
 
 func (s *AdminServiceServer) GetCustomerOrders(ctx context.Context, in *pb.CustomerIdRequest) (*pb.CustomerOrdersResponse, error) {
