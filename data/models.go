@@ -1210,7 +1210,7 @@ func (u *PostgresRepository) GetAdminUserByUsername(username string) (AdminUser,
 	defer cancel()
 
 	var user AdminUser
-	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_user WHERE username = $1`
+	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_users WHERE username = $1`
 
 	err := db.QueryRowContext(ctx, stmt, username).Scan(
 		&user.ID,
@@ -1235,7 +1235,7 @@ func (u *PostgresRepository) GetAdminUserByID(id int) (AdminUser, error) {
 	defer cancel()
 
 	var user AdminUser
-	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_user WHERE id = $1`
+	stmt := `SELECT id, username, email, password, role, created_at, updated_at FROM admin_users WHERE id = $1`
 
 	err := db.QueryRowContext(ctx, stmt, id).Scan(
 		&user.ID,
@@ -1265,7 +1265,7 @@ func (u *PostgresRepository) InsertAdminUser(user AdminUser) (int, error) {
 	}
 
 	var newID int
-	stmt := `INSERT INTO admin_user (username, email, password, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	stmt := `INSERT INTO admin_users (username, email, password, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	err = db.QueryRowContext(ctx, stmt,
 		user.Username,
@@ -1314,7 +1314,7 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 	defer cancel()
 
 	var newID int
-	stmt := `INSERT INTO invoice (buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+	stmt := `INSERT INTO invoices(buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
 
 	err := db.QueryRowContext(ctx, stmt,
 		invoice.BuyOrderID,
@@ -1335,7 +1335,7 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 
 	// Insert invoice items
 	for _, item := range invoice.Items {
-		itemStmt := `INSERT INTO invoice_item (invoice_id, bread_id, bread_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)`
+		itemStmt := `INSERT INTO invoice_items(invoice_id, bread_id, bread_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)`
 		_, err = db.ExecContext(ctx, itemStmt, newID, item.BreadID, item.BreadName, item.Quantity, item.UnitPrice, item.Total)
 		if err != nil {
 			log.Errorf("Error inserting invoice item: %v", err)
@@ -1352,7 +1352,7 @@ func (u *PostgresRepository) GetInvoiceByID(id int) (Invoice, error) {
 
 	var invoice Invoice
 	var paidAt sql.NullTime
-	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE id = $1`
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoices WHERE id = $1`
 
 	err := db.QueryRowContext(ctx, stmt, id).Scan(
 		&invoice.ID,
@@ -1377,7 +1377,7 @@ func (u *PostgresRepository) GetInvoiceByID(id int) (Invoice, error) {
 	}
 
 	// Get invoice items
-	itemStmt := `SELECT id, invoice_id, bread_id, bread_name, quantity, unit_price, total FROM invoice_item WHERE invoice_id = $1`
+	itemStmt := `SELECT id, invoice_id, bread_id, bread_name, quantity, unit_price, total FROM invoice_items WHERE invoice_id = $1`
 	rows, err := db.QueryContext(ctx, itemStmt, id)
 	if err != nil {
 		log.Errorf("Error querying invoice items: %v", err)
@@ -1403,7 +1403,7 @@ func (u *PostgresRepository) GetInvoicesByCustomerID(customerID int) ([]Invoice,
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE customer_id = $1 ORDER BY created_at DESC`
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoices WHERE customer_id = $1 ORDER BY created_at DESC`
 
 	rows, err := db.QueryContext(ctx, stmt, customerID)
 	if err != nil {
@@ -1447,7 +1447,7 @@ func (u *PostgresRepository) GetAllInvoices() ([]Invoice, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice ORDER BY created_at DESC`
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoices ORDER BY created_at DESC`
 
 	rows, err := db.QueryContext(ctx, stmt)
 	if err != nil {
@@ -1493,7 +1493,7 @@ func (u *PostgresRepository) GetInvoiceByOrderID(orderID int) (Invoice, error) {
 
 	var invoice Invoice
 	var paidAt sql.NullTime
-	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoice WHERE buy_order_id = $1`
+	stmt := `SELECT id, buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at FROM invoices WHERE buy_order_id = $1`
 
 	err := db.QueryRowContext(ctx, stmt, orderID).Scan(
 		&invoice.ID,

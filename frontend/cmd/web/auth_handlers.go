@@ -203,39 +203,44 @@ func CustomerLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/portal/login", http.StatusSeeOther)
 }
 
-// Auth Middleware
-func AdminAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// Auth Middleware - wraps a handler function to require admin authentication
+func RequireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("admin_token")
 		if err != nil || cookie.Value == "" {
+			log.Infof("Admin auth failed: no token cookie for path %s", r.URL.Path)
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
 		if !validateToken(cookie.Value, "admin") {
+			log.Infof("Admin auth failed: invalid token for path %s", r.URL.Path)
 			http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
 			return
 		}
 
 		next.ServeHTTP(w, r)
-	})
+	}
 }
 
-func CustomerAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// RequireCustomerAuth - wraps a handler function to require customer authentication
+func RequireCustomerAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("customer_token")
 		if err != nil || cookie.Value == "" {
+			log.Infof("Customer auth failed: no token cookie for path %s", r.URL.Path)
 			http.Redirect(w, r, "/portal/login", http.StatusSeeOther)
 			return
 		}
 
 		if !validateToken(cookie.Value, "customer") {
+			log.Infof("Customer auth failed: invalid token for path %s", r.URL.Path)
 			http.Redirect(w, r, "/portal/login?error=Session+expired", http.StatusSeeOther)
 			return
 		}
 
 		next.ServeHTTP(w, r)
-	})
+	}
 }
 
 func validateToken(tokenString string, expectedType string) bool {
