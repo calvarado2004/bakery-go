@@ -32,6 +32,35 @@ spec:
         app: rabbitmq
     spec:
       terminationGracePeriodSeconds: 20
+      initContainers:
+        - resources: {}
+          terminationMessagePath: /dev/termination-log
+          name: fix-erlang-cookie-perms
+          command:
+            - sh
+            - '-c'
+            - |
+              set -e
+              # Create cookie if missing (optional)
+              if [ -n "$RABBITMQ_ERLANG_COOKIE" ] && [ ! -f /var/lib/rabbitmq/.erlang.cookie ]; then
+                echo -n "$RABBITMQ_ERLANG_COOKIE" > /var/lib/rabbitmq/.erlang.cookie
+              fi
+
+              # Official image typically uses rabbitmq user (often uid/gid 999)
+              chown 999:999 /var/lib/rabbitmq /var/lib/rabbitmq/.erlang.cookie || true
+              chmod 700 /var/lib/rabbitmq || true
+              chmod 400 /var/lib/rabbitmq/.erlang.cookie || true
+          env:
+            - name: RABBITMQ_ERLANG_COOKIE
+              value: 1WqgH8N2v1qDBDZDbNy8Bg9IkPWLEpu79m6q+0t36lQ=
+          securityContext:
+            runAsUser: 0
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+          terminationMessagePolicy: File
+          image: 'busybox:1.36'
       containers:
         - name: rabbitmq
           image: rabbitmq:3.9-management
