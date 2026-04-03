@@ -412,20 +412,29 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 
 // BuyBreadStream is a server stream function that returns the status of the order
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
-	// Maximum number of retries before giving up
-	maxRetries := 10
+	// Maximum number of retries before giving up.
+	// Each retry waits 5 seconds; 20 retries = 100-second window.
+	// The broker can take up to ~60s to process an order in this cluster,
+	// so 100s gives enough headroom.
+	maxRetries := 20
 	retryCount := 0
-	responseCh := make(chan *pb.BreadResponse)
+	// Buffered so processBreadsBought's send never blocks when no one reads.
+	responseCh := make(chan *pb.BreadResponse, 1)
+
+	// Parent context: cancelling it stops the getBuyResponse goroutine when
+	// BuyBreadStream returns (success or error).
+	parentCtx, parentCancel := context.WithCancel(context.Background())
+	defer parentCancel()
+
 	contextMaker := func() (context.Context, context.CancelFunc) {
-		return context.WithCancel(context.Background())
+		return context.WithCancel(parentCtx)
 	}
 
 	// Start a go-routine to listen for RabbitMQ messages
 	go func() {
-
 		err := s.RabbitMQBakery.getBuyResponse(contextMaker, responseCh)
 		if err != nil {
-			log.Fatalf("Error getting buy response: %v", err)
+			log.Printf("getBuyResponse goroutine exited: %v", err)
 		}
 	}()
 
@@ -435,12 +444,17 @@ func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_
 		// Fetch the order from the database
 		s.RabbitMQBakery.mu.Lock()
 		savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+		if err != nil {
+			s.RabbitMQBakery.mu.Unlock()
+			log.Printf("Failed to get order from database: %v", err)
+			retryCount++
+			continue
+		}
 		totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
 		s.RabbitMQBakery.mu.Unlock()
 
-		// if there was an error or the order is not found, try again
 		if err != nil {
-			log.Printf("Failed to get order from database: %v", err)
+			log.Printf("Failed to get order total cost: %v", err)
 			retryCount++
 			continue
 		}

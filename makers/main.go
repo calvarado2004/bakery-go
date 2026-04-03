@@ -97,6 +97,10 @@ func main() {
 }
 
 func init() {
+	if rabbitmqAddress == "" {
+		log.Warn("RABBITMQ_SERVICE_ADDR not set, skipping RabbitMQ initialization")
+		return
+	}
 	var err error
 	rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddress)
 	if err != nil {

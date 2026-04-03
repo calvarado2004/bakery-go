@@ -221,6 +221,13 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		}
 	}(channel)
 
+	// Limit prefetch to 1 so RabbitMQ delivers only one message at a time.
+	// Without this, all queued messages are pre-fetched and held unacked in memory,
+	// causing a massive backlog whenever RabbitMQ restarts.
+	if err := channel.Qos(1, 0, false); err != nil {
+		log.Fatalf("Failed to set QoS: %v", err)
+	}
+
 	buyOrderMessage, err := channel.Consume(
 		"buy-bread-order", // queue
 		"",                // consumer

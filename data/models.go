@@ -116,19 +116,21 @@ func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float32, error) {
 
 	stmt := `SELECT sum(od.price * od.quantity) AS total_cost FROM buy_order bo, order_details od  WHERE bo.id = od.buy_order_id AND bo.id = $1;`
 
-	var total float32
+	var total sql.NullFloat64
 	err := db.QueryRowContext(ctx, stmt, orderID).Scan(&total)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// There were no rows, but otherwise no error occurred
-			log.Errorf("No rows returned for order ID %d", orderID)
 			return 0, nil
 		}
 		log.Errorf("Error getting order price: %v", err)
 		return 0, err
 	}
 
-	return total, nil
+	if !total.Valid {
+		return 0, nil
+	}
+
+	return float32(total.Float64), nil
 }
 
 func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {
@@ -247,7 +249,7 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 			// Rollback the transaction for this bread
 			err := tx.Rollback()
 			if err != nil {
-				log.Error("Error rolling back transaction: %v", err)
+				log.Errorf("Error rolling back transaction: %v", err)
 			}
 			continue // This will skip to the next bread in the loop
 		}
@@ -261,7 +263,7 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 			// Rollback the transaction for this bread
 			err := tx.Rollback()
 			if err != nil {
-				log.Error("Error rolling back transaction: %v", err)
+				log.Errorf("Error rolling back transaction: %v", err)
 			}
 			continue // This will skip to the next bread in the loop
 		}
@@ -609,6 +611,9 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 	)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return order, err
+		}
 		log.Errorf("Error scanning buy order by UUID: %v", err)
 		return order, err
 	}

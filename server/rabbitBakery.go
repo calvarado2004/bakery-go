@@ -404,7 +404,11 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 				BuyOrderUuid: buyOrder.BuyOrderUUID,
 			}
 
-			responseCh <- response // send the response to the channel
+			select {
+				case responseCh <- response: // send the response to the channel
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 
 		case <-ctx.Done():
 			// If the context is done, return an error

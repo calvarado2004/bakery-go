@@ -66,6 +66,12 @@ func main() {
 	router.HandleFunc("/stream", streamHandler)
 	router.HandleFunc("/order-stream", orderStreamHandler)
 	router.HandleFunc("/orders", orderDetailsHandler)
+	router.HandleFunc("/service", staticPageHandler("./cmd/web/templates/service.html"))
+	router.HandleFunc("/product", staticPageHandler("./cmd/web/templates/product.html"))
+	router.HandleFunc("/team", staticPageHandler("./cmd/web/templates/team.html"))
+	router.HandleFunc("/testimonial", staticPageHandler("./cmd/web/templates/testimonial.html"))
+	router.HandleFunc("/contact", staticPageHandler("./cmd/web/templates/contact.html"))
+	router.HandleFunc("/404", staticPageHandler("./cmd/web/templates/404.html"))
 
 	// Admin auth routes (public - no auth required)
 	router.HandleFunc("/admin/login", AdminLoginPageHandler).Methods("GET")
@@ -151,6 +157,20 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	err = tmpl.Execute(w, breadLogs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func staticPageHandler(templatePath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles(templatePath)
+		if err != nil {
+			http.Error(w, "Error parsing template: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		err = tmpl.Execute(w, nil)
+		if err != nil {
+			http.Error(w, "Error rendering template: "+err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
