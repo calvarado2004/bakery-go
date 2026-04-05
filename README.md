@@ -44,6 +44,28 @@ Install dependencies:
 go mod download
 ```
 
+## Default Credentials
+
+### Admin Panel
+Access the admin dashboard at `http://localhost:8080/admin/login`
+
+| Field | Value |
+|-------|-------|
+| **Username** | `admin` |
+| **Password** | `admin123` |
+| **Email** | `admin@bakery.com` |
+
+### Customer Portal
+Access the customer portal at `http://localhost:8080/portal/login`
+
+| Field | Value |
+|-------|-------|
+| **Email** | `john@doe.com` |
+| **Password** | `password123` |
+| **Name** | John Doe |
+
+> **Note:** These credentials are seeded in `bakery.sql` and stored as bcrypt hashes.
+
 Regenerate protobuf (if `proto/bread.proto` changes):
 
 ```bash
