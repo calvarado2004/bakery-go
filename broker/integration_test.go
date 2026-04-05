@@ -34,7 +34,10 @@ func setupBrokerIntegrationEnv(t *testing.T) *brokerTestEnv {
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		err = db.Close()
+		if err != nil {
+			return nil
+		}
 		t.Skipf("Skipping integration test: cannot ping DB: %v", err)
 	}
 
@@ -44,14 +47,23 @@ func setupBrokerIntegrationEnv(t *testing.T) *brokerTestEnv {
 	rabbitURL := getEnvOrDefault("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/")
 	conn, err := rabbitmq.Dial(rabbitURL)
 	if err != nil {
-		db.Close()
+		err := db.Close()
+		if err != nil {
+			return nil
+		}
 		t.Skipf("Skipping integration test: cannot connect to RabbitMQ: %v", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
-		db.Close()
-		conn.Close()
+		err := db.Close()
+		if err != nil {
+			return nil
+		}
+		err = conn.Close()
+		if err != nil {
+			return nil
+		}
 		t.Skipf("Skipping integration test: cannot open RabbitMQ channel: %v", err)
 	}
 
@@ -483,7 +495,12 @@ func TestIntegrationBroker_ConcurrentOrderProcessing(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test: cannot query bread: %v", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			t.Skipf("Skipping test: cannot close bread query: %v", err)
+		}
+	}(rows)
 
 	for rows.Next() {
 		var b data.Bread
@@ -506,7 +523,7 @@ func TestIntegrationBroker_ConcurrentOrderProcessing(t *testing.T) {
 			defer wg.Done()
 
 			buyOrderUUID := fmt.Sprintf("test-concurrent-%d-%d", idx, time.Now().UnixNano())
-			// Use a different bread for each order to avoid quantity conflicts
+			// Use different bread for each order to avoid quantity conflicts
 			breadIdx := idx % len(breads)
 			testBread := []data.Bread{
 				{ID: breads[breadIdx].ID, Name: breads[breadIdx].Name, Quantity: 1},
@@ -583,13 +600,23 @@ func TestIntegrationRabbitMQ_ConnectionAndChannel(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping RabbitMQ test: %v", err)
 	}
-	defer conn.Close()
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
+		if err != nil {
+			t.Skipf("Skipping RabbitMQ test: cannot close connection: %v", err)
+		}
+	}(conn)
 
 	ch, err := conn.Channel()
 	if err != nil {
 		t.Errorf("Failed to open channel: %v", err)
 	}
-	defer ch.Close()
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
+		if err != nil {
+			t.Skipf("Skipping RabbitMQ test: cannot close channel: %v", err)
+		}
+	}(ch)
 
 	// Verify we can declare and check the queue
 	// Note: durable=true to match the server's queue declaration

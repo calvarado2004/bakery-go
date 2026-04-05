@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/calvarado2004/bakery-go/testutils"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/calvarado2004/bakery-go/testutils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -234,7 +234,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateBread", func(t *testing.T) {
-		// Get a bread to update
+		// Get bread to update
 		allReq := &pb.Empty{}
 		allResp, err := adminClient.GetAllBread(ctx, allReq)
 		if err != nil || len(allResp.Breads) == 0 {

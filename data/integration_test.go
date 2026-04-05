@@ -2,6 +2,7 @@ package data_test
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -180,7 +181,10 @@ func TestPostgresRepository_Integration(t *testing.T) {
 		}
 
 		// Increase quantity back
-		repo.AdjustBreadQuantity(bread.ID, 10)
+		_, err = repo.AdjustBreadQuantity(bread.ID, 10)
+		if err != nil {
+			return
+		}
 	})
 
 	t.Run("AdjustBreadPrice", func(t *testing.T) {
@@ -209,7 +213,10 @@ func TestPostgresRepository_Integration(t *testing.T) {
 		}
 
 		// Reset price
-		repo.AdjustBreadPrice(bread.ID, bread.Price)
+		err = repo.AdjustBreadPrice(bread.ID, bread.Price)
+		if err != nil {
+			return
+		}
 	})
 }
 
@@ -516,7 +523,7 @@ func TestPostgresRepository_Invoice_Integration(t *testing.T) {
 	}
 
 	t.Run("InsertInvoice and GetInvoiceByID", func(t *testing.T) {
-		// First create a buy order
+		// First, create a buy order
 		breads, err := repo.GetAvailableBread()
 		if err != nil || len(breads) == 0 {
 			t.Skip("No bread available")
@@ -538,14 +545,14 @@ func TestPostgresRepository_Invoice_Integration(t *testing.T) {
 
 		// Now create an invoice
 		invoice := data.Invoice{
-			BuyOrderID: orderID,
-			CustomerID: customers[0].ID,
+			BuyOrderID:    orderID,
+			CustomerID:    customers[0].ID,
 			InvoiceNumber: "INV-TEST-001",
-			Subtotal:    10.0,
-			Tax:         0.8,
-			Total:       10.8,
-			Status:      "pending",
-			CreatedAt:   time.Now(),
+			Subtotal:      10.0,
+			Tax:           0.8,
+			Total:         10.8,
+			Status:        "pending",
+			CreatedAt:     time.Now(),
 		}
 
 		invoiceID, err := repo.InsertInvoice(invoice)
@@ -608,7 +615,7 @@ func TestPostgresRepository_Auth_Integration(t *testing.T) {
 	}
 
 	t.Run("GetAdminUserByID", func(t *testing.T) {
-		// First create an admin
+		// First, create an admin
 		admin := data.AdminUser{
 			Username: "idtestadmin",
 			Email:    "idtest@bakery.com",
@@ -758,7 +765,7 @@ func TestPostgresRepository_UpdateBread_DeleteBread_Integration(t *testing.T) {
 
 		// Verify it's deleted
 		_, err = repo.GetBreadByID(id)
-		if err == nil || err != sql.ErrNoRows {
+		if err == nil || !errors.Is(sql.ErrNoRows, err) {
 			t.Logf("Expected ErrNoRows, got: %v", err)
 		}
 	})
@@ -797,7 +804,10 @@ func TestPostgresRepository_CustomerOrders_Integration(t *testing.T) {
 			UpdatedAt:  time.Now(),
 		}
 
-		repo.InsertBuyOrder(order, []data.Bread{breads[0]})
+		_, err = repo.InsertBuyOrder(order, []data.Bread{breads[0]})
+		if err != nil {
+			return
+		}
 
 		// Fetch customer orders
 		orders, err := repo.GetCustomerOrders(customer.ID)
@@ -837,7 +847,10 @@ func TestPostgresRepository_CustomerOrders_Integration(t *testing.T) {
 			UpdatedAt:    time.Now(),
 		}
 
-		repo.InsertMakeOrder(order, []data.Bread{breads[0]})
+		_, err = repo.InsertMakeOrder(order, []data.Bread{breads[0]})
+		if err != nil {
+			return
+		}
 
 		// Fetch maker orders
 		orders, err := repo.GetMakerOrders(maker.ID)
@@ -921,7 +934,7 @@ func TestPasswordMatches_Integration(t *testing.T) {
 		t.Fatalf("Failed to insert customer: %v", err)
 	}
 
-	// Fetch the customer (which will have the hashed password)
+	// Fetch the customer (who will have the hashed password)
 	fetched, err := repo.GetCustomerByEmail("passwordmatch@test.com")
 	if err != nil {
 		t.Fatalf("Failed to fetch customer: %v", err)

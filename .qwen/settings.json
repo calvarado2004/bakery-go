@@ -10,7 +10,9 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(chmod *)",
-      "Bash(/users/carlos/bakery-go/scripts/run-integration-tests.sh)"
+      "Bash(/users/carlos/bakery-go/scripts/run-integration-tests.sh)",
+      "Bash(./scripts/run-integration-tests.sh *)",
+      "Bash(grep *)"
     ]
   },
   "$version": 3
