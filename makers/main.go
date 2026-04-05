@@ -43,14 +43,6 @@ func openDB(dsn string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	//close connection
-	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-			log.Errorf("Failed to close database connection: %v", err)
-		}
-	}(db)
-
 	return db, nil
 
 }
