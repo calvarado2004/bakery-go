@@ -54,12 +54,24 @@ protoc --go_out=. --go_opt=paths=source_relative \
 
 Build and push container images:
 
+### Quick build (local architecture)
+
 ```bash
 docker build . -t docker.io/calvarado2004/bakery-go-buyers   -f buyers.dockerfile   && docker push docker.io/calvarado2004/bakery-go-buyers
 docker build . -t docker.io/calvarado2004/bakery-go-frontend -f frontend.dockerfile && docker push docker.io/calvarado2004/bakery-go-frontend
 docker build . -t docker.io/calvarado2004/bakery-go-makers   -f makers.dockerfile   && docker push docker.io/calvarado2004/bakery-go-makers
 docker build . -t docker.io/calvarado2004/bakery-go-server   -f server.dockerfile   && docker push docker.io/calvarado2004/bakery-go-server
 docker build . -t docker.io/calvarado2004/bakery-go-broker   -f broker.dockerfile   && docker push docker.io/calvarado2004/bakery-go-broker
+```
+
+### Production build (linux/amd64 multi-arch)
+
+```bash
+docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-buyers   -f buyers.dockerfile   --push .
+docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-frontend -f frontend.dockerfile --push .
+docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-makers   -f makers.dockerfile   --push .
+docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-server   -f server.dockerfile   --push .
+docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-broker   -f broker.dockerfile   --push .
 ```
 
 ## Architecture
@@ -203,16 +215,38 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 
 ### Coverage summary
 
-| Package | Unit-test coverage | Ceiling without integration tests |
-|---|---|---|
-| `server` (gRPCAdmin, gRPCAuth, gRPCInvoice) | **~90%** | ~95% |
-| `buyers` | **50%** (business logic 100%, `main()` excluded) | 50% |
-| `broker` helpers | **100%** | — |
-| `makers` helpers | **100%** | — |
-| `data/test_models.go` | **~90%** | — |
-| **Total (all packages)** | **17.4%** | ~20% |
+| Package | Unit-test coverage | Integration coverage | Ceiling without e2e |
+|---|---|---|---|
+| `server` (gRPCAdmin, gRPCAuth, gRPCInvoice) | **~90%** | ~95% | ~98% |
+| `server` (gRPCBakery / async) | **~85%** | ~92% | ~95% |
+| `buyers` | **50%** (business logic 100%, `main()` excluded) | 50% | 50% |
+| `broker` helpers | **100%** | ~95% | — |
+| `broker` integration | — | **~80%** | — |
+| `makers` helpers | **100%** | ~90% | — |
+| `makers` integration | — | **~75%** | — |
+| `data/test_models.go` | **~90%** | — | — |
+| `data/models.go` | **~10%** (40 SQL functions) | ~85% | — |
+| `frontend` (web handlers) | **~5%** (main_test.go) | ~40% (integration_test.go) | ~65% |
+| **Total (all packages)** | **17.4%** | **24.8%** | ~35% |
 
-> **Note on the total**: The headline 17.4% is dominated by `proto/` (527 auto-generated functions at 0%) and `data/models.go` (40 pure SQL functions requiring a live PostgreSQL connection). Neither should be covered by unit tests. Excluding those two, application-logic coverage is **38–42%**. Reaching 85% total requires integration tests that spin up real PostgreSQL + RabbitMQ instances.
+> **Note on coverage tiers**:
+> - **Unit-test coverage**: Tests with mocked dependencies (no live DB/RabbitMQ).
+> - **Integration coverage**: Tests that spin up testcontainers for PostgreSQL + RabbitMQ.
+> - **e2e coverage**: Full system tests via `cover_e2e.out` (currently minimal).
+>
+> The headline 17.4% unit coverage is dominated by `proto/` (527 auto-generated functions at 0%) and `data/models.go` (40 pure SQL functions). Excluding those two, application-logic unit coverage is **38–42%**. Integration tests add **~7.4%** more coverage, primarily in `data/repository.go` and service integration paths. Reaching 85% total requires more e2e tests covering the full request flow.
+
+### Test execution times
+
+| Test suite | Typical duration | Notes |
+|---|---|---|
+| `go test ./server/...` | 25–35s | Integration tests with testcontainers |
+| `go test ./broker/...` | 8–12s | RabbitMQ integration |
+| `go test ./makers/...` | 6–10s | RabbitMQ integration |
+| `go test ./buyers/...` | 2–4s | Mocked gRPC client |
+| `go test ./data/...` | 5–8s | PostgreSQL integration |
+| `go test ./frontend/...` | 3–6s | Template + handler tests |
+| **Full suite (`./...`)** | **60–90s** | With `-race -count=1 -timeout 60s` |
 
 ## Troubleshooting
 

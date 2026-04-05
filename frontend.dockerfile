@@ -1,7 +1,7 @@
 # frontend Dockerfile
 
 # Start from golang 1.25 base image
-FROM --platform=linux/amd64 docker.io/golang:1.25 as builder
+FROM docker.io/golang:1.25 as builder
 
 # Add Maintainer Info
 LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"
@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -o main ./cmd/web/
 
 RUN chmod +x /app/main
 
-FROM --platform=linux/amd64 docker.io/alpine:latest
+FROM docker.io/alpine:latest
 
 RUN mkdir /app
 

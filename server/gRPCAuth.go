@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
@@ -13,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -21,7 +23,7 @@ var jwtSecret = []byte(getJWTSecret())
 func getJWTSecret() string {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "bakery-go-secret-key-change-in-production"
+		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
 	return secret
 }
@@ -37,6 +39,46 @@ type Claims struct {
 	UserType string `json:"user_type"` // "admin" or "customer"
 	Role     string `json:"role,omitempty"`
 	jwt.RegisteredClaims
+}
+
+// requireAdminToken extracts and validates an admin JWT from the incoming gRPC
+// request metadata. The caller must supply a Bearer token in the "authorization"
+// metadata key, e.g.:
+//
+//	md := metadata.Pairs("authorization", "Bearer <token>")
+//	ctx  = metadata.NewOutgoingContext(ctx, md)
+//
+// Returns the parsed Claims on success, or a gRPC status error on any failure.
+func requireAdminToken(ctx context.Context) (*Claims, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "missing request metadata")
+	}
+
+	values := md.Get("authorization")
+	if len(values) == 0 {
+		return nil, status.Errorf(codes.Unauthenticated, "authorization token is required")
+	}
+
+	// Accept both "Bearer <token>" and a bare token string.
+	tokenString := strings.TrimPrefix(values[0], "Bearer ")
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid or expired token")
+	}
+
+	if claims.UserType != "admin" {
+		return nil, status.Errorf(codes.PermissionDenied, "admin access required")
+	}
+
+	return claims, nil
 }
 
 func (s *AuthServiceServer) AdminLogin(ctx context.Context, in *pb.LoginRequest) (*pb.LoginResponse, error) {
@@ -172,6 +214,15 @@ func (s *AuthServiceServer) ValidateToken(ctx context.Context, in *pb.ValidateTo
 }
 
 func (s *AuthServiceServer) CreateAdminUser(ctx context.Context, in *pb.CreateAdminUserRequest) (*pb.AdminUser, error) {
+	// Only an authenticated admin may create other admin accounts.
+	callerClaims, err := requireAdminToken(ctx)
+	if err != nil {
+		log.Warnf("Unauthorised CreateAdminUser attempt blocked: %v", err)
+		return nil, err
+	}
+	log.Infof("Admin %q (id=%d, role=%q) is creating a new admin account %q",
+		callerClaims.Username, callerClaims.UserID, callerClaims.Role, in.Username)
+
 	user := data.AdminUser{
 		Username: in.Username,
 		Email:    in.Email,

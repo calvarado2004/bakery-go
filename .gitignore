@@ -1,3 +1,17 @@
 googleapis
 .idea
 .DS_Store
+
+# Local environment variables — never commit real secrets
+.env
+
+# Compiled binaries
+server/server
+broker/broker
+makers/makers
+buyers/buyers
+frontend/frontend
+
+# Test coverage output
+coverage.out
+coverage.html

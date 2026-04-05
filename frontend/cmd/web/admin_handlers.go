@@ -90,8 +90,8 @@ func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/dashboard.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/dashboard.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -123,8 +123,8 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/bread/list.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/bread/list.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -136,8 +136,8 @@ func AdminBreadNewHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "New Bread", "bread")
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/bread/form.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/bread/form.html"),
 	))
 	err := tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -209,8 +209,8 @@ func AdminBreadEditHandler(w http.ResponseWriter, r *http.Request) {
 	data.Bread = bread
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/bread/form.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/bread/form.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -314,8 +314,8 @@ func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/orders/list.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/orders/list.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -384,8 +384,8 @@ func AdminCustomersHandler(w http.ResponseWriter, r *http.Request) {
 	data.Customers = customers.Customers
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/customers/list.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/customers/list.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -420,8 +420,8 @@ func AdminCustomerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	data.Orders = response.Orders
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/customers/detail.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/customers/detail.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -452,8 +452,8 @@ func AdminMakersHandler(w http.ResponseWriter, r *http.Request) {
 	data.Makers = makers.BreadMakers
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/makers/list.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/makers/list.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -488,8 +488,8 @@ func AdminMakerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	data.MakeOrders = response.Orders
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/makers/detail.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/makers/detail.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -521,8 +521,8 @@ func AdminAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/admin/base.html",
-		"./cmd/web/templates/admin/alerts.html",
+		getTemplatePath("./cmd/web/templates/admin/base.html"),
+		getTemplatePath("./cmd/web/templates/admin/alerts.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {

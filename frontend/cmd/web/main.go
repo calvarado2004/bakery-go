@@ -4,16 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"html/template"
-	"io"
-	"net/http"
-	"os"
-	"time"
 )
 
 type BreadLog struct {
@@ -52,6 +55,27 @@ type OrderData struct {
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 
+// getTemplatePath returns the correct template path whether running from project root
+// or from the package directory (frontend/cmd/web)
+func getTemplatePath(relativePath string) string {
+	// First try the relative path as-is (for tests running from package dir)
+	if _, err := os.Stat(relativePath); err == nil {
+		return relativePath
+	}
+	// Try from package directory context (./templates/... when in frontend/cmd/web)
+	// Convert ./cmd/web/templates/... to ./templates/...
+	trimmedPath := relativePath
+	if strings.HasPrefix(trimmedPath, "./cmd/web/") {
+		trimmedPath = "./" + strings.TrimPrefix(trimmedPath, "./cmd/web/")
+	}
+	if _, err := os.Stat(trimmedPath); err == nil {
+		return trimmedPath
+	}
+	// Try from project root (./cmd/web/templates/...)
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(".")))
+	return filepath.Join(projectRoot, relativePath)
+}
+
 func main() {
 
 	log.SetFormatter(&log.TextFormatter{
@@ -66,12 +90,12 @@ func main() {
 	router.HandleFunc("/stream", streamHandler)
 	router.HandleFunc("/order-stream", orderStreamHandler)
 	router.HandleFunc("/orders", orderDetailsHandler)
-	router.HandleFunc("/service", staticPageHandler("./cmd/web/templates/service.html"))
-	router.HandleFunc("/product", staticPageHandler("./cmd/web/templates/product.html"))
-	router.HandleFunc("/team", staticPageHandler("./cmd/web/templates/team.html"))
-	router.HandleFunc("/testimonial", staticPageHandler("./cmd/web/templates/testimonial.html"))
-	router.HandleFunc("/contact", staticPageHandler("./cmd/web/templates/contact.html"))
-	router.HandleFunc("/404", staticPageHandler("./cmd/web/templates/404.html"))
+	router.HandleFunc("/service", staticPageHandler(getTemplatePath("./cmd/web/templates/service.html")))
+	router.HandleFunc("/product", staticPageHandler(getTemplatePath("./cmd/web/templates/product.html")))
+	router.HandleFunc("/team", staticPageHandler(getTemplatePath("./cmd/web/templates/team.html")))
+	router.HandleFunc("/testimonial", staticPageHandler(getTemplatePath("./cmd/web/templates/testimonial.html")))
+	router.HandleFunc("/contact", staticPageHandler(getTemplatePath("./cmd/web/templates/contact.html")))
+	router.HandleFunc("/404", staticPageHandler(getTemplatePath("./cmd/web/templates/404.html")))
 
 	// Admin auth routes (public - no auth required)
 	router.HandleFunc("/admin/login", AdminLoginPageHandler).Methods("GET")
@@ -153,7 +177,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	tmpl := template.Must(template.ParseFiles("./cmd/web/templates/index.html"))
+	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/index.html")))
 	err = tmpl.Execute(w, breadLogs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -181,7 +205,7 @@ func orderDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	orderDetails := make([]OrderData, 0)
 
 	// Parse the template
-	tmpl, err := template.ParseFiles("./cmd/web/templates/order-details.html")
+	tmpl, err := template.ParseFiles(getTemplatePath("./cmd/web/templates/order-details.html"))
 	if err != nil {
 		http.Error(w, "Error parsing template: "+err.Error(), http.StatusInternalServerError)
 		return

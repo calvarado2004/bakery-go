@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/golang-jwt/jwt/v5"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/metadata"
 )
 
 var jwtSecret = []byte(getJWTSecret())
@@ -18,7 +20,7 @@ var jwtSecret = []byte(getJWTSecret())
 func getJWTSecret() string {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "bakery-go-secret-key-change-in-production"
+		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
 	return secret
 }
@@ -37,6 +39,30 @@ type AuthTemplateData struct {
 	Message string
 }
 
+// adminGRPCContext returns a context with the authenticated admin's token
+// attached as gRPC outgoing metadata. Use this context for any gRPC call that
+// requires admin authentication on the server (e.g. CreateAdminUser).
+//
+// Example:
+//
+//	ctx, err := adminGRPCContext(r)
+//	if err != nil {
+//	    http.Error(w, "Unauthorized", http.StatusUnauthorized)
+//	    return
+//	}
+//	authClient.CreateAdminUser(ctx, &pb.CreateAdminUserRequest{...})
+func adminGRPCContext(r *http.Request) (context.Context, error) {
+	cookie, err := r.Cookie("admin_token")
+	if err != nil {
+		return nil, fmt.Errorf("admin_token cookie not present: %w", err)
+	}
+	if cookie.Value == "" {
+		return nil, fmt.Errorf("admin_token cookie is empty")
+	}
+	md := metadata.Pairs("authorization", "Bearer "+cookie.Value)
+	return metadata.NewOutgoingContext(context.Background(), md), nil
+}
+
 // Admin Login Handler
 func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if already logged in
@@ -53,7 +79,7 @@ func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		Error: r.URL.Query().Get("error"),
 	}
 
-	tmpl := template.Must(template.ParseFiles("./cmd/web/templates/admin/login.html"))
+	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/admin/login.html")))
 	err = tmpl.Execute(w, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -136,7 +162,7 @@ func CustomerLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		Error: r.URL.Query().Get("error"),
 	}
 
-	tmpl := template.Must(template.ParseFiles("./cmd/web/templates/portal/login.html"))
+	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/portal/login.html")))
 	err = tmpl.Execute(w, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -386,8 +412,8 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/portal/base.html",
-		"./cmd/web/templates/portal/dashboard.html",
+		getTemplatePath("./cmd/web/templates/portal/base.html"),
+		getTemplatePath("./cmd/web/templates/portal/dashboard.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -431,8 +457,8 @@ func CustomerOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/portal/base.html",
-		"./cmd/web/templates/portal/orders.html",
+		getTemplatePath("./cmd/web/templates/portal/base.html"),
+		getTemplatePath("./cmd/web/templates/portal/orders.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -496,8 +522,8 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/portal/base.html",
-		"./cmd/web/templates/portal/order_detail.html",
+		getTemplatePath("./cmd/web/templates/portal/base.html"),
+		getTemplatePath("./cmd/web/templates/portal/order_detail.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -545,8 +571,8 @@ func CustomerInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/portal/base.html",
-		"./cmd/web/templates/portal/invoices.html",
+		getTemplatePath("./cmd/web/templates/portal/base.html"),
+		getTemplatePath("./cmd/web/templates/portal/invoices.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -609,8 +635,8 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.ParseFiles(
-		"./cmd/web/templates/portal/base.html",
-		"./cmd/web/templates/portal/invoice_detail.html",
+		getTemplatePath("./cmd/web/templates/portal/base.html"),
+		getTemplatePath("./cmd/web/templates/portal/invoice_detail.html"),
 	))
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
