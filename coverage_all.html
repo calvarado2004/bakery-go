@@ -65,25 +65,29 @@
 				
 				<option value="file4">github.com/calvarado2004/bakery-go/data/test_models.go (92.3%)</option>
 				
-				<option value="file5">github.com/calvarado2004/bakery-go/proto/bread.pb.go (0.0%)</option>
+				<option value="file5">github.com/calvarado2004/bakery-go/makers/helpers.go (100.0%)</option>
 				
-				<option value="file6">github.com/calvarado2004/bakery-go/proto/bread_grpc.pb.go (0.0%)</option>
+				<option value="file6">github.com/calvarado2004/bakery-go/makers/main.go (43.1%)</option>
 				
-				<option value="file7">github.com/calvarado2004/bakery-go/server/gRPCAdmin.go (97.4%)</option>
+				<option value="file7">github.com/calvarado2004/bakery-go/proto/bread.pb.go (0.0%)</option>
 				
-				<option value="file8">github.com/calvarado2004/bakery-go/server/gRPCAuth.go (62.5%)</option>
+				<option value="file8">github.com/calvarado2004/bakery-go/proto/bread_grpc.pb.go (0.0%)</option>
 				
-				<option value="file9">github.com/calvarado2004/bakery-go/server/gRPCBakery.go (18.1%)</option>
+				<option value="file9">github.com/calvarado2004/bakery-go/server/gRPCAdmin.go (97.4%)</option>
 				
-				<option value="file10">github.com/calvarado2004/bakery-go/server/gRPCInvoice.go (89.0%)</option>
+				<option value="file10">github.com/calvarado2004/bakery-go/server/gRPCAuth.go (62.5%)</option>
 				
-				<option value="file11">github.com/calvarado2004/bakery-go/server/main.go (1.5%)</option>
+				<option value="file11">github.com/calvarado2004/bakery-go/server/gRPCBakery.go (18.1%)</option>
 				
-				<option value="file12">github.com/calvarado2004/bakery-go/server/rabbitBakery.go (15.6%)</option>
+				<option value="file12">github.com/calvarado2004/bakery-go/server/gRPCInvoice.go (89.0%)</option>
 				
-				<option value="file13">github.com/calvarado2004/bakery-go/testutils/db_helper.go (0.0%)</option>
+				<option value="file13">github.com/calvarado2004/bakery-go/server/main.go (1.5%)</option>
 				
-				<option value="file14">github.com/calvarado2004/bakery-go/testutils/fixtures.go (0.0%)</option>
+				<option value="file14">github.com/calvarado2004/bakery-go/server/rabbitBakery.go (15.6%)</option>
+				
+				<option value="file15">github.com/calvarado2004/bakery-go/testutils/db_helper.go (0.0%)</option>
+				
+				<option value="file16">github.com/calvarado2004/bakery-go/testutils/fixtures.go (0.0%)</option>
 				
 				</select>
 			</div>
@@ -188,146 +192,146 @@ var rabbitMQAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
 var counts int64
 
-func openDB(dsn string) (*sql.DB, error) {
-        db, err := sql</span><span class="cov0" title="0">.Open("pgx", dsn)
-        if err != nil {
+func openDB(dsn string) (*sql.DB, error) <span class="cov10" title="25">{
+        db, err := sql.Open("pgx", dsn)
+        if err != nil </span><span class="cov0" title="0">{
                 log.Errorf("Failed to open database: %v", err)
-                </span>return nil, err
-        }
+                return nil, err
+        }</span>
 
-</span>        if err = db.Ping(); err != nil {
+        <span class="cov10" title="25">if err = db.Ping(); err != nil </span><span class="cov10" title="25">{
                 log.Errorf("Failed to ping database: %v", err)
-                </span>return nil, err
-        }
+                return nil, err
+        }</span>
 
-</span>        return db, nil
+        <span class="cov0" title="0">return db, nil</span>
 
 }
 
-func connectToDB() *sql.DB {
+func connectToDB() *sql.DB <span class="cov1" title="1">{
         dsn := os.Getenv("DSN")
 
-</span>        for {
-                connection, er</span><span class="cov7" title="11">r := openDB(dsn)
-                if err != nil {
+        for </span><span class="cov7" title="11">{
+                connection, err := openDB(dsn)
+                if err != nil </span><span class="cov7" title="11">{
                         log.Warningf("Error opening database: %s", err)
-                        </span>count<span class="cov0" title="0">s++
-                } else {
+                        counts++
+                }</span> else<span class="cov0" title="0"> {
                         log.Println("Connected to database")
-                        </span>return connection
-                }
+                        return connection
+                }</span>
 
-</span>                if counts &gt; 10 {
+                <span class="cov7" title="11">if counts &gt; 10 </span><span class="cov1" title="1">{
                         log.Errorf("Could not connect to database after 10 attempts: %v", err)
-                        </span>return nil
-                }
+                        return nil
+                }</span>
 
-                log.Println("Retrying in 5 seconds")
-                time.Sle</span>ep(5 * time.Second)
-                continue
+                <span class="cov7" title="10">log.Println("Retrying in 5 seconds")
+                time.Sleep(5 * time.Second)
+                continue</span>
 
         }
 }
 
-func (app *Config) setupRepo(conn *sql.DB) {
+func (app *Config) setupRepo(conn *sql.DB) <span class="cov1" title="1">{
         db := data.NewPostgresRepository(conn)
         app.Repo = db
 
-</span>}
+}</span>
 
-// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provid<span class="cov7" title="9">ed config
-func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
+// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
+func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery <span class="cov7" title="9">{
         return &amp;RabbitMQBakery{
                 Config:      config,
                 orders:      make(map[int]*OrderStatus),
                 rabbitmqURL: rabbitmqURL,
-        </span>}
-}
+        }
+}</span>
 
-func main() {
-        </span>startBroker(rabbitMQAddress)
-}
+func main() <span class="cov0" title="0">{
+        startBroker(rabbitMQAddress)
+}</span>
 
 // startBroker initializes the broker service with the given RabbitMQ URL.
 // It sets up the database connection, configures the repository, and starts
-// the background goroutines for proc<span class="cov0" title="0">essing orders and publishing outbox messages.
-func startBroker(rabbitmqURL string) {
+// the background goroutines for processing orders and publishing outbox messages.
+func startBroker(rabbitmqURL string) <span class="cov0" title="0">{
         log.SetFormatter(&amp;log.TextFormatter{
                 FullTimestamp:   true,
                 TimestampFormat: "2006-01-02 15:04:05",
         })
 
-        pgConn := connect</span><span class="cov0" title="0">ToDB()
-        if pgConn == nil {
-                </span>log.Panic("Could not connect to database")
-        }
+        pgConn := connectToDB()
+        if pgConn == nil </span><span class="cov0" title="0">{
+                log.Panic("Could not connect to database")
+        }</span>
 
-        <span class="cov0" title="0">// Create a new RabbitMQBakery instance
-        rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitmqURL)
+        // Create a new RabbitMQBakery instance
+        <span class="cov0" title="0">rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitmqURL)
 
-        // Setup Postgres Repository for RabbitMQ Bakery
+        // Set up Postgres Repository for RabbitMQ Bakery
         rabbitMQBakery.setupRepo(pgConn)
 
-        // Start the order processing goroutine
+        // Start the order-processing goroutine
         go startOrderProcessor(rabbitMQBakery)
 
         // Start the outbox publisher goroutine
         go startOutboxPublisher(rabbitMQBakery)
 
-</span>        select {}
+        select </span>{}
 }
 
 // startOrderProcessor runs the order processing loop in the background.
-// It continuously attempts to process buy bread orders f<span class="cov1" title="1">rom RabbitMQ.
-func </span><span class="cov1" title="1">startOrderProcessor(rabbitMQBakery *RabbitMQBakery) {
-        for {
-                err := rabbitM</span><span class="cov0" title="0">QBakery.performBuyBread()
-                if err != nil {
+// It continuously attempts to process buy bread orders from RabbitMQ.
+func startOrderProcessor(rabbitMQBakery *RabbitMQBakery) <span class="cov1" title="1">{
+        for </span><span class="cov1" title="1">{
+                err := rabbitMQBakery.performBuyBread()
+                if err != nil </span><span class="cov0" title="0">{
                         log.Errorf("Failed to perform buy bread (main), sleeping 20 seconds...: %v", err)
-                        time.Sle</span>ep(20 * time.Second)
-                        continue
-                <span class="cov0" title="0">}
-                log.Printf("Ouch! Something </span>went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
-                time.Sleep(20 * time.Second)
+                        time.Sleep(20 * time.Second)
+                        continue</span>
+                }
+                <span class="cov0" title="0">log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
+                time.Sleep(20 * time.Second)</span>
         }
 }
 
 // startOutboxPublisher runs the outbox message publishing loop in the background.
-// It checks for unprocessed outbox messages every 45 seco<span class="cov2" title="2">nds and publishes them to RabbitMQ.
-func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) {
-        connection, er</span><span class="cov1" title="1">r := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
-        if err != nil {
+// It checks for unprocessed outbox messages every 45 seconds and publishes them to RabbitMQ.
+func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) <span class="cov2" title="2">{
+        connection, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+        if err != nil </span><span class="cov1" title="1">{
                 log.Errorf("Failed to connect to RabbitMQ: %v", err)
-                </span>return
-        <span class="cov1" title="1">}
-</span>        defer func(conn *rabbitmq.Connection) {
-                err := conn.Cl</span><span class="cov0" title="0">ose()
-                if err != nil {
-                        </span>log.Errorf("Failed to close connection: %v", err)
-                }
+                return
+        }</span>
+        <span class="cov1" title="1">defer func(conn *rabbitmq.Connection) </span><span class="cov0" title="0">{
+                err := conn.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to close connection: %v", err)
+                }</span>
         }(connection)
 
-        channel, err :</span><span class="cov0" title="0">= connection.Channel()
-        if err != nil {
+        <span class="cov1" title="1">channel, err := connection.Channel()
+        if err != nil </span><span class="cov0" title="0">{
                 log.Errorf("Failed to open a channel: %v", err)
-                </span>return
-        <span class="cov1" title="1">}
-</span>        defer func(ch *rabbitmq.Channel) {
-                err := ch.Clos</span><span class="cov0" title="0">e()
-                if err != nil {
-                        </span>log.Errorf("Failed to close channel: %v", err)
-                }
+                return
+        }</span>
+        <span class="cov1" title="1">defer func(ch *rabbitmq.Channel) </span><span class="cov0" title="0">{
+                err := ch.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to close channel: %v", err)
+                }</span>
         }(channel)
 
-        ticker := time.NewT</span><span class="cov0" title="0">icker(time.Second * 45)
-        for range ticker.C {
-                messages, err </span><span class="cov0" title="0">:= rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
-                if err != nil {
-                        log.Erro</span>rf("Failed to get unprocessed outbox messages: %v", err)
-                        continue
+        <span class="cov1" title="1">ticker := time.NewTicker(time.Second * 45)
+        for range ticker.C </span><span class="cov0" title="0">{
+                messages, err := rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to get unprocessed outbox messages: %v", err)
+                        continue</span>
                 }
 
-</span>                for _, message := range messages {
+                <span class="cov0" title="0">for _, message := range messages </span><span class="cov0" title="0">{
                         err = channel.Publish(
                                 "",             // exchange
                                 "bread-bought", // routing key
@@ -339,54 +343,54 @@ func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) {
                                         DeliveryMode: rabbitmq.Persistent,
                                 })
 
-</span>                        if err != nil {
-                                </span>log.P<span class="cov0" title="0">rintf("Failed to publish buy order: %v", err)
-                        } else {
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Failed to publish buy order: %v", err)
+                        }</span> else<span class="cov0" title="0"> {
                                 // If the message was successfully published, mark it as processed in the database
-                                err := rabbitM</span><span class="cov0" title="0">QBakery.Repo.DeleteOutboxMessage(message.ID)
-                                if err != nil {
-                                        </span>log.Errorf("Failed to mark outbox message as processed: %v", err)
-                                }
+                                err := rabbitMQBakery.Repo.DeleteOutboxMessage(message.ID)
+                                if err != nil </span><span class="cov0" title="0">{
+                                        log.Errorf("Failed to mark outbox message as processed: %v", err)
+                                }</span>
                         }
                 }
         }
 }
 
-// performBuyBread listens for buy bread orders and up<span class="cov1" title="1">dates the database
-func (rabbit *RabbitMQBakery) performBuyBread() error {
+// performBuyBread listens for buy bread orders and updates the database
+func (rabbit *RabbitMQBakery) performBuyBread() error <span class="cov1" title="1">{
 
-        connection, er</span><span class="cov0" title="0">r := rabbitmq.Dial(rabbit.rabbitmqURL)
-        if err != nil {
+        connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+        if err != nil </span><span class="cov0" title="0">{
                 log.Errorf("Failed to connect to RabbitMQ: %v", err)
-                </span>return err
-        <span class="cov1" title="1">}
-</span>        defer func(conn *rabbitmq.Connection) {
-                err := conn.Cl</span><span class="cov0" title="0">ose()
-                if err != nil {
-                        </span>log.Errorf("Failed to close connection: %v", err)
-                }
+                return err
+        }</span>
+        <span class="cov1" title="1">defer func(conn *rabbitmq.Connection) </span><span class="cov0" title="0">{
+                err := conn.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to close connection: %v", err)
+                }</span>
         }(connection)
 
-        channel, err :</span><span class="cov0" title="0">= connection.Channel()
-        if err != nil {
+        <span class="cov1" title="1">channel, err := connection.Channel()
+        if err != nil </span><span class="cov0" title="0">{
                 log.Errorf("Failed to open a channel: %v", err)
-                </span>return err
-        <span class="cov1" title="1">}
-</span>        defer func(ch *rabbitmq.Channel) {
-                err := ch.Clos</span><span class="cov0" title="0">e()
-                if err != nil {
-                        </span>log.Errorf("Failed to close channel: %v", err)
-                }
+                return err
+        }</span>
+        <span class="cov1" title="1">defer func(ch *rabbitmq.Channel) </span><span class="cov0" title="0">{
+                err := ch.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to close channel: %v", err)
+                }</span>
         }(channel)
 
-        // Limit prefetch to 1 so RabbitMQ delivers only one message at a time.
+        // Limit prefetch to 1, so RabbitMQ delivers only one message at a time.
         // Without this, all queued messages are pre-fetched and held unacked in memory,
-        <span class="cov1" title="1">// causing a massive backlog whenever RabbitMQ </span><span class="cov0" title="0">restarts.
-        if err := channel.Qos(1, 0, false); err != nil {
-                </span>log.Fatalf("Failed to set QoS: %v", err)
-        }
+        // causing a massive backlog whenever RabbitMQ restarts.
+        <span class="cov1" title="1">if err := channel.Qos(1, 0, false); err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to set QoS: %v", err)
+        }</span>
 
-        buyOrderMessage, err := channel.Consume(
+        <span class="cov1" title="1">buyOrderMessage, err := channel.Consume(
                 "buy-bread-order", // queue
                 "",                // consumer
                 false,             // auto-ack
@@ -395,40 +399,40 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
                 false,             // no-wait
                 nil,               // args
         )
-</span>        if err != nil {
-                </span>log.Fatalf("Failed to register a consumer: %v", err)
-        }
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to register a consumer: %v", err)
+        }</span>
 
-        log.Printf("Listening for buy bread orders into RabbitMQ queue...")
+        <span class="cov1" title="1">log.Printf("Listening for buy bread orders into RabbitMQ queue...")
 
         processedOrders := make(map[string]bool)
 
-</span>        for buyOrder := range buyOrderMessage {
+        for buyOrder := range buyOrderMessage </span><span class="cov1" title="1">{
                 buyOrderType := data.BuyOrder{}
-                err := json.Un</span><span class="cov0" title="0">marshal(buyOrder.Body, &amp;buyOrderType)
-                if err != nil {
+                err := json.Unmarshal(buyOrder.Body, &amp;buyOrderType)
+                if err != nil </span><span class="cov0" title="0">{
                         log.Printf("Failed to unmarshal buy order: %v", err)
-                        </span>return err
-                }
+                        return err
+                }</span>
 
-                log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
+                <span class="cov1" title="1">log.Printf("Received a buy order, a message has been consumed: %v", buyOrderType)
 
                 // Check if the buy order has already been processed
-</span>                if _, processed := processedOrders[buyOrderType.BuyOrderUUID]; processed {
-                        log.Prin</span>tf("Buy order with ID %v has already been processed, skipping", buyOrderType.BuyOrderUUID)
-                        continue
+                if _, processed := processedOrders[buyOrderType.BuyOrderUUID]; processed </span><span class="cov0" title="0">{
+                        log.Printf("Buy order with ID %v has already been processed, skipping", buyOrderType.BuyOrderUUID)
+                        continue</span>
                 }
 
-                <span class="cov1" title="1">// Insert the buy order first with status as "Pending"
-                buyOrderType.Status = "Pending"
-                buyOrderID, er</span><span class="cov0" title="0">r := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
-                if err != nil {
+                // Insert the buy order first with status as "Pending"
+                <span class="cov1" title="1">buyOrderType.Status = "Pending"
+                buyOrderID, err := rabbit.Repo.InsertBuyOrder(buyOrderType, buyOrderType.Breads)
+                if err != nil </span><span class="cov0" title="0">{
                         log.Errorf("Failed to insert buy order to db: %v", err)
-                        </span>return err
-                }
+                        return err
+                }</span>
 
-                <span class="cov1" title="1">// Create an OutboxMessage with the serialized buy order
-                outboxMessage := data.OutboxMessage{
+                // Create an OutboxMessage with the serialized buy order
+                <span class="cov1" title="1">outboxMessage := data.OutboxMessage{
                         Payload:   buyOrder.Body,
                         Sent:      false,
                         ID:        buyOrderID,
@@ -436,112 +440,112 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
                 }
 
                 // Insert the outbox message to the database
-                err = rabbit.R</span><span class="cov0" title="0">epo.InsertOutboxMessage(outboxMessage)
-                if err != nil {
+                err = rabbit.Repo.InsertOutboxMessage(outboxMessage)
+                if err != nil </span><span class="cov0" title="0">{
                         log.Errorf("Failed to insert outbox message to db: %v", err)
-                        </span>return err
-                }
+                        return err
+                }</span>
 
-                availableBread</span><span class="cov0" title="0">, err := rabbit.Repo.GetAvailableBread()
-                if err != nil {
-                        </span>return err
-                }
+                <span class="cov1" title="1">availableBread, err := rabbit.Repo.GetAvailableBread()
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
 
-                allBreadAvailable := true // Initialize the flag
+                <span class="cov1" title="1">allBreadAvailable := true // Initialize the flag
                 quantityChange := 0
 
-</span>                for _, breadAvailable := range availableBre</span><span class="cov0" title="0">ad {
-                        for _, bread := range buyOrderType.Bre</span><span class="cov0" title="0">ads {
-                                if breadAvailable.Name == bread.Name {
-</span>                                        if breadAvailable.Quantity &lt; bread.Quantity {
+                for _, breadAvailable := range availableBread </span><span class="cov0" title="0">{
+                        for _, bread := range buyOrderType.Breads </span><span class="cov0" title="0">{
+                                if breadAvailable.Name == bread.Name </span><span class="cov0" title="0">{
+                                        if breadAvailable.Quantity &lt; bread.Quantity </span><span class="cov0" title="0">{
                                                 allBreadAvailable = false // If not enough bread, set the flag to false
-                                                </span>log.P<span class="cov0" title="0">rintf("Bread %s does not have enough quantity, required: %d, available: %d", bread.Name, bread.Quantity, breadAvailable.Quantity)
-                                        } else {
+                                                log.Printf("Bread %s does not have enough quantity, required: %d, available: %d", bread.Name, bread.Quantity, breadAvailable.Quantity)
+                                        }</span> else<span class="cov0" title="0"> {
                                                 quantityChange = breadAvailable.Quantity - bread.Quantity
 
-</span>                                        }
+                                        }</span>
                                 }
                         }
                 }
 
-</span>                if allBreadAvailable {
+                <span class="cov1" title="1">if allBreadAvailable </span><span class="cov1" title="1">{
 
                         log.Println("All bread available, processing order")
 
-</span>                        for _, bread := range buyOrderType.Breads {
+                        for _, bread := range buyOrderType.Breads </span><span class="cov1" title="1">{
 
                                 // Update current bread quantity, if failed, mark the order as "Failed" and ack the message.
-                                _, err = rabbi</span><span class="cov0" title="0">t.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
-                                if err != nil {
+                                _, err = rabbit.Repo.AdjustBreadQuantity(bread.ID, -bread.Quantity)
+                                if err != nil </span><span class="cov0" title="0">{
                                         log.Printf("Failed to adjust bread quantity: %v", err)
 
                                         // Update the status to "Failed"
-                                        err := rabbit.</span><span class="cov0" title="0">Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
-                                        if err != nil {
+                                        err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
+                                        if err != nil </span><span class="cov0" title="0">{
                                                 log.Printf("Failed to update order status: %v", err)
-                                                </span>return err
-                                        }
+                                                return err
+                                        }</span>
 
-                                        <span class="cov0" title="0">// Acknowledge the message regardless of bread availability
-                                        err = buyOrder</span><span class="cov0" title="0">.Ack(false)
-                                        if err != nil {
+                                        // Acknowledge the message regardless of bread availability
+                                        <span class="cov0" title="0">err = buyOrder.Ack(false)
+                                        if err != nil </span><span class="cov0" title="0">{
                                                 log.Printf("Failed to ack buy order on queue: %v", err)
-                                                </span>return err
-                                        }
+                                                return err
+                                        }</span>
 
-                                        <span class="cov0" title="0">// Delete the outbox message, since the order has failed but message has been acked as per business logic
-                                        err = rabbit.R</span><span class="cov0" title="0">epo.DeleteOutboxMessage(buyOrderID)
-                                        if err != nil {
+                                        // Delete the outbox message, since the order has failed but message has been acked as per business logic
+                                        <span class="cov0" title="0">err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+                                        if err != nil </span><span class="cov0" title="0">{
                                                 log.Printf("Failed to delete outbox messaged: %v", err)
-                                                </span>return err
-                                        }
+                                                return err
+                                        }</span>
 
-                                        time.Sleep(34 * time.Second)
+                                        <span class="cov0" title="0">time.Sleep(34 * time.Second)
 
-</span>                                        return err
+                                        return err</span>
                                 }
 
-                                <span class="cov1" title="1">// Order processed successfully for current bread, move to the next bread
-                                log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
-</span>                                log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)
+                                // Order processed successfully for current bread, move to the next bread
+                                <span class="cov1" title="1">log.Printf("Selling bread %s, quantity %d", bread.Name, bread.Quantity)
+                                log.Printf("Bread %s, quantity changed to %d", bread.Name, quantityChange)</span>
 
                         }
 
-                        buyOrderType.CustomerID = 1
+                        <span class="cov1" title="1">buyOrderType.CustomerID = 1
                         buyOrderType.Customer = data.Customer{
                                 Name:  "John Doe",
                                 Email: "john@doe.com",
                                 ID:    1,
                         }
 
-</span>                        if buyOrderType.ID &lt;= 0 {
+                        if buyOrderType.ID &lt;= 0 </span><span class="cov1" title="1">{
 
                                 buyOrderType.ID = buyOrderID
                                 log.Warningf("Buy order ID is 0 or less, setting the ID to the one generated by the database %d", buyOrderType.ID)
 
-</span>                        }
+                        }</span>
 
-                        <span class="cov1" title="1">// Update the status to "Processed"
-                        err := rabbit.</span><span class="cov0" title="0">Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Processed")
-                        if err != nil {
+                        // Update the status to "Processed"
+                        <span class="cov1" title="1">err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Processed")
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to update order status: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-                        err = buyOrder</span><span class="cov0" title="0">.Ack(false)
-                        if err != nil {
+                        <span class="cov1" title="1">err = buyOrder.Ack(false)
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to ack buy order on queue: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-                        log.Printf("Buy order with ID %v marked as processed", buyOrderType.ID)
+                        <span class="cov1" title="1">log.Printf("Buy order with ID %v marked as processed", buyOrderType.ID)
 
-                        buyOrderData, </span><span class="cov0" title="0">err := json.Marshal(&amp;buyOrderType)
-                        if err != nil {
-                                </span>return err
-                        }
+                        buyOrderData, err := json.Marshal(&amp;buyOrderType)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
 
-                        err = channel.Publish(
+                        <span class="cov1" title="1">err = channel.Publish(
                                 "",             // exchange
                                 "bread-bought", // routing key
                                 false,          // mandatory
@@ -551,52 +555,52 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
                                         Body:         buyOrderData,
                                         DeliveryMode: rabbitmq.Persistent,
                                 })
-</span>                        if err != nil {
-                                </span>log.Printf("Failed to publish buy order: %v", err)
-                        }
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Failed to publish buy order: %v", err)
+                        }</span>
 
-                        <span class="cov1" title="1">// Delete the outbox message, since the order has been processed
-                        err = rabbit.R</span><span class="cov0" title="0">epo.DeleteOutboxMessage(buyOrderID)
-                        if err != nil {
+                        // Delete the outbox message, since the order has been processed
+                        <span class="cov1" title="1">err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to delete outbox message: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-                        <span class="cov1" title="1">// Mark the order as processed, so it won't be processed again
-                        processedOrders[buyOrderType.BuyOrderUUID] = true
+                        // Mark the order as processed, so it won't be processed again
+                        <span class="cov1" title="1">processedOrders[buyOrderType.BuyOrderUUID] = true
 
-</span>                        time.Sleep(34 * time.Second)
+                        time.Sleep(34 * time.Second)</span>
 
-                } else {
+                } else<span class="cov0" title="0"> {
                         log.Printf("Not all bread is available, marking order as failed")
                         // Update the status to "Failed"
-                        err := rabbit.</span><span class="cov0" title="0">Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
-                        if err != nil {
+                        err := rabbit.Repo.UpdateOrderStatus(buyOrderType.BuyOrderUUID, "Failed")
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to update order status: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-                        <span class="cov0" title="0">// Acknowledge the message regardless of bread availability
-                        err = buyOrder</span><span class="cov0" title="0">.Ack(false)
-                        if err != nil {
+                        // Acknowledge the message regardless of bread availability
+                        <span class="cov0" title="0">err = buyOrder.Ack(false)
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to ack buy order on queue: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-                        <span class="cov0" title="0">// Delete the outbox message, since the order has failed but message has been acked as per business logic
-                        err = rabbit.R</span><span class="cov0" title="0">epo.DeleteOutboxMessage(buyOrderID)
-                        if err != nil {
+                        // Delete the outbox message, since the order has failed but message has been acked as per business logic
+                        <span class="cov0" title="0">err = rabbit.Repo.DeleteOutboxMessage(buyOrderID)
+                        if err != nil </span><span class="cov0" title="0">{
                                 log.Printf("Failed to delete outbox messaged: %v", err)
-                                </span>return err
-                        }
+                                return err
+                        }</span>
 
-</span>                        time.Sleep(34 * time.Second)
+                        <span class="cov0" title="0">time.Sleep(34 * time.Second)</span>
 
                 }
 
         }
 
-</span>        return nil
+        <span class="cov0" title="0">return nil</span>
 }
 </pre>
 		
@@ -2638,7 +2642,221 @@ func (u *PostgresTestRepository) GetOutboxMessages() ([]OutboxMessage, error) <s
 }</span>
 </pre>
 		
-		<pre class="file" id="file5" style="display: none">// Code generated by protoc-gen-go. DO NOT EDIT.
+		<pre class="file" id="file5" style="display: none">package main
+
+import (
+        "encoding/json"
+
+        "github.com/calvarado2004/bakery-go/data"
+)
+
+// processMakeBreadMessage unmarshals a RabbitMQ message body into a Bread and
+// adjusts its quantity in the repository.  It is extracted from
+// listenForMakeBread to allow unit testing without a live RabbitMQ connection.
+func processMakeBreadMessage(repo data.Repository, body []byte) error <span class="cov10" title="33">{
+        bread := &amp;data.Bread{}
+        if err := json.Unmarshal(body, bread); err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+        <span class="cov9" title="32">_, err := repo.AdjustBreadQuantity(bread.ID, bread.Quantity)
+        return err</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package main
+
+import (
+        "database/sql"
+        "encoding/json"
+
+        "github.com/calvarado2004/bakery-go/data"
+        rabbitmq "github.com/rabbitmq/amqp091-go"
+
+        "net/http"
+        "os"
+        "time"
+
+        log "github.com/sirupsen/logrus"
+        "google.golang.org/grpc/codes"
+        "google.golang.org/grpc/status"
+
+        _ "github.com/jackc/pgconn"
+        _ "github.com/jackc/pgx/v4"
+        _ "github.com/jackc/pgx/v4/stdlib"
+)
+
+var rabbitmqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
+
+var counts int64
+
+type Config struct {
+        Repo   data.Repository
+        Client *http.Client
+}
+
+var rabbitmqConnection *rabbitmq.Connection
+var rabbitmqChannel *rabbitmq.Channel
+
+func openDB(dsn string) (*sql.DB, error) <span class="cov10" title="25">{
+        db, err := sql.Open("pgx", dsn)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Errorf("Failed to open database: %v", err)
+                return nil, err
+        }</span>
+
+        <span class="cov10" title="25">if err = db.Ping(); err != nil </span><span class="cov10" title="25">{
+                return nil, err
+        }</span>
+
+        //close connection
+        <span class="cov0" title="0">defer func(db *sql.DB) </span><span class="cov0" title="0">{
+                err := db.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Errorf("Failed to close database connection: %v", err)
+                }</span>
+        }(db)
+
+        <span class="cov0" title="0">return db, nil</span>
+
+}
+
+func connectToDB() *sql.DB <span class="cov1" title="1">{
+        dsn := os.Getenv("DSN")
+
+        for </span><span class="cov7" title="11">{
+                connection, err := openDB(dsn)
+                if err != nil </span><span class="cov7" title="11">{
+                        log.Errorf("Error opening database: %s", err)
+                        counts++
+                }</span> else<span class="cov0" title="0"> {
+                        log.Println("Connected to database")
+                        return connection
+                }</span>
+
+                <span class="cov7" title="11">if counts &gt; 10 </span><span class="cov1" title="1">{
+                        log.Errorf("Error opening database, max attempts reached: %s", err)
+                        return nil
+                }</span>
+
+                <span class="cov7" title="10">log.Println("Retrying in 5 seconds")
+                time.Sleep(5 * time.Second)
+                continue</span>
+
+        }
+}
+
+func (app *Config) setupRepo(conn *sql.DB) <span class="cov1" title="1">{
+        db := data.NewPostgresRepository(conn)
+        app.Repo = db
+
+}</span>
+
+func main() <span class="cov0" title="0">{
+        startMakersService()
+}</span>
+
+// startMakersService initializes the maker service.
+// It connects to the database and starts listening for make bread orders.
+func startMakersService() <span class="cov0" title="0">{
+        log.SetFormatter(&amp;log.TextFormatter{
+                FullTimestamp:   true,
+                TimestampFormat: "2006-01-02 15:04:05",
+        })
+
+        pgConn := connectToDB()
+        if pgConn == nil </span><span class="cov0" title="0">{
+                log.Panic("Could not connect to database")
+        }</span>
+
+        <span class="cov0" title="0">err := listenForMakeBread(pgConn)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to listen for make bread order messages: %v", err)
+                return
+        }</span>
+
+        // Close connection
+        <span class="cov0" title="0">err = pgConn.Close()
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to close database connection: %v", err)
+        }</span>
+}
+
+func init() <span class="cov1" title="1">{
+        initializeRabbitMQ(rabbitmqAddress)
+}</span>
+
+// initializeRabbitMQ establishes a connection to RabbitMQ and opens a channel.
+// It sets the global rabbitmqConnection and rabbitmqChannel variables.
+func initializeRabbitMQ(rabbitmqAddr string) <span class="cov6" title="6">{
+        if rabbitmqAddr == "" </span><span class="cov4" title="4">{
+                log.Warn("RABBITMQ_SERVICE_ADDR not set, skipping RabbitMQ initialization")
+                return
+        }</span>
+        <span class="cov2" title="2">var err error
+        rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+        }</span>
+
+        <span class="cov2" title="2">rabbitmqChannel, err = rabbitmqConnection.Channel()
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Failed to open a channel: %v", err)
+        }</span>
+}
+
+// listenForMakeBread consumes messages from the make-bread-order queue and updates bread quantities.
+func listenForMakeBread(pgConn *sql.DB) error <span class="cov1" title="1">{
+
+        log.Println("Listening for make bread order messages...")
+
+        breadsBought, err := rabbitmqChannel.Consume(
+                "make-bread-order", // queue
+                "",                 // consumer
+                false,              // auto-ack
+                false,              // exclusive
+                false,              // no-local
+                false,              // no-wait
+                nil,                // args
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return status.Errorf(codes.Internal, "Failed to consume from make bread order queue: %v", err)
+        }</span>
+
+        <span class="cov1" title="1">for d := range breadsBought </span><span class="cov0" title="0">{
+
+                log.Printf("Received a message: %s", d.Body)
+
+                bread := &amp;data.Bread{}
+                err := json.Unmarshal(d.Body, bread)
+                if err != nil </span><span class="cov0" title="0">{
+                        err := d.Nack(false, true)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        <span class="cov0" title="0">return status.Errorf(codes.Internal, "Failed to unmarshal bread data: %v", err)</span>
+                }
+
+                <span class="cov0" title="0">_, err = data.NewPostgresRepository(pgConn).AdjustBreadQuantity(bread.ID, bread.Quantity)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                <span class="cov0" title="0">log.Printf("Bread made successfully: %s", d.Body)
+
+                err = d.Ack(false)
+                if err != nil </span><span class="cov0" title="0">{
+                        return status.Errorf(codes.Internal, "Failed to acknowledge message: %v", err)
+                }</span>
+
+                <span class="cov0" title="0">time.Sleep(1 * time.Second)</span>
+
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">// Code generated by protoc-gen-go. DO NOT EDIT.
 // versions:
 //         protoc-gen-go v1.36.11
 //         protoc        v3.19.6
@@ -5908,7 +6126,7 @@ func file_proto_bread_proto_init() <span class="cov0" title="0">{
 }
 </pre>
 		
-		<pre class="file" id="file6" style="display: none">// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
+		<pre class="file" id="file8" style="display: none">// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v3.19.6
@@ -8053,7 +8271,7 @@ var CustomerPortalService_ServiceDesc = grpc.ServiceDesc{
 }
 </pre>
 		
-		<pre class="file" id="file7" style="display: none">package main
+		<pre class="file" id="file9" style="display: none">package main
 
 import (
         "context"
@@ -8543,7 +8761,7 @@ func (s *AdminServiceServer) GetAllMakeOrders(ctx context.Context, in *pb.Empty)
 }
 </pre>
 		
-		<pre class="file" id="file8" style="display: none">package main
+		<pre class="file" id="file10" style="display: none">package main
 
 import (
         "context"
@@ -8791,7 +9009,7 @@ func (s *AuthServiceServer) CreateAdminUser(ctx context.Context, in *pb.CreateAd
 }
 </pre>
 		
-		<pre class="file" id="file9" style="display: none">package main
+		<pre class="file" id="file11" style="display: none">package main
 
 import (
         "context"
@@ -9550,7 +9768,7 @@ func (s *RemoveOldBreadServer) RemoveBreadStream(in *pb.BreadRequest, stream pb.
 }
 </pre>
 		
-		<pre class="file" id="file10" style="display: none">package main
+		<pre class="file" id="file12" style="display: none">package main
 
 import (
         "context"
@@ -9796,7 +10014,7 @@ func (s *CustomerPortalServiceServer) GetOrderDetails(ctx context.Context, in *p
 }
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">package main
+		<pre class="file" id="file13" style="display: none">package main
 
 import (
         "database/sql"
@@ -10036,7 +10254,7 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 }
 </pre>
 		
-		<pre class="file" id="file12" style="display: none">package main
+		<pre class="file" id="file14" style="display: none">package main
 
 import (
         "context"
@@ -10458,7 +10676,7 @@ func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseC
 }
 </pre>
 		
-		<pre class="file" id="file13" style="display: none">package testutils
+		<pre class="file" id="file15" style="display: none">package testutils
 
 import (
         "context"
@@ -10565,7 +10783,7 @@ func (h *DBHelper) GetTableCount(tableName string) (int, error) <span class="cov
 }
 </pre>
 		
-		<pre class="file" id="file14" style="display: none">package testutils
+		<pre class="file" id="file16" style="display: none">package testutils
 
 import (
         "context"
