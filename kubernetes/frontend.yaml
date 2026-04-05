@@ -20,6 +20,16 @@ spec:
           env:
             - name: BAKERY_SERVICE_ADDR
               value: "bakery-server-service:50051"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bakery-secrets
+                  key: JWT_SECRET
+            - name: CSRF_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bakery-secrets
+                  key: CSRF_KEY
 ---
 apiVersion: v1
 kind: Service
