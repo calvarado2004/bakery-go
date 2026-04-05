@@ -83,7 +83,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 	// For integration tests, we use hardcoded defaults
 	// In production, these would come from environment variables
 	if key == "DSN" {
-		return "host=localhost user=postgres password=postgres dbname=bakery sslmode=disable"
+		return "host=localhost user=postgres password=password dbname=bakery sslmode=disable"
 	}
 	if key == "RABBITMQ_SERVICE_ADDR" {
 		return "amqp://guest:guest@localhost:5672/"
@@ -227,13 +227,29 @@ func TestIntegrationPerformBuyBread_FullFlow(t *testing.T) {
 
 	_ = NewRabbitMQBakery(env.config, getEnvOrDefault("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/"))
 
-	// Create a test buy order
+	// Get an existing customer ID from the database
+	var customerID int
+	err := env.db.QueryRow("SELECT id FROM customer LIMIT 1").Scan(&customerID)
+	if err != nil {
+		t.Skipf("Skipping test: no customers in database: %v", err)
+	}
+
+	// Get an existing bread ID from the database
+	var breadID int
+	var breadName string
+	err = env.db.QueryRow("SELECT id, name FROM bread LIMIT 1").Scan(&breadID, &breadName)
+	if err != nil {
+		t.Skipf("Skipping test: no bread in database: %v", err)
+	}
+
+	// Create a test buy order using actual bread from database
 	buyOrderUUID := fmt.Sprintf("test-integration-%d", time.Now().UnixNano())
 	testBread := []data.Bread{
-		{Name: "Pretzel", Quantity: 1},
+		{ID: breadID, Name: breadName, Quantity: 1},
 	}
 
 	buyOrder := data.BuyOrder{
+		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
 		Status:       "Pending",
@@ -262,20 +278,36 @@ func TestIntegrationPerformBuyBread_OutboxMessage(t *testing.T) {
 
 	_ = NewRabbitMQBakery(env.config, getEnvOrDefault("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/"))
 
-	// Create a test buy order
+	// Get an existing customer ID from the database
+	var customerID int
+	err := env.db.QueryRow("SELECT id FROM customer LIMIT 1").Scan(&customerID)
+	if err != nil {
+		t.Skipf("Skipping test: no customers in database: %v", err)
+	}
+
+	// Get an existing bread ID from the database
+	var breadID int
+	var breadName string
+	err = env.db.QueryRow("SELECT id, name FROM bread LIMIT 1").Scan(&breadID, &breadName)
+	if err != nil {
+		t.Skipf("Skipping test: no bread in database: %v", err)
+	}
+
+	// Create a test buy order using actual bread from database
 	buyOrderUUID := fmt.Sprintf("test-outbox-%d", time.Now().UnixNano())
 	testBread := []data.Bread{
-		{Name: "Baguette", Quantity: 1},
+		{ID: breadID, Name: breadName, Quantity: 1},
 	}
 
 	buyOrder := data.BuyOrder{
+		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
 		Status:       "Pending",
 	}
 
 	// Insert order
-	_, err := env.repo.InsertBuyOrder(buyOrder, testBread)
+	_, err = env.repo.InsertBuyOrder(buyOrder, testBread)
 	if err != nil {
 		t.Skipf("Skipping: %v", err)
 	}
@@ -316,13 +348,29 @@ func TestIntegrationPerformBuyBread_OrderStatusUpdate(t *testing.T) {
 
 	_ = NewRabbitMQBakery(env.config, getEnvOrDefault("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/"))
 
-	// Create test order
+	// Get an existing customer ID from the database
+	var customerID int
+	err := env.db.QueryRow("SELECT id FROM customer LIMIT 1").Scan(&customerID)
+	if err != nil {
+		t.Skipf("Skipping test: no customers in database: %v", err)
+	}
+
+	// Get an existing bread ID from the database
+	var breadID int
+	var breadName string
+	err = env.db.QueryRow("SELECT id, name FROM bread LIMIT 1").Scan(&breadID, &breadName)
+	if err != nil {
+		t.Skipf("Skipping test: no bread in database: %v", err)
+	}
+
+	// Create test order using actual bread from database
 	buyOrderUUID := fmt.Sprintf("test-status-%d", time.Now().UnixNano())
 	testBread := []data.Bread{
-		{Name: "Cinnamon Roll", Quantity: 1},
+		{ID: breadID, Name: breadName, Quantity: 1},
 	}
 
 	buyOrder := data.BuyOrder{
+		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
 		Status:       "Pending",
@@ -331,7 +379,7 @@ func TestIntegrationPerformBuyBread_OrderStatusUpdate(t *testing.T) {
 	_, _ = env.repo.InsertBuyOrder(buyOrder, testBread)
 
 	// Update status
-	err := env.repo.UpdateOrderStatus(buyOrderUUID, "Processed")
+	err = env.repo.UpdateOrderStatus(buyOrderUUID, "Processed")
 	if err != nil {
 		t.Errorf("Failed to update order status: %v", err)
 	}
@@ -421,6 +469,34 @@ func TestIntegrationBroker_ConcurrentOrderProcessing(t *testing.T) {
 	_ = NewRabbitMQBakery(env.config, getEnvOrDefault("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/"))
 
 	const numOrders = 5
+
+	// Get an existing customer ID from the database
+	var customerID int
+	err := env.db.QueryRow("SELECT id FROM customer LIMIT 1").Scan(&customerID)
+	if err != nil {
+		t.Skipf("Skipping test: no customers in database: %v", err)
+	}
+
+	// Get multiple bread IDs from the database (use different breads for each concurrent order)
+	var breads []data.Bread
+	rows, err := env.db.Query("SELECT id, name FROM bread LIMIT $1", numOrders)
+	if err != nil {
+		t.Skipf("Skipping test: cannot query bread: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var b data.Bread
+		if err := rows.Scan(&b.ID, &b.Name); err != nil {
+			t.Skipf("Skipping test: cannot scan bread: %v", err)
+		}
+		breads = append(breads, b)
+	}
+
+	if len(breads) == 0 {
+		t.Skip("Skipping test: no bread available")
+	}
+
 	var wg sync.WaitGroup
 	results := make([]error, numOrders)
 
@@ -430,11 +506,14 @@ func TestIntegrationBroker_ConcurrentOrderProcessing(t *testing.T) {
 			defer wg.Done()
 
 			buyOrderUUID := fmt.Sprintf("test-concurrent-%d-%d", idx, time.Now().UnixNano())
+			// Use a different bread for each order to avoid quantity conflicts
+			breadIdx := idx % len(breads)
 			testBread := []data.Bread{
-				{Name: "Croissant", Quantity: 1},
+				{ID: breads[breadIdx].ID, Name: breads[breadIdx].Name, Quantity: 1},
 			}
 
 			buyOrder := data.BuyOrder{
+				CustomerID:   customerID,
 				BuyOrderUUID: buyOrderUUID,
 				Breads:       testBread,
 				Status:       "Pending",
@@ -513,9 +592,10 @@ func TestIntegrationRabbitMQ_ConnectionAndChannel(t *testing.T) {
 	defer ch.Close()
 
 	// Verify we can declare and check the queue
+	// Note: durable=true to match the server's queue declaration
 	queue, err := ch.QueueDeclare(
 		"buy-bread-order",
-		false,
+		true, // durable (matches server)
 		false,
 		false,
 		false,
@@ -540,10 +620,10 @@ func TestIntegrationRabbitMQ_PublishAndConsume(t *testing.T) {
 	})
 
 	err := env.rabbitChannel.Publish(
-		"",                  // exchange
-		"buy-bread-order",   // routing key
-		false,               // mandatory
-		false,               // immediate
+		"",                // exchange
+		"buy-bread-order", // routing key
+		false,             // mandatory
+		false,             // immediate
 		rabbitmq.Publishing{
 			ContentType:  "text/json",
 			Body:         testPayload,

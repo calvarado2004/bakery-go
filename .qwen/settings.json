@@ -6,7 +6,11 @@
       "Bash(docker exec *)",
       "Bash(go *)",
       "Bash(rmdir *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(chmod *)",
+      "Bash(/users/carlos/bakery-go/scripts/run-integration-tests.sh)"
     ]
   },
   "$version": 3

@@ -3,15 +3,17 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+
 	"github.com/calvarado2004/bakery-go/data"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
+
+	"net/http"
+	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net/http"
-	"os"
-	"time"
 
 	_ "github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4"
@@ -40,6 +42,14 @@ func openDB(dsn string) (*sql.DB, error) {
 	if err = db.Ping(); err != nil {
 		return nil, err
 	}
+
+	//close connection
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			log.Errorf("Failed to close database connection: %v", err)
+		}
+	}(db)
 
 	return db, nil
 
@@ -77,7 +87,12 @@ func (app *Config) setupRepo(conn *sql.DB) {
 }
 
 func main() {
+	startMakersService()
+}
 
+// startMakersService initializes the maker service.
+// It connects to the database and starts listening for make bread orders.
+func startMakersService() {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
@@ -94,15 +109,26 @@ func main() {
 		return
 	}
 
+	// Close connection
+	err = pgConn.Close()
+	if err != nil {
+		log.Fatalf("Failed to close database connection: %v", err)
+	}
 }
 
 func init() {
-	if rabbitmqAddress == "" {
+	initializeRabbitMQ(rabbitmqAddress)
+}
+
+// initializeRabbitMQ establishes a connection to RabbitMQ and opens a channel.
+// It sets the global rabbitmqConnection and rabbitmqChannel variables.
+func initializeRabbitMQ(rabbitmqAddr string) {
+	if rabbitmqAddr == "" {
 		log.Warn("RABBITMQ_SERVICE_ADDR not set, skipping RabbitMQ initialization")
 		return
 	}
 	var err error
-	rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddress)
+	rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddr)
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
@@ -113,6 +139,7 @@ func init() {
 	}
 }
 
+// listenForMakeBread consumes messages from the make-bread-order queue and updates bread quantities.
 func listenForMakeBread(pgConn *sql.DB) error {
 
 	log.Println("Listening for make bread order messages...")
@@ -149,7 +176,7 @@ func listenForMakeBread(pgConn *sql.DB) error {
 			return err
 		}
 
-		log.Printf("Bread made succesfully: %s", d.Body)
+		log.Printf("Bread made successfully: %s", d.Body)
 
 		err = d.Ack(false)
 		if err != nil {

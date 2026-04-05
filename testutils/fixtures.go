@@ -131,6 +131,7 @@ func stopServices(composeFile string) error {
 }
 
 // getDBDSN returns the database connection string
+// Integration tests run from host machine and connect to docker-compose via localhost
 func getDBDSN(projectDir string) string {
 	return fmt.Sprintf("postgres://postgres:password@localhost:5432/bakery?sslmode=disable")
 }
@@ -155,11 +156,13 @@ func GetDBDSNFromT(t *testing.T) string {
 }
 
 // GetGRPCAddress returns the gRPC server address
+// Integration tests connect to the server via localhost since docker exposes ports
 func GetGRPCAddress() string {
 	return "localhost:50051"
 }
 
 // GetRabbitMQAddress returns the RabbitMQ address
+// Integration tests connect to RabbitMQ via localhost since docker exposes ports
 func GetRabbitMQAddress() string {
 	return "amqp://guest:guest@localhost:5672/"
 }

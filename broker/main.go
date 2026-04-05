@@ -3,13 +3,14 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/calvarado2004/bakery-go/data"
-	pb "github.com/calvarado2004/bakery-go/proto"
-	rabbitmq "github.com/rabbitmq/amqp091-go"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/calvarado2004/bakery-go/data"
+	pb "github.com/calvarado2004/bakery-go/proto"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 
 	_ "github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4"
@@ -96,7 +97,13 @@ func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
 }
 
 func main() {
+	startBroker(rabbitMQAddress)
+}
 
+// startBroker initializes the broker service with the given RabbitMQ URL.
+// It sets up the database connection, configures the repository, and starts
+// the background goroutines for processing orders and publishing outbox messages.
+func startBroker(rabbitmqURL string) {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
@@ -108,90 +115,93 @@ func main() {
 	}
 
 	// Create a new RabbitMQBakery instance
-	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitMQAddress)
+	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitmqURL)
 
-	// Setup Postgres Repository for RabbitMQ Bakery
+	// Set up Postgres Repository for RabbitMQ Bakery
 	rabbitMQBakery.setupRepo(pgConn)
 
-	// Consume from RabbitMQ message queue buy-bread-order and perform buy bread
-	go func() {
+	// Start the order-processing goroutine
+	go startOrderProcessor(rabbitMQBakery)
 
-		for {
-			err := rabbitMQBakery.performBuyBread()
-			if err != nil {
-				log.Errorf("Failed to perform buy bread (main), sleeping 20 seconds...: %v", err)
-				time.Sleep(20 * time.Second)
-				continue
-			}
-			log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
+	// Start the outbox publisher goroutine
+	go startOutboxPublisher(rabbitMQBakery)
+
+	select {}
+}
+
+// startOrderProcessor runs the order processing loop in the background.
+// It continuously attempts to process buy bread orders from RabbitMQ.
+func startOrderProcessor(rabbitMQBakery *RabbitMQBakery) {
+	for {
+		err := rabbitMQBakery.performBuyBread()
+		if err != nil {
+			log.Errorf("Failed to perform buy bread (main), sleeping 20 seconds...: %v", err)
 			time.Sleep(20 * time.Second)
-
+			continue
 		}
+		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
+		time.Sleep(20 * time.Second)
+	}
+}
 
-	}()
-
-	// Publish outbox messages to RabbitMQ, check every 45 seconds for unprocessed messages
-	go func() {
-
-		connection, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+// startOutboxPublisher runs the outbox message publishing loop in the background.
+// It checks for unprocessed outbox messages every 45 seconds and publishes them to RabbitMQ.
+func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) {
+	connection, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ: %v", err)
+		return
+	}
+	defer func(conn *rabbitmq.Connection) {
+		err := conn.Close()
 		if err != nil {
-			log.Errorf("Failed to connect to RabbitMQ: %v", err)
-			return
+			log.Errorf("Failed to close connection: %v", err)
 		}
-		defer func(conn *rabbitmq.Connection) {
-			err := conn.Close()
-			if err != nil {
-				log.Errorf("Failed to close connection: %v", err)
-			}
-		}(connection)
+	}(connection)
 
-		channel, err := connection.Channel()
+	channel, err := connection.Channel()
+	if err != nil {
+		log.Errorf("Failed to open a channel: %v", err)
+		return
+	}
+	defer func(ch *rabbitmq.Channel) {
+		err := ch.Close()
 		if err != nil {
-			log.Errorf("Failed to open a channel: %v", err)
-			return
+			log.Errorf("Failed to close channel: %v", err)
 		}
-		defer func(ch *rabbitmq.Channel) {
-			err := ch.Close()
+	}(channel)
+
+	ticker := time.NewTicker(time.Second * 45)
+	for range ticker.C {
+		messages, err := rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
+		if err != nil {
+			log.Errorf("Failed to get unprocessed outbox messages: %v", err)
+			continue
+		}
+
+		for _, message := range messages {
+			err = channel.Publish(
+				"",             // exchange
+				"bread-bought", // routing key
+				false,          // mandatory
+				false,          // immediate
+				rabbitmq.Publishing{
+					ContentType:  "text/json",
+					Body:         message.Payload,
+					DeliveryMode: rabbitmq.Persistent,
+				})
+
 			if err != nil {
-				log.Errorf("Failed to close channel: %v", err)
-			}
-		}(channel)
-
-		ticker := time.NewTicker(time.Second * 45)
-		for range ticker.C {
-			messages, err := rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
-			if err != nil {
-				log.Errorf("Failed to get unprocessed outbox messages: %v", err)
-				continue
-			}
-
-			for _, message := range messages {
-				err = channel.Publish(
-					"",             // exchange
-					"bread-bought", // routing key
-					false,          // mandatory
-					false,          // immediate
-					rabbitmq.Publishing{
-						ContentType:  "text/json",
-						Body:         message.Payload,
-						DeliveryMode: rabbitmq.Persistent,
-					})
-
+				log.Printf("Failed to publish buy order: %v", err)
+			} else {
+				// If the message was successfully published, mark it as processed in the database
+				err := rabbitMQBakery.Repo.DeleteOutboxMessage(message.ID)
 				if err != nil {
-					log.Printf("Failed to publish buy order: %v", err)
-				} else {
-					// If the message was successfully published, mark it as processed in the database
-					err := rabbitMQBakery.Repo.DeleteOutboxMessage(message.ID)
-					if err != nil {
-						log.Errorf("Failed to mark outbox message as processed: %v", err)
-					}
+					log.Errorf("Failed to mark outbox message as processed: %v", err)
 				}
 			}
 		}
-	}()
-
-	select {}
-
+	}
 }
 
 // performBuyBread listens for buy bread orders and updates the database
@@ -221,7 +231,7 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 		}
 	}(channel)
 
-	// Limit prefetch to 1 so RabbitMQ delivers only one message at a time.
+	// Limit prefetch to 1, so RabbitMQ delivers only one message at a time.
 	// Without this, all queued messages are pre-fetched and held unacked in memory,
 	// causing a massive backlog whenever RabbitMQ restarts.
 	if err := channel.Qos(1, 0, false); err != nil {
