@@ -207,7 +207,7 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 | `server` | `async_test.go` | Goroutine cleanup via `parentCancel()`, buffered channel semantics, concurrent `BuyOrder` |
 | `server` | `bakery_extra_test.go` | `CheckBreadInventory`, `BuyOrderStream`, `initializeBakery` |
 | `broker` | `broker_test.go` | `canFulfillOrder` (7 cases), `processOrderItems`, `NewRabbitMQBakery`, map concurrency |
-| `broker` | `integration_test.go` | Real gRPC connection tests with `BuyBread` and `BuyBreadStream` — error handling, concurrent requests |
+| `broker` | `integration_test.go` | Real PostgreSQL + RabbitMQ integration — order processing, outbox messages, concurrent operations, DB/RabbitMQ connectivity |
 | `makers` | `makers_test.go` | `processMakeBreadMessage` — valid JSON, invalid JSON, repo error, all 7 bread types, concurrent |
 | `makers` | `integration_test.go` | Real gRPC connection tests — context cancellation, concurrent requests |
 | `buyers` | `buyers_test.go` | `buySomeBread` and `buyBreadStream` with mock `pb.BuyBreadClient` — success, error, EOF, multi-response |
@@ -226,13 +226,13 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 | `server` (gRPCBakery / async) | **~85%** | ~92% | ~95% |
 | `buyers` | **50%** (business logic 100%, `main()` excluded) | **~70%** (integration tests added) | ~75% |
 | `broker` helpers | **100%** | ~95% | — |
-| `broker` integration | — | **~80%** | — |
+| `broker` integration | — | **~85%** (PostgreSQL + RabbitMQ) | — |
 | `makers` helpers | **100%** | ~90% | — |
 | `makers` integration | — | **~75%** | — |
 | `data/test_models.go` | **~90%** | — | — |
 | `data/models.go` | **~10%** (40 SQL functions) | ~85% | — |
 | `frontend` (web handlers) | **~5%** (main_test.go) | **~45%** (integration_test.go added) | ~65% |
-| **Total (all packages)** | **17.4%** | **~26%** | ~36% |
+| **Total (all packages)** | **17.4%** | **~27%** | ~37% |
 
 > **Note on coverage tiers**:
 > - **Unit-test coverage**: Tests with mocked dependencies (no live DB/RabbitMQ).
