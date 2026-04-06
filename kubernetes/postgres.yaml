@@ -304,7 +304,7 @@ spec:
               subPath: create_tables.sql
               readOnly: true
           terminationMessagePolicy: File
-          image: 'postgres:16'
+          image: 'postgres:18'
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
