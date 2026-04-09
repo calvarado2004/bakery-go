@@ -1,7 +1,7 @@
 # server Dockerfile
 
 # Start from golang 1.25 base image
-FROM docker.io/golang:1.25 as builder
+FROM docker.io/golang:1.26 as builder
 
 # Add Maintainer Info
 LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"

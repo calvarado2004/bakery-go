@@ -1,7 +1,7 @@
 # buyers Dockerfile
 
 # Start from the latest golang base image
-FROM docker.io/golang:latest as builder
+FROM docker.io/golang:1.26 as builder
 
 # Add Maintainer Info
 LABEL maintainer="Carlos Alvarado carlos-alvarado@outlook.com>"

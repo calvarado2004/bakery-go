@@ -15,3 +15,5 @@ frontend/frontend
 # Test coverage output
 coverage.out
 coverage.html
+
+AGENTS.md
