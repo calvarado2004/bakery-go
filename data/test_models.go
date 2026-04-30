@@ -231,3 +231,8 @@ func (u *PostgresTestRepository) GetOutboxMessages() ([]OutboxMessage, error) {
 
 	return messages, nil
 }
+
+// FulfillOrderTx always returns nil in the test repository (success assumed).
+func (u *PostgresTestRepository) FulfillOrderTx(order BuyOrder) error {
+	return nil
+}

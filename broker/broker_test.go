@@ -1,12 +1,15 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 )
 
 // --- stub repository ---
@@ -52,6 +55,7 @@ func (r *brokerStubRepo) GetInvoiceByID(int) (data.Invoice, error)              
 func (r *brokerStubRepo) GetInvoicesByCustomerID(int) ([]data.Invoice, error)         { return nil, nil }
 func (r *brokerStubRepo) GetAllInvoices() ([]data.Invoice, error)                     { return nil, nil }
 func (r *brokerStubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)               { return data.Invoice{}, nil }
+func (r *brokerStubRepo) FulfillOrderTx(data.BuyOrder) error                          { return nil }
 
 // --- adjustTrackingRepo tracks AdjustBreadQuantity calls ---
 
@@ -470,3 +474,205 @@ func TestRabbitMQBakery_OrdersMapConcurrency(t *testing.T) {
 		t.Fatal("concurrent orders-map access timed out — possible deadlock")
 	}
 }
+
+// --- fulfillOrderTx tracking repo ---
+
+type fulfillTrackingRepo struct {
+	brokerStubRepo
+	mu          sync.Mutex
+	fulfillErr  error // error to return from FulfillOrderTx
+	fulfilled   []data.BuyOrder
+	statuses    []string
+	outboxAdded []int
+	outboxDeled []int
+	// dupUUID: if set, GetBuyOrderByUUID returns a record (simulates duplicate)
+	dupUUID string
+}
+
+func (r *fulfillTrackingRepo) FulfillOrderTx(order data.BuyOrder) error {
+	r.mu.Lock()
+	r.fulfilled = append(r.fulfilled, order)
+	r.mu.Unlock()
+	return r.fulfillErr
+}
+
+func (r *fulfillTrackingRepo) UpdateOrderStatus(_, status string) error {
+	r.mu.Lock()
+	r.statuses = append(r.statuses, status)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *fulfillTrackingRepo) InsertOutboxMessage(m data.OutboxMessage) error {
+	r.mu.Lock()
+	r.outboxAdded = append(r.outboxAdded, m.ID)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *fulfillTrackingRepo) DeleteOutboxMessage(id int) error {
+	r.mu.Lock()
+	r.outboxDeled = append(r.outboxDeled, id)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *fulfillTrackingRepo) InsertBuyOrder(order data.BuyOrder, _ []data.Bread) (int, error) {
+	return 42, nil // fixed DB-generated ID
+}
+
+func (r *fulfillTrackingRepo) GetBuyOrderByUUID(uuid string) (data.BuyOrder, error) {
+	if r.dupUUID != "" && uuid == r.dupUUID {
+		return data.BuyOrder{BuyOrderUUID: uuid}, nil
+	}
+	return data.BuyOrder{}, sql.ErrNoRows
+}
+
+// mockPublisher is a no-op publisher stub for processOneOrder tests.
+type mockPublisher struct{}
+
+func (p *mockPublisher) Publish(_, _ string, _, _ bool, _ rabbitmq.Publishing) error { return nil }
+
+// --- processOneOrder tests ---
+
+func TestProcessOneOrder_SuccessCallsFulfillAndSetsProcessed(t *testing.T) {
+	repo := &fulfillTrackingRepo{}
+	broker := &RabbitMQBakery{Config: Config{Repo: repo}, orders: make(map[int]*OrderStatus)}
+
+	order := data.BuyOrder{
+		BuyOrderUUID: "uuid-success-1",
+		Breads:       []data.Bread{{ID: 1, Quantity: 2}},
+	}
+	body, _ := json.Marshal(order)
+
+	acked := false
+	delivery := rabbitmq.Delivery{
+		Body: body,
+		Acknowledger: &testAcknowledger{ackFn: func(bool) error {
+			acked = true
+			return nil
+		}},
+	}
+
+	broker.processOneOrder(&mockPublisher{}, delivery)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	if len(repo.fulfilled) != 1 {
+		t.Errorf("expected FulfillOrderTx to be called once, got %d", len(repo.fulfilled))
+	}
+	if !acked {
+		t.Error("expected delivery to be acked on success")
+	}
+	if len(repo.statuses) == 0 || repo.statuses[len(repo.statuses)-1] != "Processed" {
+		t.Errorf("expected last status to be Processed, got %v", repo.statuses)
+	}
+}
+
+func TestProcessOneOrder_InsufficientStockMarksFailed(t *testing.T) {
+	repo := &fulfillTrackingRepo{fulfillErr: data.ErrInsufficientStock}
+	broker := &RabbitMQBakery{Config: Config{Repo: repo}, orders: make(map[int]*OrderStatus)}
+
+	order := data.BuyOrder{BuyOrderUUID: "uuid-fail-1", Breads: []data.Bread{{ID: 1, Quantity: 99}}}
+	body, _ := json.Marshal(order)
+
+	acked := false
+	delivery := rabbitmq.Delivery{
+		Body: body,
+		Acknowledger: &testAcknowledger{ackFn: func(bool) error {
+			acked = true
+			return nil
+		}},
+	}
+
+	broker.processOneOrder(&mockPublisher{}, delivery)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	if len(repo.fulfilled) != 1 {
+		t.Errorf("expected FulfillOrderTx called once, got %d", len(repo.fulfilled))
+	}
+	if !acked {
+		t.Error("expected delivery to be acked even on failure")
+	}
+	if len(repo.statuses) == 0 || repo.statuses[len(repo.statuses)-1] != "Failed" {
+		t.Errorf("expected last status to be Failed, got %v", repo.statuses)
+	}
+}
+
+func TestProcessOneOrder_DuplicateUUIDSkipsProcessing(t *testing.T) {
+	const uuid = "uuid-dup-1"
+	repo := &fulfillTrackingRepo{dupUUID: uuid}
+	broker := &RabbitMQBakery{Config: Config{Repo: repo}, orders: make(map[int]*OrderStatus)}
+
+	order := data.BuyOrder{BuyOrderUUID: uuid}
+	body, _ := json.Marshal(order)
+
+	acked := false
+	delivery := rabbitmq.Delivery{
+		Body: body,
+		Acknowledger: &testAcknowledger{ackFn: func(bool) error {
+			acked = true
+			return nil
+		}},
+	}
+
+	broker.processOneOrder(&mockPublisher{}, delivery)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	if len(repo.fulfilled) != 0 {
+		t.Errorf("expected FulfillOrderTx NOT called for duplicate, got %d calls", len(repo.fulfilled))
+	}
+	if !acked {
+		t.Error("expected duplicate delivery to be acked (not requeued)")
+	}
+}
+
+func TestProcessOneOrder_InvalidJSONAcksDelivery(t *testing.T) {
+	repo := &fulfillTrackingRepo{}
+	broker := &RabbitMQBakery{Config: Config{Repo: repo}, orders: make(map[int]*OrderStatus)}
+
+	acked := false
+	delivery := rabbitmq.Delivery{
+		Body: []byte("not json {{{"),
+		Acknowledger: &testAcknowledger{ackFn: func(bool) error {
+			acked = true
+			return nil
+		}},
+	}
+
+	broker.processOneOrder(&mockPublisher{}, delivery)
+
+	if !acked {
+		t.Error("expected malformed delivery to be acked to avoid infinite requeue")
+	}
+	if len(repo.fulfilled) != 0 {
+		t.Error("expected FulfillOrderTx not called for malformed message")
+	}
+}
+
+// testAcknowledger is a minimal rabbitmq.Acknowledger for use in unit tests.
+type testAcknowledger struct {
+	ackFn  func(multiple bool) error
+	nackFn func(multiple, requeue bool) error
+}
+
+func (a *testAcknowledger) Ack(tag uint64, multiple bool) error {
+	if a.ackFn != nil {
+		return a.ackFn(multiple)
+	}
+	return nil
+}
+
+func (a *testAcknowledger) Nack(tag uint64, multiple bool, requeue bool) error {
+	if a.nackFn != nil {
+		return a.nackFn(multiple, requeue)
+	}
+	return nil
+}
+
+func (a *testAcknowledger) Reject(tag uint64, requeue bool) error { return nil }

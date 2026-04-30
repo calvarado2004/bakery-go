@@ -47,6 +47,13 @@ type InvoiceItem struct {
 }
 
 type Repository interface {
+	// FulfillOrderTx atomically checks stock and deducts bread quantities for the
+	// given buy order inside a single database transaction with SELECT FOR UPDATE.
+	// Returns ErrInsufficientStock if any bread item cannot be satisfied.
+	// This is the safe alternative to calling GetAvailableBread + AdjustBreadQuantity
+	// separately, which is susceptible to a TOCTOU race condition.
+	FulfillOrderTx(order BuyOrder) error
+
 	InsertCustomer(customer Customer) (int, error)
 	InsertBread(bread Bread) (int, error)
 	InsertBreadMaker(baker BreadMaker) (int, error)

@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"sort"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"time"
@@ -385,6 +388,66 @@ func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) err
 	}
 
 	return nil
+}
+
+// FulfillOrderTx atomically checks inventory and deducts bread quantities for
+// every item in the order inside a single database transaction.
+//
+// It acquires a row-level lock (SELECT FOR UPDATE) on each bread row in
+// primary-key order before inspecting quantities, which prevents two concurrent
+// brokers from observing sufficient stock and both deducting — the classic
+// TOCTOU race condition that caused overselling.
+//
+// Returns ErrInsufficientStock if any bread item has less stock than requested.
+// The transaction is automatically rolled back in all error cases.
+func (u *PostgresRepository) FulfillOrderTx(order BuyOrder) error {
+	// Give the transaction more time than a single query: it must acquire locks
+	// and write to multiple rows.
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*3)
+	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck — Rollback is a no-op after Commit
+
+	// Sort breads by ID so all callers lock in the same order.
+	// Without this, broker A locking (1,2) and broker B locking (2,1) would deadlock.
+	sorted := make([]Bread, len(order.Breads))
+	copy(sorted, order.Breads)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+
+	// Phase 1: lock each row and verify stock.
+	for _, ordered := range sorted {
+		var currentQty int
+		err := tx.QueryRowContext(ctx,
+			`SELECT quantity FROM bread WHERE id = $1 FOR UPDATE`,
+			ordered.ID,
+		).Scan(&currentQty)
+		if err != nil {
+			return fmt.Errorf("lock bread id=%d: %w", ordered.ID, err)
+		}
+		if currentQty < ordered.Quantity {
+			log.Warningf("FulfillOrderTx: bread id=%d has %d in stock, order wants %d",
+				ordered.ID, currentQty, ordered.Quantity)
+			return ErrInsufficientStock
+		}
+	}
+
+	// Phase 2: all stock verified — apply deductions within the same transaction.
+	for _, ordered := range sorted {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE bread SET quantity = quantity - $1, updated_at = NOW() WHERE id = $2`,
+			ordered.Quantity, ordered.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("deduct bread id=%d: %w", ordered.ID, err)
+		}
+		log.Infof("FulfillOrderTx: deducted %d units from bread id=%d", ordered.Quantity, ordered.ID)
+	}
+
+	return tx.Commit()
 }
 
 func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer) (bool, error) {
