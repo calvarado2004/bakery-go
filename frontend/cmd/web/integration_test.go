@@ -240,12 +240,6 @@ func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
 
 // TestFrontend_Middleware_Integration tests authentication middleware
 func TestFrontend_Middleware_Integration(t *testing.T) {
-	os.Setenv("JWT_SECRET", "test-secret-for-integration")
-	defer os.Unsetenv("JWT_SECRET")
-
-	// Need to reload jwtSecret after setting env var
-	// The jwtSecret variable is initialized at package load time
-	// For testing, we'll create a valid token with the test secret
 	adminToken := createTestAdminToken()
 	customerToken := createTestCustomerToken()
 
@@ -301,7 +295,10 @@ func TestFrontend_Middleware_Integration(t *testing.T) {
 // TestFrontend_InventoryHandler_Integration tests inventory-related handlers
 func TestFrontend_InventoryHandler_Integration(t *testing.T) {
 	t.Run("StreamHandler", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/stream", nil)
+		// Cancel after 2 s so the SSE stream doesn't block forever.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		req := httptest.NewRequest(http.MethodGet, "/stream", nil).WithContext(ctx)
 		rr := httptest.NewRecorder()
 
 		streamHandler(rr, req)
@@ -310,7 +307,9 @@ func TestFrontend_InventoryHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("OrderStreamHandler", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/order-stream", nil)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		req := httptest.NewRequest(http.MethodGet, "/order-stream", nil).WithContext(ctx)
 		rr := httptest.NewRecorder()
 
 		orderStreamHandler(rr, req)
@@ -452,30 +451,35 @@ func TestFrontend_TemplateRendering_Integration(t *testing.T) {
 	})
 }
 
-// createTestAdminToken creates a valid admin JWT token for testing
+// createTestAdminToken creates a valid admin JWT token signed with the same
+// secret as the server (jwtSecret package var) so middleware validation passes.
 func createTestAdminToken() string {
-	secret := "test-secret-for-integration"
 	claims := &Claims{
 		UserID:   1,
 		Username: "admin",
 		UserType: "admin",
 		Role:     "admin",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, _ := token.SignedString([]byte(secret))
+	tokenString, _ := token.SignedString(jwtSecret)
 	return tokenString
 }
 
-// createTestCustomerToken creates a valid customer JWT token for testing
+// createTestCustomerToken creates a valid customer JWT token for testing.
 func createTestCustomerToken() string {
-	secret := "test-secret-for-integration"
 	claims := &Claims{
 		UserID:   1,
 		Username: "john@doe.com",
 		UserType: "customer",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, _ := token.SignedString([]byte(secret))
+	tokenString, _ := token.SignedString(jwtSecret)
 	return tokenString
 }
 

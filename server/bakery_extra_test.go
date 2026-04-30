@@ -20,7 +20,6 @@ func newCheckInventoryServer(repo data.Repository) *CheckInventoryServer {
 	return &CheckInventoryServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }
@@ -29,7 +28,6 @@ func newBuyBreadServer(repo data.Repository) *BuyBreadServer {
 	return &BuyBreadServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }
@@ -38,7 +36,6 @@ func newBuyOrderStreamServer(repo data.Repository) *BuyOrderServiceServer {
 	return &BuyOrderServiceServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }
@@ -279,7 +276,6 @@ func TestInitializeBakery_InsertsAllBreads(t *testing.T) {
 	repo := &trackingInsertRepo{}
 	rabbit := &RabbitMQBakery{
 		Config: Config{Repo: repo},
-		orders: make(map[int]*OrderStatus),
 	}
 
 	rabbit.initializeBakery()
@@ -305,7 +301,6 @@ func TestInitializeBakery_BreadInsertError(t *testing.T) {
 	repo := &insertBreadErrorRepo{}
 	rabbit := &RabbitMQBakery{
 		Config: Config{Repo: repo},
-		orders: make(map[int]*OrderStatus),
 	}
 
 	// Should not panic
@@ -320,13 +315,13 @@ func (r *insertBreadErrorRepo) InsertBread(data.Bread) (int, error) {
 
 // --- NewRabbitMQBakery and server-package construction ---
 
-func TestServerNewRabbitMQBakery_OrdersMapInitialized(t *testing.T) {
+func TestServerNewRabbitMQBakery_Created(t *testing.T) {
 	b := NewRabbitMQBakery(Config{Repo: &stubRepo{}}, "amqp://test:5672")
-	if b.orders == nil {
-		t.Fatal("expected orders map to be non-nil")
+	if b == nil {
+		t.Fatal("expected non-nil RabbitMQBakery")
 	}
-	if len(b.orders) != 0 {
-		t.Errorf("expected empty orders map, got %d entries", len(b.orders))
+	if b.rabbitmqURL != "amqp://test:5672" {
+		t.Errorf("expected rabbitmqURL to be set, got %q", b.rabbitmqURL)
 	}
 }
 

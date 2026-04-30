@@ -17,152 +17,195 @@ import (
 
 // IntegrationFixture holds all resources needed for integration tests
 type IntegrationFixture struct {
-	T            *testing.T
-	DB           *sql.DB
-	DBDSN        string
-	ProjectDir   string
-	ComposeFile  string
-	Cleanup      func()
+	T           *testing.T
+	DB          *sql.DB
+	DBDSN       string
+	ProjectDir  string
+	ComposeFile string
+	Cleanup     func()
 }
 
-// NewIntegrationFixture sets up the integration test environment using docker-compose
+// NewIntegrationFixture sets up the integration test environment.
+// It starts postgres and rabbitmq via docker if they are not already running,
+// then waits until both are healthy before returning.
 func NewIntegrationFixture(t *testing.T) *IntegrationFixture {
-	// Get the project root directory
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 
-	// Traverse up to find the project root (where docker-compose.yml is)
+	// Walk up to find the project root (where docker-compose.yml lives).
 	projectDir := wd
 	for i := 0; i < 5; i++ {
-		composePath := filepath.Join(projectDir, "docker-compose.yml")
-		if _, err := os.Stat(composePath); err == nil {
+		if _, err := os.Stat(filepath.Join(projectDir, "docker-compose.yml")); err == nil {
 			break
 		}
 		projectDir = filepath.Dir(projectDir)
 	}
 
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-
-	// Check if containers are already running
-	containersRunning := areContainersRunning(composeFile)
-
 	fixture := &IntegrationFixture{
 		T:           t,
 		ProjectDir:  projectDir,
-		ComposeFile: composeFile,
+		ComposeFile: filepath.Join(projectDir, "docker-compose.yml"),
 	}
 
-	if !containersRunning {
-		// Start services
-		if err := startServices(composeFile); err != nil {
-			t.Fatalf("Failed to start docker-compose services: %v", err)
+	weStarted := false
+
+	if !isContainerRunning("bakery-postgres") || !isContainerRunning("bakery-rabbitmq") {
+		weStarted = true
+		if err := startInfrastructure(projectDir); err != nil {
+			t.Fatalf("Failed to start infrastructure containers: %v", err)
 		}
-		// Wait for services to be ready
-		time.Sleep(5 * time.Second)
 	}
 
-	// Connect to database
-	dbDSN := getDBDSN(projectDir)
-	fixture.DBDSN = dbDSN
+	// Wait for postgres to accept connections (up to 60 s).
+	dsn := "postgres://postgres:password@localhost:5432/bakery?sslmode=disable"
+	fixture.DBDSN = dsn
 
-	db, err := sql.Open("pgx", dbDSN)
+	db, err := waitForDB(dsn, 60*time.Second)
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Fatalf("Postgres not ready: %v", err)
 	}
-
-	// Verify connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		t.Fatalf("Failed to ping database: %v", err)
-	}
-
 	fixture.DB = db
 
-	// Set up cleanup
+	// Wait for RabbitMQ AMQP port (up to 30 s).
+	if err := waitForPort("localhost:5672", 30*time.Second); err != nil {
+		t.Fatalf("RabbitMQ not ready: %v", err)
+	}
+
 	fixture.Cleanup = func() {
-		if !containersRunning {
-			// Only stop if we started them
-			if err := stopServices(composeFile); err != nil {
-				log.Warnf("Failed to stop docker-compose services: %v", err)
-			}
-		}
 		if err := db.Close(); err != nil {
 			log.Warnf("Failed to close database connection: %v", err)
 		}
+		// Do not stop containers: they are shared across all test packages and
+		// must remain running for the full `go test ./...` run. Stopping them
+		// here would wipe the DB between packages and force costly restarts.
+		_ = weStarted
 	}
 
 	return fixture
 }
 
-// areContainersRunning checks if the docker-compose services are already running
-func areContainersRunning(composeFile string) bool {
-	cmd := exec.Command("docker-compose", "-f", composeFile, "ps", "-q")
-	output, err := cmd.CombinedOutput()
+// isContainerRunning returns true if a container with the given name is running.
+func isContainerRunning(name string) bool {
+	out, err := exec.Command("docker", "ps", "-q", "--filter", "name="+name, "--filter", "status=running").Output()
 	if err != nil {
 		return false
 	}
-	return len(strings.TrimSpace(string(output))) > 0
+	return len(strings.TrimSpace(string(out))) > 0
 }
 
-// startServices starts all docker-compose services
-func startServices(composeFile string) error {
-	cmd := exec.Command("docker-compose", "-f", composeFile, "up", "-d")
-	cmd.Dir = filepath.Dir(composeFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker-compose up failed: %v\n%s", err, string(output))
-	}
-	return nil
-}
+// startInfrastructure starts postgres and rabbitmq using docker run.
+func startInfrastructure(projectDir string) error {
+	sqlFile := filepath.Join(projectDir, "bakery.sql")
 
-// stopServices stops all docker-compose services
-func stopServices(composeFile string) error {
-	cmd := exec.Command("docker-compose", "-f", composeFile, "down")
-	cmd.Dir = filepath.Dir(composeFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker-compose down failed: %v\n%s", err, string(output))
-	}
-	return nil
-}
+	// Create the shared network if it does not exist yet.
+	exec.Command("docker", "network", "create", "bakery-network").Run() //nolint:errcheck
 
-// getDBDSN returns the database connection string
-// Integration tests run from host machine and connect to docker-compose via localhost
-func getDBDSN(projectDir string) string {
-	return fmt.Sprintf("postgres://postgres:password@localhost:5432/bakery?sslmode=disable")
-}
+	// --- PostgreSQL ---
+	if !isContainerRunning("bakery-postgres") {
+		// Remove a stopped container with the same name if it exists.
+		exec.Command("docker", "rm", "-f", "bakery-postgres").Run() //nolint:errcheck
 
-// GetDBDSNFromT returns the database connection string from a testing.T
-func GetDBDSNFromT(t *testing.T) string {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-
-	projectDir := wd
-	for i := 0; i < 5; i++ {
-		composePath := filepath.Join(projectDir, "docker-compose.yml")
-		if _, err := os.Stat(composePath); err == nil {
-			break
+		args := []string{
+			"run", "-d",
+			"--name", "bakery-postgres",
+			"--network", "bakery-network",
+			"-e", "POSTGRES_USER=postgres",
+			"-e", "POSTGRES_PASSWORD=password",
+			"-e", "POSTGRES_DB=bakery",
+			"-v", sqlFile + ":/docker-entrypoint-initdb.d/bakery.sql:ro",
+			"-p", "5432:5432",
+			"postgres:18-alpine",
 		}
-		projectDir = filepath.Dir(projectDir)
+		if out, err := exec.Command("docker", args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("start postgres: %v\n%s", err, out)
+		}
+		log.Info("Started bakery-postgres")
 	}
 
-	return getDBDSN(projectDir)
+	// --- RabbitMQ ---
+	if !isContainerRunning("bakery-rabbitmq") {
+		exec.Command("docker", "rm", "-f", "bakery-rabbitmq").Run() //nolint:errcheck
+
+		args := []string{
+			"run", "-d",
+			"--name", "bakery-rabbitmq",
+			"--network", "bakery-network",
+			"-e", "RABBITMQ_DEFAULT_USER=guest",
+			"-e", "RABBITMQ_DEFAULT_PASS=guest",
+			"-p", "5672:5672",
+			"-p", "15672:15672",
+			"rabbitmq:3-management-alpine",
+		}
+		if out, err := exec.Command("docker", args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("start rabbitmq: %v\n%s", err, out)
+		}
+		log.Info("Started bakery-rabbitmq")
+	}
+
+	return nil
 }
 
-// GetGRPCAddress returns the gRPC server address
-// Integration tests connect to the server via localhost since docker exposes ports
+// stopInfrastructure tears down the containers that startInfrastructure created.
+func stopInfrastructure() {
+	for _, name := range []string{"bakery-postgres", "bakery-rabbitmq"} {
+		exec.Command("docker", "rm", "-f", name).Run() //nolint:errcheck
+	}
+}
+
+// waitForDB retries sql.Open + Ping until the database accepts connections or
+// the timeout expires.
+func waitForDB(dsn string, timeout time.Duration) (*sql.DB, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		db, err := sql.Open("pgx", dsn)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			err = db.PingContext(ctx)
+			cancel()
+			if err == nil {
+				return db, nil
+			}
+			db.Close()
+			lastErr = err
+		} else {
+			lastErr = err
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return nil, fmt.Errorf("timed out waiting for DB: %w", lastErr)
+}
+
+// waitForPort dials the TCP address until it succeeds or the timeout expires.
+func waitForPort(addr string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		out, err := exec.Command("docker", "exec", "bakery-rabbitmq",
+			"rabbitmq-diagnostics", "-q", "ping").CombinedOutput()
+		if err == nil {
+			_ = out
+			return nil
+		}
+		lastErr = fmt.Errorf("rabbitmq ping: %v", err)
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("timed out waiting for %s: %w", addr, lastErr)
+}
+
+// GetDBDSNFromT returns the standard database DSN used by all integration tests.
+func GetDBDSNFromT(t *testing.T) string {
+	return "postgres://postgres:password@localhost:5432/bakery?sslmode=disable"
+}
+
+// GetGRPCAddress returns the gRPC server address used by integration tests.
 func GetGRPCAddress() string {
 	return "localhost:50051"
 }
 
-// GetRabbitMQAddress returns the RabbitMQ address
-// Integration tests connect to RabbitMQ via localhost since docker exposes ports
+// GetRabbitMQAddress returns the RabbitMQ AMQP address used by integration tests.
 func GetRabbitMQAddress() string {
 	return "amqp://guest:guest@localhost:5672/"
 }

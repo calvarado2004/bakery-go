@@ -53,7 +53,12 @@ type OrderData struct {
 	BuyOrderDetails []BuyOrderDetail `json:"buyOrderDetails"`
 }
 
-var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
+var gRPCAddress = func() string {
+	if addr := os.Getenv("BAKERY_SERVICE_ADDR"); addr != "" {
+		return addr
+	}
+	return "localhost:50051"
+}()
 
 // getTemplatePath returns the correct template path whether running from project root
 // or from the package directory (frontend/cmd/web)
@@ -145,12 +150,13 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	// Setup the connection to the server
 	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Failed to connect to gRPC server: %v", err)
+		log.Errorf("Failed to connect to gRPC server: %v", err)
+		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		return
 	}
 	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
-		if err != nil {
-			log.Fatalf("Failed to close gRPC connection: %v", err)
+		if err := conn.Close(); err != nil {
+			log.Errorf("Failed to close gRPC connection: %v", err)
 		}
 	}(conn)
 
@@ -160,7 +166,9 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	// Call GetAvailableBreads service
 	response, err := client.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
 	if err != nil {
-		log.Fatalf("Error calling GetAvailableBreads service: %v", err)
+		log.Errorf("Error calling GetAvailableBreads service: %v", err)
+		http.Error(w, "Failed to fetch inventory", http.StatusInternalServerError)
+		return
 	}
 
 	log.Println("Response from server: ", response.Breads.GetBreads())
@@ -226,22 +234,25 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	// Setup the connection to the server
 	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Failed to connect to gRPC server: %v", err)
+		log.Errorf("Failed to connect to gRPC server: %v", err)
+		fmt.Fprintf(w, "data: {\"error\": \"service unavailable\"}\n\n")
+		return
 	}
 	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
-		if err != nil {
-			log.Fatalf("Failed to close gRPC connection: %v", err)
+		if err := conn.Close(); err != nil {
+			log.Errorf("Failed to close gRPC connection: %v", err)
 		}
 	}(conn)
 
 	// Initialize the client
 	client := pb.NewCheckInventoryClient(conn)
 
-	// Call gRPC stream
-	stream, err := client.CheckBreadInventoryStream(context.Background(), &pb.BreadRequest{})
+	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
+	stream, err := client.CheckBreadInventoryStream(r.Context(), &pb.BreadRequest{})
 	if err != nil {
-		log.Fatalf("Error calling BreadUpdates service: %v", err)
+		log.Errorf("Error calling BreadUpdates service: %v", err)
+		fmt.Fprintf(w, "data: {\"error\": \"failed to start stream\"}\n\n")
+		return
 	}
 
 	for {
@@ -250,7 +261,8 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			log.Fatalf("Error receiving from stream: %v", err)
+			log.Errorf("Error receiving from stream: %v", err)
+			break
 		}
 
 		breadCounts := make(map[string]int)
@@ -306,8 +318,8 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 	// Initialize the client
 	client := pb.NewBuyOrderServiceClient(conn)
 
-	// Call gRPC stream
-	stream, err := client.BuyOrderStream(context.Background(), &pb.BuyOrderRequest{})
+	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
+	stream, err := client.BuyOrderStream(r.Context(), &pb.BuyOrderRequest{})
 	if err != nil {
 		http.Error(w, "Error calling BreadUpdates service", http.StatusInternalServerError)
 		return

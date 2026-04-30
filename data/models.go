@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4/stdlib"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"time"
 )
 
 const dbTimeout = time.Second * 5
@@ -347,9 +349,8 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	log.Println("This is the newQuantity attempted", newQuantity)
 
 	if newQuantity < 0 {
-		log.Warningf("New intended bread quantity cannot be adjusted below 0, setting to 0")
-		newQuantity = 0
-		countBread = false
+		// Deduction would go negative — report as insufficient stock.
+		return false, ErrInsufficientStock
 	}
 
 	if newQuantity > 100 {
@@ -358,15 +359,15 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 		countBread = false
 	}
 
-	if currentQuantity > 10 && !countBread {
-		log.Warningf("There are enough breads in stock, setting to the current quantity")
-		newQuantity = currentQuantity
-	}
-
 	// Update the bread quantity
 	stmt = `UPDATE bread SET quantity = $1 WHERE id = $2`
 	_, err = db.ExecContext(ctx, stmt, newQuantity, breadID)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" {
+			// CHECK constraint violation: quantity < 0 — treat as insufficient stock
+			return false, ErrInsufficientStock
+		}
 		log.Errorf("Error updating bread quantity: %v", err)
 		countBread = false
 		return countBread, err
@@ -1586,4 +1587,33 @@ func (u *PostgresRepository) GetInvoiceByOrderID(orderID int) (Invoice, error) {
 	}
 
 	return invoice, nil
+}
+
+// WaitForOrderNotification blocks until PostgreSQL fires a NOTIFY on the
+// 'bakery_orders' channel with a payload equal to uuid, or until ctx is
+// cancelled / deadline exceeded.
+func (m *PostgresRepository) WaitForOrderNotification(ctx context.Context, uuid string) error {
+	conn, err := m.Conn.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire connection for LISTEN: %w", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	return conn.Raw(func(driverConn interface{}) error {
+		pgxConn := driverConn.(*stdlib.Conn).Conn()
+
+		if _, err := pgxConn.Exec(ctx, "LISTEN bakery_orders"); err != nil {
+			return fmt.Errorf("LISTEN bakery_orders: %w", err)
+		}
+
+		for {
+			n, err := pgxConn.WaitForNotification(ctx)
+			if err != nil {
+				return err
+			}
+			if n.Payload == uuid {
+				return nil
+			}
+		}
+	})
 }

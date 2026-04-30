@@ -8,7 +8,9 @@ import (
 
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/metadata"
 )
 
 // --- helpers ---
@@ -17,7 +19,6 @@ func newAuthServer(repo data.Repository) *AuthServiceServer {
 	return &AuthServiceServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }
@@ -322,12 +323,29 @@ func TestValidateToken_EmptyToken(t *testing.T) {
 	}
 }
 
+// adminCtx returns a context carrying a valid admin Bearer token signed with
+// the same jwtSecret used by the server under test.
+func adminCtx() context.Context {
+	claims := &Claims{
+		UserID:   1,
+		Username: "testadmin",
+		UserType: "admin",
+		Role:     "admin",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret)
+	md := metadata.Pairs("authorization", "Bearer "+token)
+	return metadata.NewIncomingContext(context.Background(), md)
+}
+
 // --- CreateAdminUser tests ---
 
 func TestCreateAdminUser_Success(t *testing.T) {
 	srv := newAuthServer(&insertAdminRepo{returnID: 42})
 
-	result, err := srv.CreateAdminUser(context.Background(), &pb.CreateAdminUserRequest{
+	result, err := srv.CreateAdminUser(adminCtx(), &pb.CreateAdminUserRequest{
 		Username: "newadmin",
 		Email:    "new@bakery.com",
 		Password: "securepass",
@@ -350,7 +368,7 @@ func TestCreateAdminUser_Success(t *testing.T) {
 func TestCreateAdminUser_DBError(t *testing.T) {
 	srv := newAuthServer(&insertAdminRepo{err: errors.New("unique constraint violation")})
 
-	_, err := srv.CreateAdminUser(context.Background(), &pb.CreateAdminUserRequest{
+	_, err := srv.CreateAdminUser(adminCtx(), &pb.CreateAdminUserRequest{
 		Username: "duplicate",
 		Email:    "dup@bakery.com",
 		Password: "pass",

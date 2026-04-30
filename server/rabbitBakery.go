@@ -1,20 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/calvarado2004/bakery-go/data"
-	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"
 )
-
-// ContextMaker creates a new context when necessary
-type ContextMaker func() (context.Context, context.CancelFunc)
 
 // init is called before the application starts, and sets up the RabbitMQ connection as well as the necessary queues
 func (rabbit *RabbitMQBakery) init() {
@@ -265,156 +259,3 @@ func (rabbit *RabbitMQBakery) initializeBakery() {
 
 }
 
-// getBuyResponse listens for bread bought messages and sends them to the client, adding backoff retries if there is an error
-func (rabbit *RabbitMQBakery) getBuyResponse(contextMaker ContextMaker, responseCh chan *pb.BreadResponse) error {
-	retryInterval := time.Second // Start with a delay of 1 second
-
-	maxRetries := 5 // Maximum number of retries
-	retries := 0    // Number of retries made
-
-	for {
-		ctx, cancel := contextMaker()
-
-		select {
-		case <-ctx.Done():
-			// If the context is done, instead of returning an error, restart the loop
-			// But first check if maxRetries is hit
-			if retries >= maxRetries {
-				cancel()
-				return ctx.Err()
-			}
-			retries++
-			log.Errorf("Context done, restarting the loop: %v", ctx.Err())
-			cancel()
-			continue
-		default:
-			// If the context is not done, attempt to run the goroutine
-			err := rabbit.processBreadsBought(ctx, responseCh)
-			if err != nil {
-				if maxRetries == 0 {
-					// If there are no more retries, return the error
-					cancel()
-					return err
-				}
-				log.Errorf("Error processing breads bought: %v", err)
-				// If there was an error, wait for retryInterval before trying again
-				time.Sleep(retryInterval)
-				// Increase the retryInterval for the next try
-				retryInterval *= 2
-				maxRetries--
-			} else {
-				// If no error, reset the retryInterval
-				retryInterval = time.Second
-			}
-		}
-		cancel() // Cancel the context after each loop iteration, as we're going to create a new one
-	}
-}
-
-// processBreadsBought listens for breads bought messages and sends them to the client
-func (rabbit *RabbitMQBakery) processBreadsBought(ctx context.Context, responseCh chan *pb.BreadResponse) error {
-
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
-	if err != nil {
-		log.Errorf("Failed to connect to RabbitMQ: %v", err)
-		return err
-	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
-
-	channel, err := connection.Channel()
-	if err != nil {
-		log.Errorf("Failed to open a channel: %v", err)
-		return err
-	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
-
-	buyOrder := data.BuyOrder{}
-
-	breadsBought, err := channel.Consume(
-		"bread-bought", // queue
-		"",             // consumer
-		false,          // auto-ack
-		false,          // exclusive
-		false,          // no-local
-		false,          // no-wait
-		nil,            // args
-	)
-
-	if err != nil {
-		log.Errorf("Failed to consume from bought breads queue: %v", err)
-		return err
-	}
-
-	for {
-		select {
-		case d := <-breadsBought:
-			var breadBought pb.BreadList
-			var message string
-
-			log.Println("Received a message from the bread-bought queue")
-
-			buyOrderType := data.BuyOrder{}
-
-			err := json.Unmarshal(d.Body, &buyOrderType)
-			if err != nil {
-				log.Errorf("Failed to unmarshal buy order data: %v", err)
-				return err
-			}
-
-			buyOrder.Breads = buyOrderType.Breads
-			buyOrder.ID = buyOrderType.ID
-			buyOrder.BuyOrderUUID = buyOrderType.BuyOrderUUID
-
-			for _, bread := range buyOrder.Breads {
-
-				breadBought.Breads = append(breadBought.Breads, &pb.Bread{
-					Id:          int32(bread.ID),
-					Name:        bread.Name,
-					Quantity:    int32(bread.Quantity),
-					Description: bread.Description,
-					Price:       bread.Price,
-					Image:       bread.Image,
-					Type:        bread.Type,
-				})
-			}
-
-			message = fmt.Sprintf("Bread order %d received for customer %s with uuid %s", buyOrder.ID, buyOrder.Customer.Name, buyOrder.BuyOrderUUID)
-
-			log.Printf("Bread order with breads %s received for customer %s (inside Go function)", breadBought.Breads, buyOrder.Customer.Name)
-
-			err = d.Ack(false)
-			if err != nil {
-				log.Errorf("Failed to Ack message: %v", err)
-				return err
-			}
-
-			response := &pb.BreadResponse{
-				Breads:       &breadBought,
-				Message:      message,
-				BuyOrderUuid: buyOrder.BuyOrderUUID,
-			}
-
-			select {
-				case responseCh <- response: // send the response to the channel
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-
-		case <-ctx.Done():
-			// If the context is done, return an error
-			log.Warningf("Context done, returning error")
-			return ctx.Err()
-		}
-	}
-
-}

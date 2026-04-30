@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // --- mock stream implementing pb.BuyBread_BuyBreadStreamServer ---
@@ -55,76 +58,131 @@ func (m *mockBreadStream) Received() []*pb.BreadResponse {
 	return out
 }
 
-// --- getBuyResponse goroutine cleanup tests ---
+// --- repos for BuyBreadStream ---
 
-// TestGetBuyResponse_ExitsOnPreCancelledContext verifies that getBuyResponse
-// exits quickly when contextMaker always returns an already-cancelled context.
-// This mirrors the behaviour triggered by defer parentCancel() in BuyBreadStream:
-// after the stream handler returns, every new context created by contextMaker
-// will inherit the cancelled parent and the goroutine must terminate.
-func TestGetBuyResponse_ExitsOnPreCancelledContext(t *testing.T) {
-	rabbit := &RabbitMQBakery{
-		Config: Config{Repo: &stubRepo{}},
-		orders: make(map[int]*OrderStatus),
-		// empty rabbitmqURL — processBreadsBought will fail on dial if ctx
-		// is not already done, but maxRetries will still cap the loop.
+// notifySuccessRepo: WaitForOrderNotification returns immediately (order ready).
+type notifySuccessRepo struct {
+	stubRepo
+	order     data.BuyOrder
+	totalCost float32
+}
+
+func (r *notifySuccessRepo) WaitForOrderNotification(_ context.Context, _ string) error {
+	return nil
+}
+
+func (r *notifySuccessRepo) GetBuyOrderByUUID(_ string) (data.BuyOrder, error) {
+	return r.order, nil
+}
+
+func (r *notifySuccessRepo) GetOrderTotalCost(_ int) (float32, error) {
+	return r.totalCost, nil
+}
+
+// notifyTimeoutRepo: WaitForOrderNotification blocks until ctx is cancelled.
+type notifyTimeoutRepo struct{ stubRepo }
+
+func (r *notifyTimeoutRepo) WaitForOrderNotification(ctx context.Context, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// notifyThenMissingRepo: notification arrives but order is gone from DB.
+type notifyThenMissingRepo struct{ stubRepo }
+
+func (r *notifyThenMissingRepo) WaitForOrderNotification(_ context.Context, _ string) error {
+	return nil
+}
+
+func (r *notifyThenMissingRepo) GetBuyOrderByUUID(_ string) (data.BuyOrder, error) {
+	return data.BuyOrder{}, errors.New("order vanished")
+}
+
+// --- BuyBreadStream unit tests ---
+
+// TestBuyBreadStream_NotificationSuccess verifies that when the order
+// notification arrives and the order exists in the DB, a single response
+// is streamed with the correct fields.
+func TestBuyBreadStream_NotificationSuccess(t *testing.T) {
+	repo := &notifySuccessRepo{
+		order: data.BuyOrder{
+			ID:           42,
+			BuyOrderUUID: "uuid-42",
+		},
+		totalCost: 12.50,
+	}
+	srv := newBuyBreadServer(repo)
+	stream := &mockBreadStream{}
+
+	req := &pb.BreadRequest{BuyOrderUuid: "uuid-42"}
+	if err := srv.BuyBreadStream(req, stream); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	responseCh := make(chan *pb.BreadResponse, 1)
-
-	// contextMaker returns an immediately-cancelled context every time.
-	// getBuyResponse will hit the ctx.Done() select branch on each iteration
-	// and exhaust maxRetries (5) without any time.Sleep.
-	contextMaker := func() (context.Context, context.CancelFunc) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // cancel before returning
-		return ctx, cancel
+	got := stream.Received()
+	if len(got) != 1 {
+		t.Fatalf("expected 1 streamed response, got %d", len(got))
 	}
-
-	done := make(chan struct{}, 1)
-	go func() {
-		rabbit.getBuyResponse(contextMaker, responseCh) //nolint:errcheck
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		// getBuyResponse exited — goroutine cleanup is working
-	case <-time.After(3 * time.Second):
-		t.Fatal("getBuyResponse did not exit after pre-cancelled contexts: goroutine leak suspected")
+	if got[0].BuyOrderId != 42 {
+		t.Errorf("expected BuyOrderId 42, got %d", got[0].BuyOrderId)
+	}
+	if got[0].BuyOrderUuid != "uuid-42" {
+		t.Errorf("expected BuyOrderUuid uuid-42, got %s", got[0].BuyOrderUuid)
 	}
 }
 
-// TestGetBuyResponse_StopsWhenParentCancelled simulates the lifecycle of
-// BuyBreadStream: a parent context is created, a contextMaker derives from it,
-// and cancelling the parent (defer parentCancel) causes getBuyResponse to stop.
-func TestGetBuyResponse_StopsWhenParentCancelled(t *testing.T) {
-	rabbit := &RabbitMQBakery{
-		Config: Config{Repo: &stubRepo{}},
-		orders: make(map[int]*OrderStatus),
+// TestBuyBreadStream_NotificationTimeout verifies that when the context
+// deadline fires before a notification arrives, BuyBreadStream returns a
+// DeadlineExceeded gRPC error.
+func TestBuyBreadStream_NotificationTimeout(t *testing.T) {
+	repo := &notifyTimeoutRepo{}
+	srv := newBuyBreadServer(repo)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	stream := &mockBreadStream{ctx: ctx}
+
+	err := srv.BuyBreadStream(&pb.BreadRequest{BuyOrderUuid: "uuid-timeout"}, stream)
+	if err == nil {
+		t.Fatal("expected DeadlineExceeded error, got nil")
 	}
-
-	responseCh := make(chan *pb.BreadResponse, 1)
-
-	parentCtx, parentCancel := context.WithCancel(context.Background())
-	contextMaker := func() (context.Context, context.CancelFunc) {
-		return context.WithCancel(parentCtx)
+	st, _ := status.FromError(err)
+	if st.Code() != codes.DeadlineExceeded {
+		t.Errorf("expected DeadlineExceeded, got %v", st.Code())
 	}
+}
 
-	done := make(chan struct{}, 1)
-	go func() {
-		rabbit.getBuyResponse(contextMaker, responseCh) //nolint:errcheck
-		done <- struct{}{}
-	}()
+// TestBuyBreadStream_OrderMissingAfterNotify verifies that if
+// GetBuyOrderByUUID fails after the notification is received, an Internal
+// gRPC error is returned.
+func TestBuyBreadStream_OrderMissingAfterNotify(t *testing.T) {
+	repo := &notifyThenMissingRepo{}
+	srv := newBuyBreadServer(repo)
+	stream := &mockBreadStream{}
 
-	// Cancel the parent immediately to trigger cleanup.
-	parentCancel()
+	err := srv.BuyBreadStream(&pb.BreadRequest{BuyOrderUuid: "uuid-missing"}, stream)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	st, _ := status.FromError(err)
+	if st.Code() != codes.Internal {
+		t.Errorf("expected Internal, got %v", st.Code())
+	}
+}
 
-	select {
-	case <-done:
-		// goroutine exited — no leak
-	case <-time.After(5 * time.Second):
-		t.Fatal("getBuyResponse goroutine did not exit after parentCancel()")
+// TestBuyBreadStream_SendError verifies that when the stream's Send method
+// returns an error (e.g. client disconnected), BuyBreadStream propagates it.
+func TestBuyBreadStream_SendError(t *testing.T) {
+	repo := &notifySuccessRepo{
+		order:     data.BuyOrder{ID: 1, BuyOrderUUID: "uuid-1"},
+		totalCost: 5.00,
+	}
+	srv := newBuyBreadServer(repo)
+	stream := &mockBreadStream{sendErr: errors.New("client disconnected")}
+
+	err := srv.BuyBreadStream(&pb.BreadRequest{BuyOrderUuid: "uuid-1"}, stream)
+	if err == nil {
+		t.Fatal("expected error from Send, got nil")
 	}
 }
 
@@ -206,63 +264,4 @@ func TestBuyOrder_ConcurrentDistinctUUIDs(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-// --- Buffered responseCh prevents goroutine leak in processBreadsBought ---
-
-// TestResponseChannel_BufferedDoesNotBlock verifies that a sender can place
-// a response into the buffered channel without a receiver being ready.
-// This mirrors the fix: if the stream handler has already returned (e.g. after
-// finding the order in the DB), the background goroutine must not block forever
-// when trying to send on responseCh.
-func TestResponseChannel_BufferedDoesNotBlock(t *testing.T) {
-	responseCh := make(chan *pb.BreadResponse, 1) // buffered — the fix
-
-	sent := make(chan struct{}, 1)
-	go func() {
-		// Simulate processBreadsBought sending one response.
-		responseCh <- &pb.BreadResponse{Message: "order ready"}
-		sent <- struct{}{}
-	}()
-
-	select {
-	case <-sent:
-		// sender did not block — buffered channel working correctly
-	case <-time.After(time.Second):
-		t.Fatal("sender blocked on buffered channel — unexpected")
-	}
-
-	// Drain the channel
-	select {
-	case resp := <-responseCh:
-		if resp.Message != "order ready" {
-			t.Errorf("unexpected message: %s", resp.Message)
-		}
-	default:
-		t.Error("expected a response in the channel")
-	}
-}
-
-// TestResponseChannel_UnbufferedWouldBlock demonstrates the original bug:
-// an unbuffered channel blocks the sender if the receiver is gone.
-// This test confirms the fix is necessary by showing unbuffered blocks.
-func TestResponseChannel_UnbufferedWouldBlock(t *testing.T) {
-	unbuffered := make(chan *pb.BreadResponse) // no buffer — the old code
-
-	blocked := make(chan struct{}, 1)
-	go func() {
-		select {
-		case unbuffered <- &pb.BreadResponse{Message: "test"}:
-			// sent — receiver was available
-		case <-time.After(200 * time.Millisecond):
-			blocked <- struct{}{} // would have blocked without a receiver
-		}
-	}()
-
-	select {
-	case <-blocked:
-		// confirmed: unbuffered channel blocks without a receiver
-	case <-time.After(time.Second):
-		t.Fatal("test logic error — expected goroutine to detect blocking")
-	}
 }

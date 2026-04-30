@@ -185,27 +185,32 @@ func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) {
 		}
 
 		for _, message := range messages {
-			err = channel.Publish(
-				"",             // exchange
-				"bread-bought", // routing key
-				false,          // mandatory
-				false,          // immediate
-				rabbitmq.Publishing{
-					ContentType:  "text/json",
-					Body:         message.Payload,
-					DeliveryMode: rabbitmq.Persistent,
-				})
-
-			if err != nil {
-				log.Printf("Failed to publish buy order: %v", err)
-			} else {
-				// If the message was successfully published, mark it as processed in the database
-				err := rabbitMQBakery.Repo.DeleteOutboxMessage(message.ID)
-				if err != nil {
-					log.Errorf("Failed to mark outbox message as processed: %v", err)
-				}
-			}
+			processOutboxMessage(rabbitMQBakery.Repo, channel, message)
 		}
+	}
+}
+
+// processOutboxMessage publishes one outbox entry to the bread-bought queue and,
+// on success, removes it from the outbox so it is not retried. On publish failure
+// the record is left in place for the next tick.
+func processOutboxMessage(repo data.Repository, pub publisher, msg data.OutboxMessage) {
+	err := pub.Publish(
+		"",             // exchange
+		"bread-bought", // routing key
+		false,          // mandatory
+		false,          // immediate
+		rabbitmq.Publishing{
+			ContentType:  "text/json",
+			Body:         msg.Payload,
+			DeliveryMode: rabbitmq.Persistent,
+		})
+	if err != nil {
+		log.Errorf("Failed to publish outbox message %d: %v", msg.ID, err)
+		return
+	}
+	// Message successfully published — remove it so it is not re-sent.
+	if err := repo.DeleteOutboxMessage(msg.ID); err != nil {
+		log.Errorf("Failed to delete outbox message %d after publish: %v", msg.ID, err)
 	}
 }
 
@@ -352,18 +357,21 @@ func (rabbit *RabbitMQBakery) processOneOrder(pub publisher, delivery rabbitmq.D
 	orderData, err := json.Marshal(&order)
 	if err != nil {
 		log.Errorf("Failed to marshal processed order for publish: %v", err)
-	} else {
-		if err := pub.Publish("", "bread-bought", false, false, rabbitmq.Publishing{
-			ContentType:  "text/json",
-			Body:         orderData,
-			DeliveryMode: rabbitmq.Persistent,
-		}); err != nil {
-			log.Errorf("Failed to publish bread-bought message: %v", err)
-			// Outbox publisher will retry this publish.
-		}
+		// Outbox publisher will retry; do not delete the outbox entry.
+		return
 	}
 
-	// Clean up outbox — message was published successfully.
+	if err := pub.Publish("", "bread-bought", false, false, rabbitmq.Publishing{
+		ContentType:  "text/json",
+		Body:         orderData,
+		DeliveryMode: rabbitmq.Persistent,
+	}); err != nil {
+		log.Errorf("Failed to publish bread-bought message: %v", err)
+		// Outbox publisher will retry this publish; do not delete the entry.
+		return
+	}
+
+	// Publish succeeded — remove the outbox entry so it is not re-sent.
 	if err := rabbit.Repo.DeleteOutboxMessage(buyOrderID); err != nil {
 		log.Errorf("Failed to delete outbox message: %v", err)
 	}

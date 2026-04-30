@@ -162,8 +162,8 @@ func TestPostgresRepository_Integration(t *testing.T) {
 		bread := breads[0]
 		initialQty := bread.Quantity
 
-		// Decrease quantity
-		success, err := repo.AdjustBreadQuantity(bread.ID, -10)
+		// Deduct 1 unit (safe regardless of initial stock level).
+		success, err := repo.AdjustBreadQuantity(bread.ID, -1)
 		if err != nil {
 			t.Fatalf("Failed to adjust quantity: %v", err)
 		}
@@ -171,19 +171,25 @@ func TestPostgresRepository_Integration(t *testing.T) {
 			t.Error("Expected quantity adjustment to succeed")
 		}
 
-		// Verify the change
+		// Verify the change.
 		updated, err := repo.GetBreadByID(bread.ID)
 		if err != nil {
 			t.Fatalf("Failed to get updated bread: %v", err)
 		}
-		if updated.Quantity != initialQty-10 {
-			t.Errorf("Expected quantity %d, got %d", initialQty-10, updated.Quantity)
+		if updated.Quantity != initialQty-1 {
+			t.Errorf("Expected quantity %d, got %d", initialQty-1, updated.Quantity)
 		}
 
-		// Increase quantity back
-		_, err = repo.AdjustBreadQuantity(bread.ID, 10)
+		// Attempting to deduct more than remaining stock returns ErrInsufficientStock.
+		_, err = repo.AdjustBreadQuantity(bread.ID, -(updated.Quantity+1))
+		if !errors.Is(err, data.ErrInsufficientStock) {
+			t.Errorf("expected ErrInsufficientStock for over-deduct, got: %v", err)
+		}
+
+		// Restore quantity.
+		_, err = repo.AdjustBreadQuantity(bread.ID, 1)
 		if err != nil {
-			return
+			t.Errorf("Failed to restore quantity: %v", err)
 		}
 	})
 
@@ -956,5 +962,42 @@ func TestPasswordMatches_Integration(t *testing.T) {
 	}
 	if notMatches {
 		t.Error("Password should not match")
+	}
+}
+
+// TestAdjustBreadQuantity_CheckConstraint verifies that trying to set quantity below 0
+// via AdjustBreadQuantity returns ErrInsufficientStock.
+func TestAdjustBreadQuantity_CheckConstraint(t *testing.T) {
+	fixture := testutils.NewIntegrationFixture(t)
+	defer fixture.Cleanup()
+
+	repo := data.NewPostgresRepository(fixture.DB)
+
+	// Pre-clean any leftover row from a previous killed run.
+	fixture.DB.Exec("DELETE FROM bread WHERE name = 'ConstraintTestBread'") //nolint:errcheck
+
+	// Create a bread with quantity=1 so we can drive it negative.
+	// Include a non-NULL image so GetAvailableBread scans won't break.
+	_, err := fixture.DB.Exec(`
+		INSERT INTO bread (name, price, quantity, description, type, status, image, created_at, updated_at)
+		VALUES ('ConstraintTestBread', 1.0, 1, 'test', 'test', 'available', 'https://example.com/bread.jpg', NOW(), NOW())
+	`)
+	if err != nil {
+		t.Fatalf("failed to insert test bread: %v", err)
+	}
+
+	var breadID int
+	err = fixture.DB.QueryRow(`SELECT id FROM bread WHERE name = 'ConstraintTestBread'`).Scan(&breadID)
+	if err != nil {
+		t.Fatalf("failed to find test bread: %v", err)
+	}
+	t.Cleanup(func() {
+		fixture.DB.Exec("DELETE FROM bread WHERE id = $1", breadID) //nolint:errcheck
+	})
+
+	// Deducting 5 from a bread with quantity=1 should return ErrInsufficientStock.
+	_, err = repo.AdjustBreadQuantity(breadID, -5)
+	if !errors.Is(err, data.ErrInsufficientStock) {
+		t.Errorf("expected ErrInsufficientStock, got: %v", err)
 	}
 }

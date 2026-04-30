@@ -378,16 +378,6 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 			}
 		}(channel)
 
-		orderStatus := &OrderStatus{
-			Ch:      make(chan *pb.BreadResponse, 1),
-			Status:  "Processing",
-			OrderId: buyOrder.ID,
-		}
-
-		s.RabbitMQBakery.mu.Lock()
-		s.RabbitMQBakery.orders[buyOrder.ID] = orderStatus
-		s.RabbitMQBakery.mu.Unlock()
-
 		boughtBreads := make([]*pb.Bread, len(buyOrder.Breads))
 		for i, boughtBread := range buyOrder.Breads {
 			boughtBreads[i] = &pb.Bread{
@@ -410,74 +400,31 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 	}
 }
 
-// BuyBreadStream is a server stream function that returns the status of the order
+// BuyBreadStream waits for the broker to settle the order using PostgreSQL
+// LISTEN/NOTIFY, then streams a single response with the order summary.
+// No polling and no RabbitMQ consumption in the server.
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
-	// Maximum number of retries before giving up.
-	// Each retry waits 5 seconds; 20 retries = 100-second window.
-	// The broker can take up to ~60s to process an order in this cluster,
-	// so 100s gives enough headroom.
-	maxRetries := 20
-	retryCount := 0
-	// Buffered so processBreadsBought's send never blocks when no one reads.
-	responseCh := make(chan *pb.BreadResponse, 1)
+	ctx := stream.Context()
 
-	// Parent context: cancelling it stops the getBuyResponse goroutine when
-	// BuyBreadStream returns (success or error).
-	parentCtx, parentCancel := context.WithCancel(context.Background())
-	defer parentCancel()
-
-	contextMaker := func() (context.Context, context.CancelFunc) {
-		return context.WithCancel(parentCtx)
+	if err := s.RabbitMQBakery.Repo.WaitForOrderNotification(ctx, in.BuyOrderUuid); err != nil {
+		return status.Errorf(codes.DeadlineExceeded, "order not settled within timeout: %v", err)
 	}
 
-	// Start a go-routine to listen for RabbitMQ messages
-	go func() {
-		err := s.RabbitMQBakery.getBuyResponse(contextMaker, responseCh)
-		if err != nil {
-			log.Printf("getBuyResponse goroutine exited: %v", err)
-		}
-	}()
-
-	for retryCount < maxRetries {
-		time.Sleep(5 * time.Second) // wait for a while before checking again
-
-		// Fetch the order from the database
-		s.RabbitMQBakery.mu.Lock()
-		savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
-		if err != nil {
-			s.RabbitMQBakery.mu.Unlock()
-			log.Printf("Failed to get order from database: %v", err)
-			retryCount++
-			continue
-		}
-		totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
-		s.RabbitMQBakery.mu.Unlock()
-
-		if err != nil {
-			log.Printf("Failed to get order total cost: %v", err)
-			retryCount++
-			continue
-		}
-
-		// The order was found
-		res := &pb.BreadResponse{
-			Message:      fmt.Sprintf("Order %v found, total cost $%.2f", savedOrder.BuyOrderUUID, totalCost),
-			BuyOrderId:   int32(savedOrder.ID),
-			BuyOrderUuid: savedOrder.BuyOrderUUID,
-		}
-		if err := stream.Send(res); err != nil {
-			return err
-		}
-
-		break // exit the loop once the order is found
+	savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to get order: %v", err)
 	}
 
-	// If the order was not found after all retries, return an error
-	if retryCount == maxRetries {
-		return fmt.Errorf("order not found after %v attempts", maxRetries)
+	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to get order total cost: %v", err)
 	}
 
-	return nil
+	return stream.Send(&pb.BreadResponse{
+		Message:      fmt.Sprintf("Order %v settled, total cost $%.2f", savedOrder.BuyOrderUUID, totalCost),
+		BuyOrderId:   int32(savedOrder.ID),
+		BuyOrderUuid: savedOrder.BuyOrderUUID,
+	})
 }
 
 func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequest) (*pb.BuyOrderResponse, error) {

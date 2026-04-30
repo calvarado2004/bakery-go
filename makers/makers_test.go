@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,7 @@ func (r *makersStubRepo) GetInvoicesByCustomerID(int) ([]data.Invoice, error)   
 func (r *makersStubRepo) GetAllInvoices() ([]data.Invoice, error)                     { return nil, nil }
 func (r *makersStubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)               { return data.Invoice{}, nil }
 func (r *makersStubRepo) FulfillOrderTx(data.BuyOrder) error                          { return nil }
+func (r *makersStubRepo) WaitForOrderNotification(context.Context, string) error      { return nil }
 
 // --- adjustCapturingRepo records the call arguments ---
 

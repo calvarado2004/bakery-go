@@ -1,6 +1,9 @@
 package data
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type DashboardStats struct {
 	TotalOrders      int
@@ -96,4 +99,8 @@ type Repository interface {
 	GetInvoicesByCustomerID(customerID int) ([]Invoice, error)
 	GetAllInvoices() ([]Invoice, error)
 	GetInvoiceByOrderID(orderID int) (Invoice, error)
+	// WaitForOrderNotification blocks until PostgreSQL sends a NOTIFY on the
+	// 'bakery_orders' channel with a payload matching uuid, or until ctx is
+	// cancelled / deadline is exceeded. Returns ctx.Err() on cancellation.
+	WaitForOrderNotification(ctx context.Context, uuid string) error
 }

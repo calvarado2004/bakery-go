@@ -179,7 +179,7 @@ more than available and asserts `ErrInsufficientStock` is returned.
 
 ---
 
-#### TASK-04 — Fix outbox publisher (mark messages as sent after publish)
+#### TASK-04 — Fix outbox publisher (mark messages as sent after publish) ✅ DONE
 
 **Goal:** Outbox messages are deleted after successful publish; the table does not grow unbounded.
 
@@ -196,7 +196,7 @@ more than available and asserts `ErrInsufficientStock` is returned.
 
 ### Phase 2 — Architecture (single responsibility per technology)
 
-#### TASK-05 — Replace `BuyBreadStream` polling with PostgreSQL LISTEN/NOTIFY
+#### TASK-05 — Replace `BuyBreadStream` polling with PostgreSQL LISTEN/NOTIFY ✅ DONE
 
 **Goal:** Eliminate the 5 s polling loop and the RabbitMQ consumer inside the server.
 Server becomes a pure gRPC publisher; PostgreSQL delivers push updates.
@@ -222,7 +222,7 @@ Server becomes a pure gRPC publisher; PostgreSQL delivers push updates.
 
 ---
 
-#### TASK-06 — Remove in-memory `orders` map; make server stateless
+#### TASK-06 — Remove in-memory `orders` map; make server stateless ✅ DONE
 
 **Goal:** Server holds no per-request mutable state. Two server replicas behave identically.
 

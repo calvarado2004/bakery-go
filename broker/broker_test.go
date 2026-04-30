@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,7 @@ func (r *brokerStubRepo) GetInvoicesByCustomerID(int) ([]data.Invoice, error)   
 func (r *brokerStubRepo) GetAllInvoices() ([]data.Invoice, error)                     { return nil, nil }
 func (r *brokerStubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)               { return data.Invoice{}, nil }
 func (r *brokerStubRepo) FulfillOrderTx(data.BuyOrder) error                          { return nil }
+func (r *brokerStubRepo) WaitForOrderNotification(context.Context, string) error      { return nil }
 
 // --- adjustTrackingRepo tracks AdjustBreadQuantity calls ---
 
@@ -568,6 +570,10 @@ func TestProcessOneOrder_SuccessCallsFulfillAndSetsProcessed(t *testing.T) {
 	if len(repo.statuses) == 0 || repo.statuses[len(repo.statuses)-1] != "Processed" {
 		t.Errorf("expected last status to be Processed, got %v", repo.statuses)
 	}
+	// Outbox entry must be deleted after successful publish (TASK-04).
+	if len(repo.outboxDeled) == 0 {
+		t.Error("expected DeleteOutboxMessage to be called on success")
+	}
 }
 
 func TestProcessOneOrder_InsufficientStockMarksFailed(t *testing.T) {
@@ -599,6 +605,10 @@ func TestProcessOneOrder_InsufficientStockMarksFailed(t *testing.T) {
 	}
 	if len(repo.statuses) == 0 || repo.statuses[len(repo.statuses)-1] != "Failed" {
 		t.Errorf("expected last status to be Failed, got %v", repo.statuses)
+	}
+	// failOrder must also clean up the outbox entry (TASK-04).
+	if len(repo.outboxDeled) == 0 {
+		t.Error("expected DeleteOutboxMessage to be called even on failure (via failOrder)")
 	}
 }
 
@@ -676,3 +686,94 @@ func (a *testAcknowledger) Nack(tag uint64, multiple bool, requeue bool) error {
 }
 
 func (a *testAcknowledger) Reject(tag uint64, requeue bool) error { return nil }
+
+// --- failingPublisher returns an error on every Publish call ---
+
+type failingPublisher struct{}
+
+func (p *failingPublisher) Publish(_, _ string, _, _ bool, _ rabbitmq.Publishing) error {
+	return errors.New("simulated publish failure")
+}
+
+// --- processOutboxMessage unit tests (TASK-04) ---
+
+// outboxTrackingRepo tracks DeleteOutboxMessage calls independently of the
+// full fulfillTrackingRepo — keeps the outbox tests focused.
+type outboxTrackingRepo struct {
+	brokerStubRepo
+	mu      sync.Mutex
+	deleted []int
+}
+
+func (r *outboxTrackingRepo) DeleteOutboxMessage(id int) error {
+	r.mu.Lock()
+	r.deleted = append(r.deleted, id)
+	r.mu.Unlock()
+	return nil
+}
+
+// TestProcessOutboxMessage_SuccessDeletesCalled verifies that when the
+// publish succeeds, DeleteOutboxMessage is called with the correct message ID.
+func TestProcessOutboxMessage_SuccessDeletesCalled(t *testing.T) {
+	repo := &outboxTrackingRepo{}
+	msg := data.OutboxMessage{ID: 7, Payload: []byte(`{"id":7}`)}
+
+	processOutboxMessage(repo, &mockPublisher{}, msg)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if len(repo.deleted) != 1 {
+		t.Fatalf("expected DeleteOutboxMessage called once, got %d", len(repo.deleted))
+	}
+	if repo.deleted[0] != 7 {
+		t.Errorf("expected deleted ID 7, got %d", repo.deleted[0])
+	}
+}
+
+// TestProcessOutboxMessage_PublishFailNoDelete verifies that when the publish
+// fails, DeleteOutboxMessage is NOT called — the entry stays for the next tick.
+func TestProcessOutboxMessage_PublishFailNoDelete(t *testing.T) {
+	repo := &outboxTrackingRepo{}
+	msg := data.OutboxMessage{ID: 8, Payload: []byte(`{"id":8}`)}
+
+	processOutboxMessage(repo, &failingPublisher{}, msg)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if len(repo.deleted) != 0 {
+		t.Errorf("expected DeleteOutboxMessage NOT called on publish failure, got %d calls", len(repo.deleted))
+	}
+}
+
+// TestProcessOneOrder_PublishFailKeepsOutbox verifies that when the direct
+// publish inside processOneOrder fails, the outbox entry is NOT deleted —
+// the outbox publisher will retry it on the next tick.
+func TestProcessOneOrder_PublishFailKeepsOutbox(t *testing.T) {
+	repo := &fulfillTrackingRepo{}
+	broker := &RabbitMQBakery{Config: Config{Repo: repo}, orders: make(map[int]*OrderStatus)}
+
+	order := data.BuyOrder{
+		BuyOrderUUID: "uuid-pub-fail",
+		Breads:       []data.Bread{{ID: 1, Quantity: 1}},
+	}
+	body, _ := json.Marshal(order)
+
+	delivery := rabbitmq.Delivery{
+		Body:         body,
+		Acknowledger: &testAcknowledger{},
+	}
+
+	broker.processOneOrder(&failingPublisher{}, delivery)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	// Order must be acked and marked Processed — the publish failure is non-fatal.
+	if len(repo.statuses) == 0 || repo.statuses[len(repo.statuses)-1] != "Processed" {
+		t.Errorf("expected status Processed despite publish failure, got %v", repo.statuses)
+	}
+	// Outbox must NOT be deleted — the outbox publisher will retry the publish.
+	if len(repo.outboxDeled) != 0 {
+		t.Errorf("expected outbox NOT deleted on publish failure, got %d deletes", len(repo.outboxDeled))
+	}
+}

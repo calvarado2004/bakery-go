@@ -18,7 +18,6 @@ func newInvoiceServer(repo data.Repository) *InvoiceServiceServer {
 	return &InvoiceServiceServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }
@@ -27,7 +26,6 @@ func newPortalServer(repo data.Repository) *CustomerPortalServiceServer {
 	return &CustomerPortalServiceServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }

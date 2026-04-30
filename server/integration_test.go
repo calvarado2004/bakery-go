@@ -7,15 +7,69 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v4/stdlib"
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/calvarado2004/bakery-go/testutils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// seedIntegrationAccounts ensures the admin and customer accounts needed by the
+// server integration tests exist in the database. It is idempotent (safe to call
+// multiple times) and registers cleanup to remove only what it inserted.
+func seedIntegrationAccounts(t *testing.T) {
+	t.Helper()
+	db, err := sql.Open("pgx", testutils.GetDBDSNFromT(t))
+	if err != nil {
+		t.Fatalf("seedIntegrationAccounts: open DB: %v", err)
+	}
+	defer db.Close()
+
+	// admin password = "admin123"  (bcrypt, cost 10)
+	const adminHash = "$2a$10$PHZBNmARXoZUa4WAHRbYpePNJiYGQPUTkeKWdzq28E8it2BfypDyq"
+	// john@doe.com password = "password123" (bcrypt, cost 10)
+	const customerHash = "$2a$10$lWlfcAs2n8hT4z9PV/90EehZ5J04JQjz9B1fFO.GDUuVjyE/OlIr2"
+
+	// Use INSERT … ON CONFLICT DO NOTHING so we don't fail if the row already exists.
+	// admin_users has no unique constraint on email/username in the schema, so we
+	// check first and insert only if missing.
+	var adminExists bool
+	db.QueryRow(`SELECT EXISTS(SELECT 1 FROM admin_users WHERE username='admin')`).Scan(&adminExists) //nolint:errcheck
+	if !adminExists {
+		if _, err := db.Exec(`INSERT INTO admin_users (username, email, password, role, created_at, updated_at)
+			VALUES ('admin','admin@bakery.com',$1,'admin',NOW(),NOW())`, adminHash); err != nil {
+			t.Fatalf("seedIntegrationAccounts: insert admin: %v", err)
+		}
+		t.Cleanup(func() {
+			db2, _ := sql.Open("pgx", testutils.GetDBDSNFromT(t))
+			if db2 != nil {
+				db2.Exec("DELETE FROM admin_users WHERE username='admin'") //nolint:errcheck
+				db2.Close()
+			}
+		})
+	}
+
+	var customerExists bool
+	db.QueryRow(`SELECT EXISTS(SELECT 1 FROM customer WHERE email='john@doe.com')`).Scan(&customerExists) //nolint:errcheck
+	if !customerExists {
+		if _, err := db.Exec(`INSERT INTO customer (name, email, password, created_at, updated_at)
+			VALUES ('John Doe','john@doe.com',$1,NOW(),NOW())`, customerHash); err != nil {
+			t.Fatalf("seedIntegrationAccounts: insert customer: %v", err)
+		}
+		t.Cleanup(func() {
+			db2, _ := sql.Open("pgx", testutils.GetDBDSNFromT(t))
+			if db2 != nil {
+				db2.Exec("DELETE FROM customer WHERE email='john@doe.com'") //nolint:errcheck
+				db2.Close()
+			}
+		})
+	}
+}
+
 // TestGRPCServer_Integration tests gRPC server endpoints with real connections
 func TestGRPCServer_Integration(t *testing.T) {
-	// Skip if docker-compose is not running
+	seedIntegrationAccounts(t)
+
 	addr := testutils.GetGRPCAddress()
 	conn, err := grpc.NewClient(
 		addr,

@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	_ "github.com/jackc/pgconn"
@@ -20,15 +19,7 @@ import (
 
 type RabbitMQBakery struct {
 	Config
-	orders      map[int]*OrderStatus
-	mu          sync.Mutex
 	rabbitmqURL string
-}
-
-type OrderStatus struct {
-	Ch      chan *pb.BreadResponse
-	Status  string
-	OrderId int
 }
 
 type MakeBreadServer struct {
@@ -120,7 +111,6 @@ func (app *Config) setupRepo(conn *sql.DB) {
 func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
 	return &RabbitMQBakery{
 		Config:      config,
-		orders:      make(map[int]*OrderStatus),
 		rabbitmqURL: rabbitmqURL,
 	}
 }

@@ -18,7 +18,6 @@ func newAdminServer(repo data.Repository) *AdminServiceServer {
 	return &AdminServiceServer{
 		RabbitMQBakery: &RabbitMQBakery{
 			Config: Config{Repo: repo},
-			orders: make(map[int]*OrderStatus),
 		},
 	}
 }

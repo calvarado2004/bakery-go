@@ -59,7 +59,8 @@ data:
                                   created_at timestamp without time zone,
                                   updated_at timestamp without time zone,
                                   image character varying(255),
-                                  PRIMARY KEY (id)
+                                  PRIMARY KEY (id),
+                                  CONSTRAINT bread_quantity_non_negative CHECK (quantity >= 0)
     );
 
     ALTER TABLE public.bread_id_seq OWNER TO postgres;        
@@ -248,7 +249,23 @@ data:
         now(),
         now()
     );
-        
+
+    -- LISTEN/NOTIFY trigger: fires pg_notify('bakery_orders', buy_order_uuid)
+    -- whenever a buy_order row's status column changes value.
+    CREATE OR REPLACE FUNCTION public.notify_order_status_change()
+    RETURNS trigger AS $$
+    BEGIN
+        IF NEW.status IS DISTINCT FROM OLD.status THEN
+            PERFORM pg_notify('bakery_orders', NEW.buy_order_uuid);
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER buy_order_status_notify
+        AFTER UPDATE OF status ON public.buy_order
+        FOR EACH ROW EXECUTE FUNCTION public.notify_order_status_change();
+
 ---
 apiVersion: v1
 kind: Service

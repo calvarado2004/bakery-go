@@ -364,6 +364,7 @@ func TestAdminDashboardFlow(t *testing.T) {
 
 // TestAuthFlow tests the authentication and JWT token flow
 func TestAuthFlow(t *testing.T) {
+	seedIntegrationAccounts(t)
 	fixture := NewE2EFixture(t)
 	defer fixture.Cleanup()
 
