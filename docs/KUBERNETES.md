@@ -60,8 +60,8 @@ metadata:
     app: bakery-service
 type: Opaque
 stringData:
-  JWT_SECRET: "bakery-go-secret-key-change-in-production"
-  CSRF_KEY: "bakery-go-csrf-key-change-in-production"
+  JWT_SECRET: ""
+  CSRF_KEY: ""
 ```
 
 **Keys:**

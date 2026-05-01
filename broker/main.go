@@ -88,8 +88,8 @@ func connectToDB() *sql.DB {
 
 func (app *Config) setupRepo(conn *sql.DB) {
 	db := data.NewPostgresRepository(conn)
+	db.SetDSN(os.Getenv("DSN"))
 	app.Repo = db
-
 }
 
 // NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config

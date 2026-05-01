@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"io"
+	"os"
+	"time"
+
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"io"
-	"os"
-	"time"
 )
 
 var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
@@ -59,13 +60,8 @@ func main() {
 		breadBoughtChan := make(chan bool)
 		doneBuy := make(chan bool)
 		doneStream := make(chan bool)
-		buyOrderChan := make(chan buyOrder, 2) // Using a buffered channel to avoid blockage
-
 		buyOrderuuid := uuid.NewString()
 		log.Printf("Generated a new buy order id: %v", buyOrderuuid)
-		order := buyOrder{buyOrderUUID: buyOrderuuid, buyChan: buyBreadChan}
-		buyOrderChan <- order
-		buyOrderChan <- order
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -90,10 +86,9 @@ func main() {
 			log.Println("Successfully bought bread, sleeping for 35 seconds...")
 			time.Sleep(35 * time.Second)
 			log.Println("Done sleeping for 35 seconds...")
-			ctx.Done() // Cancel the previous context
+			cancel() // Cancel the previous context
 			// Start new iteration
 			log.Println("Iterating again to buy bread, creating a new context...")
-			//ctx, cancel = context.WithCancel(context.Background())
 		case err := <-errChan:
 			time.Sleep(35 * time.Second)
 			log.Errorf("Error buying bread: %v", err)
@@ -131,7 +126,7 @@ func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool
 				Description: "Baguette, a classic bakery bread with a long shape",
 				Type:        "French Bread",
 				Status:      "available",
-				Image:       "hhttps://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
+				Image:       "https://cdn.pixabay.com/photo/2017/06/23/23/57/bread-2436370_1280.jpg",
 				Id:          3,
 			}
 
@@ -207,16 +202,19 @@ func (config *Config) buySomeBread(ctx context.Context, buyBreadChan <-chan bool
 				BuyOrderUuid: buyOrderUuid,
 			}
 
-			log.Printf("Trying to buy bread: %v", request.Breads.Breads)
+			log.Printf("Trying to buy %d bread item(s) for order %s", len(request.Breads.Breads), buyOrderUuid)
+			for _, b := range request.Breads.Breads {
+				log.Printf("  - %s (qty=%d, price=$%.2f)", b.Name, b.Quantity, b.Price)
+			}
 
 			response, err := config.buyBreadClient.BuyBread(ctx, &request)
 			if err != nil {
-				log.Errorf("Failed to buy bread: %v\n", err)
+				log.Errorf("Failed to buy bread: %v", err)
 				errChan <- err
 				return
 			}
 
-			log.Printf("Buying bread started: %v", response.Breads.GetBreads())
+			log.Printf("BuyBread accepted, order status: %s", response.Message)
 
 			// Signal that bread has been bought
 			breadBoughtChan <- true
@@ -264,7 +262,7 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 				}
 
 				// Process the response
-				log.Printf("Received bread response that has been settled: %v", response)
+				log.Printf("Order %s CONFIRMED & FULFILLED: %s (order_id=%d)", buyOrderUuid, response.Message, response.BuyOrderId)
 
 			}
 

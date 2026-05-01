@@ -218,32 +218,6 @@ CREATE TABLE public.invoice_items (
 
 ALTER TABLE public.invoice_item_id_seq OWNER TO postgres;
 
--- Insert default customer (password: password123 - bcrypt hash)
-INSERT INTO public.customer (name, email, password, created_at, updated_at) VALUES (
-    'John Doe',
-    'john@doe.com',
-    '$2a$10$lWlfcAs2n8hT4z9PV/90EehZ5J04JQjz9B1fFO.GDUuVjyE/OlIr2',
-    now(),
-    now()
-    );
-
-INSERT INTO public.bread_maker (name, email, created_at, updated_at) VALUES (
-    'Jake Maker',
-    'jake@maker.com',
-    now(),
-    now()
-    );
-
--- Insert default admin user (username: admin, password: admin123 - bcrypt hash)
-INSERT INTO public.admin_users (username, email, password, role, created_at, updated_at) VALUES (
-    'admin',
-    'admin@bakery.com',
-    '$2a$10$PHZBNmARXoZUa4WAHRbYpePNJiYGQPUTkeKWdzq28E8it2BfypDyq',
-    'admin',
-    now(),
-    now()
-    );
-
 -- LISTEN/NOTIFY trigger: fires pg_notify('bakery_orders', buy_order_uuid)
 -- whenever a buy_order row's status column changes value.
 -- BuyBreadStream listens on this channel instead of polling the DB.

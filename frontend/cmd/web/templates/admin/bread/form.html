@@ -14,6 +14,7 @@
         <div class="card">
             <div class="card-body">
                 <form method="POST" action="{{if .Bread}}/admin/bread/{{.Bread.Id}}/update{{else}}/admin/bread/create{{end}}">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="name" class="form-label">Name <span class="text-danger">*</span></label>

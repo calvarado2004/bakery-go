@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -89,6 +90,19 @@ func main() {
 	})
 	router := mux.NewRouter()
 	router.StrictSlash(true)
+
+	// CSRF protection middleware
+	csrfKey := os.Getenv("CSRF_KEY")
+	if csrfKey == "" {
+		log.Fatal("CSRF_KEY environment variable is not set")
+	}
+	csrfProtect := csrf.Protect(
+		[]byte(csrfKey),
+		csrf.Secure(false), // Set to true when serving over HTTPS in production
+		csrf.Path("/"),
+		csrf.SameSite(csrf.SameSiteStrictMode),
+	)
+	router.Use(csrfProtect)
 
 	// Public routes
 	router.HandleFunc("/", homeHandler)

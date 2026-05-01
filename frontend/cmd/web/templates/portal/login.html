@@ -67,6 +67,7 @@
         {{end}}
 
         <form method="POST" action="/portal/login">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
             <div class="mb-3">
                 <label for="email" class="form-label">Email Address</label>
                 <div class="input-group">

@@ -235,7 +235,7 @@ Infrastructure dependencies (PostgreSQL, RabbitMQ) are expected to be provided e
 | `BAKERY_SERVICE_ADDR`  | `localhost:50051`                    | Frontend, Buyers     | gRPC server address                   |
 | `RABBITMQ_SERVICE_ADDR`| `amqp://guest:guest@localhost:5672/` | Server, Broker, Makers | RabbitMQ connection string           |
 | `DSN`                  | _(none — required)_                  | Server, Broker, Makers | PostgreSQL DSN                       |
-| `JWT_SECRET`           | `bakery-go-secret-key-change-in-production` | Server, Frontend | JWT signing key                 |
+| `JWT_SECRET`           | *(required, no default)* | Server, Frontend | JWT signing key                 |
 
 > **Security Warning:** The default value of `JWT_SECRET` is hardcoded in source. It must be overridden in all non-development environments.
 

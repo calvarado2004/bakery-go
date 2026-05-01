@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pb "github.com/calvarado2004/bakery-go/proto"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -34,6 +35,7 @@ type AdminTemplateData struct {
 	Alerts        []*pb.Bread
 	Message       string
 	Error         string
+	CSRFToken     string
 }
 
 func getGRPCConnection() (*grpc.ClientConn, error) {
@@ -121,6 +123,7 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "Bread Management", "bread")
 	data.Breads = breads.Breads
 	data.Message = r.URL.Query().Get("message")
+	data.CSRFToken = csrf.Token(r)
 
 	tmpl := template.Must(template.ParseFiles(
 		getTemplatePath("./cmd/web/templates/admin/base.html"),
@@ -134,6 +137,7 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 
 func AdminBreadNewHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "New Bread", "bread")
+	data.CSRFToken = csrf.Token(r)
 
 	tmpl := template.Must(template.ParseFiles(
 		getTemplatePath("./cmd/web/templates/admin/base.html"),
@@ -207,6 +211,7 @@ func AdminBreadEditHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := newAdminTemplateData(r, "Edit Bread", "bread")
 	data.Bread = bread
+	data.CSRFToken = csrf.Token(r)
 
 	tmpl := template.Must(template.ParseFiles(
 		getTemplatePath("./cmd/web/templates/admin/base.html"),
@@ -312,6 +317,7 @@ func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "Order Management", "orders")
 	data.Orders = orders.BuyOrders
 	data.Message = r.URL.Query().Get("message")
+	data.CSRFToken = csrf.Token(r)
 
 	tmpl := template.Must(template.ParseFiles(
 		getTemplatePath("./cmd/web/templates/admin/base.html"),
@@ -519,6 +525,7 @@ func AdminAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "Inventory Alerts", "alerts")
 	data.Alerts = alerts.Breads
 	data.Message = r.URL.Query().Get("message")
+	data.CSRFToken = csrf.Token(r)
 
 	tmpl := template.Must(template.ParseFiles(
 		getTemplatePath("./cmd/web/templates/admin/base.html"),

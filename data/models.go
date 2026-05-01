@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -20,6 +20,7 @@ var db *sql.DB
 
 type PostgresRepository struct {
 	Conn *sql.DB
+	dsn  string
 }
 
 func NewPostgresRepository(pool *sql.DB) *PostgresRepository {
@@ -27,6 +28,12 @@ func NewPostgresRepository(pool *sql.DB) *PostgresRepository {
 	return &PostgresRepository{
 		Conn: pool,
 	}
+}
+
+// SetDSN stores the PostgreSQL DSN for use with raw pgx connections
+// (e.g. LISTEN/NOTIFY, which do not work through database/sql).
+func (m *PostgresRepository) SetDSN(dsn string) {
+	m.dsn = dsn
 }
 
 type Customer struct {
@@ -1589,31 +1596,72 @@ func (u *PostgresRepository) GetInvoiceByOrderID(orderID int) (Invoice, error) {
 	return invoice, nil
 }
 
-// WaitForOrderNotification blocks until PostgreSQL fires a NOTIFY on the
-// 'bakery_orders' channel with a payload equal to uuid, or until ctx is
-// cancelled / deadline exceeded.
+// WaitForOrderNotification blocks until the order with the given UUID is
+// settled (status = 'Processed' or 'Failed'). It uses a dual strategy:
+//   1. LISTEN/NOTIFY on the 'bakery_orders' channel (fast path)
+//   2. Polling the database every 500 ms as a guaranteed fallback
+//
+// The fallback is critical because LISTEN/NOTIFY through pgx in some
+// containerised / network environments (e.g. OpenShift with certain CNI
+// plugins) can silently drop notifications or never deliver them.
 func (m *PostgresRepository) WaitForOrderNotification(ctx context.Context, uuid string) error {
-	conn, err := m.Conn.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("acquire connection for LISTEN: %w", err)
+	if m.dsn == "" {
+		return fmt.Errorf("DSN not set on repository; call SetDSN before using WaitForOrderNotification")
 	}
-	defer conn.Close() //nolint:errcheck
 
-	return conn.Raw(func(driverConn interface{}) error {
-		pgxConn := driverConn.(*stdlib.Conn).Conn()
-
+	// --- Fast path: raw pgx connection with LISTEN/NOTIFY ---
+	pgxConn, err := pgx.Connect(ctx, m.dsn)
+	if err != nil {
+		log.Warnf("WaitForOrderNotification: could not open raw pgx conn (will rely on polling): %v", err)
+	} else {
 		if _, err := pgxConn.Exec(ctx, "LISTEN bakery_orders"); err != nil {
-			return fmt.Errorf("LISTEN bakery_orders: %w", err)
+			log.Warnf("WaitForOrderNotification: LISTEN failed (will rely on polling): %v", err)
+			pgxConn.Close(ctx) //nolint:errcheck
+		} else {
+			defer pgxConn.Close(ctx) //nolint:errcheck
 		}
+	}
 
-		for {
-			n, err := pgxConn.WaitForNotification(ctx)
-			if err != nil {
-				return err
+	notifyChan := make(chan struct{}, 1)
+	listenErrChan := make(chan error, 1)
+
+	if pgxConn != nil {
+		go func() {
+			for {
+				n, err := pgxConn.WaitForNotification(ctx)
+				if err != nil {
+					listenErrChan <- err
+					return
+				}
+				if n.Payload == uuid {
+					notifyChan <- struct{}{}
+					return
+				}
 			}
-			if n.Payload == uuid {
+		}()
+	}
+
+	// --- Guaranteed fallback: poll the DB every 500 ms ---
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-notifyChan:
+			log.Printf("WaitForOrderNotification: received NOTIFY for order %s", uuid)
+			return nil
+		case err := <-listenErrChan:
+			log.Warnf("WaitForOrderNotification: LISTEN loop exited for order %s: %v", uuid, err)
+			// Continue with polling only
+			listenErrChan = nil // prevent repeated select
+		case <-ticker.C:
+			order, err := m.GetBuyOrderByUUID(uuid)
+			if err == nil && (order.Status == "Processed" || order.Status == "Failed") {
+				log.Printf("WaitForOrderNotification: polled order %s status=%s", uuid, order.Status)
 				return nil
 			}
 		}
-	})
+	}
 }

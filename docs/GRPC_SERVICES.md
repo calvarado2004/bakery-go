@@ -259,9 +259,9 @@ Tokens are signed with `HS256` and expire after **24 hours**.
 
 #### `getJWTSecret() []byte`
 
-Reads `JWT_SECRET` environment variable. Falls back to `"bakery-go-secret-key-change-in-production"` if not set.
+Reads `JWT_SECRET` environment variable. The server calls `log.Fatal` if it is not set.
 
-> **Security Warning:** The fallback secret must not be used in production. Startup should panic if `JWT_SECRET` is not set.
+> **Security Note:** There is no fallback secret. The process refuses to start without an explicit `JWT_SECRET`.
 
 ---
 

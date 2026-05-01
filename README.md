@@ -64,7 +64,7 @@ Access the customer portal at `http://localhost:8080/portal/login`
 | **Password** | `password123` |
 | **Name** | John Doe |
 
-> **Note:** These credentials are seeded in `bakery.sql` and stored as bcrypt hashes.
+> **Note:** Default dev credentials are in `seed-dev.sql` (not loaded in production). Run `psql -d bakery -f seed-dev.sql` to seed them locally.
 
 Regenerate protobuf (if `proto/bread.proto` changes):
 

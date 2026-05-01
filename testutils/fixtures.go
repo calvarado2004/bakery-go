@@ -98,6 +98,7 @@ func isContainerRunning(name string) bool {
 // startInfrastructure starts postgres and rabbitmq using docker run.
 func startInfrastructure(projectDir string) error {
 	sqlFile := filepath.Join(projectDir, "bakery.sql")
+	seedFile := filepath.Join(projectDir, "seed-dev.sql")
 
 	// Create the shared network if it does not exist yet.
 	exec.Command("docker", "network", "create", "bakery-network").Run() //nolint:errcheck
@@ -114,7 +115,8 @@ func startInfrastructure(projectDir string) error {
 			"-e", "POSTGRES_USER=postgres",
 			"-e", "POSTGRES_PASSWORD=password",
 			"-e", "POSTGRES_DB=bakery",
-			"-v", sqlFile + ":/docker-entrypoint-initdb.d/bakery.sql:ro",
+			"-v", sqlFile + ":/docker-entrypoint-initdb.d/01-schema.sql:ro",
+			"-v", seedFile + ":/docker-entrypoint-initdb.d/02-seed-dev.sql:ro",
 			"-p", "5432:5432",
 			"postgres:18-alpine",
 		}

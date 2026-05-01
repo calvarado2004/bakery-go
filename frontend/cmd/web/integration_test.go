@@ -17,6 +17,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-unit-tests-only")
+	os.Setenv("CSRF_KEY", "test-csrf-key-for-unit-tests-only")
+}
+
 // TestFrontend_HomeHandler_Integration tests the home handler with real gRPC
 func TestFrontend_HomeHandler_Integration(t *testing.T) {
 	// Skip if gRPC server is not running
@@ -53,8 +58,8 @@ func TestFrontend_HomeHandler_Integration(t *testing.T) {
 // TestFrontend_AdminRoutes_Integration tests admin routes
 func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 	// Set JWT secret for testing
+	// Ensure JWT_SECRET is set for middleware tests that follow.
 	os.Setenv("JWT_SECRET", "test-secret-for-integration")
-	defer os.Unsetenv("JWT_SECRET")
 
 	t.Run("AdminLoginPageHandler", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/admin/login", nil)
@@ -148,8 +153,8 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 
 // TestFrontend_CustomerRoutes_Integration tests customer portal routes
 func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
+	// Ensure JWT_SECRET is set for middleware tests that follow.
 	os.Setenv("JWT_SECRET", "test-secret-for-integration")
-	defer os.Unsetenv("JWT_SECRET")
 
 	t.Run("CustomerLoginPageHandler", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/portal/login", nil)
@@ -331,7 +336,6 @@ func TestFrontend_InventoryHandler_Integration(t *testing.T) {
 func TestFrontend_JSONResponse_Integration(t *testing.T) {
 	t.Run("AdminAlertsHandler", func(t *testing.T) {
 		os.Setenv("JWT_SECRET", "test-secret")
-		defer os.Unsetenv("JWT_SECRET")
 
 		addr := testutils.GetGRPCAddress()
 		conn, err := grpc.NewClient(
@@ -464,7 +468,7 @@ func createTestAdminToken() string {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, _ := token.SignedString(jwtSecret)
+	tokenString, _ := token.SignedString(getJWTSecret())
 	return tokenString
 }
 
@@ -479,7 +483,7 @@ func createTestCustomerToken() string {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, _ := token.SignedString(jwtSecret)
+	tokenString, _ := token.SignedString(getJWTSecret())
 	return tokenString
 }
 

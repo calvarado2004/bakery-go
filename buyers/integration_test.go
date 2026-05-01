@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -179,8 +180,12 @@ done:
 	}
 }
 
-// --- Integration test for full buy flow ---
-
+// TestIntegrationFullBuyFlow runs the complete buyer flow against a real server.
+// It reproduces the critical bug where BuyBreadStream never receives the
+// order-settlement response (the "missing fill confirmation" bug).
+//
+// When a real server is running this test MUST pass; a timeout is a FAILURE
+// because it means the buyer never got confirmation that the order was settled.
 func TestIntegrationFullBuyFlow(t *testing.T) {
 	grpcAddr := getEnvOrDefault("BAKERY_SERVICE_ADDR", "localhost:50051")
 	env := setupIntegrationTestEnv(t, grpcAddr)
@@ -193,24 +198,21 @@ func TestIntegrationFullBuyFlow(t *testing.T) {
 
 	buyOrderUUID := uuid.NewString()
 
-	// Test the complete flow: buy request + stream
 	buyBreadChan := make(chan bool, 1)
 	breadBoughtChan := make(chan bool, 2)
 	doneBuy := make(chan bool, 1)
 	doneStream := make(chan bool, 1)
 	errChan := make(chan error, 2)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Use a generous timeout: broker processing + DB polling can take ~10 s
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	// Start both goroutines
 	go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, doneBuy, buyOrderUUID, errChan)
 	go config.buyBreadStream(ctx, breadBoughtChan, doneStream, buyOrderUUID, errChan)
 
-	// Trigger the buy
 	buyBreadChan <- true
 
-	// Wait for completion with timeout
 	globalDone := make(chan struct{})
 	go func() {
 		<-doneBuy
@@ -222,10 +224,29 @@ func TestIntegrationFullBuyFlow(t *testing.T) {
 	case <-globalDone:
 		t.Logf("✓ Full integration flow completed successfully for order %s", buyOrderUUID)
 	case err := <-errChan:
-		t.Logf("Integration flow error (acceptable if server not running): %v", err)
-	case <-time.After(25 * time.Second):
-		t.Skip("Server not available, skipping full flow test")
+		// If the gRPC error is "connection refused" the server isn't running — skip.
+		if isServerUnavailable(err) {
+			t.Skipf("Server not available, skipping: %v", err)
+		}
+		t.Fatalf("Buy flow failed for order %s: %v", buyOrderUUID, err)
+	case <-time.After(40 * time.Second):
+		// CRITICAL BUG REPRODUCED: the stream never received the settlement.
+		t.Fatalf("CRITICAL BUG: BuyBreadStream timed out for order %s — "+
+			"the buyer never received order settlement confirmation. "+
+			"This reproduces the production bug where WaitForOrderNotification "+
+			"(LISTEN/NOTIFY) silently fails in containerised environments.", buyOrderUUID)
 	}
+}
+
+// isServerUnavailable returns true if err indicates the gRPC server is not running.
+func isServerUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "connection refused") ||
+		strings.Contains(s, "Unavailable") ||
+		strings.Contains(s, "no such host")
 }
 
 // --- Helper functions ---

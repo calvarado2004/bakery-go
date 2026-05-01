@@ -42,6 +42,7 @@
                         </td>
                         <td>
                             <form method="POST" action="/admin/orders/{{.BuyOrderUuid}}/status" class="d-flex gap-2">
+                                <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
                                 <select name="status" class="form-select form-select-sm" style="width: auto;">
                                     <option value="pending" {{if eq .Status "pending"}}selected{{end}}>Pending</option>
                                     <option value="processing" {{if eq .Status "processing"}}selected{{end}}>Processing</option>

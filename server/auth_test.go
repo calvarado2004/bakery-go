@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/metadata"
 )
+
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret-for-unit-tests-only")
+}
 
 // --- helpers ---
 
@@ -335,7 +340,7 @@ func adminCtx() context.Context {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 		},
 	}
-	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret)
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(getJWTSecret())
 	md := metadata.Pairs("authorization", "Bearer "+token)
 	return metadata.NewIncomingContext(context.Background(), md)
 }
@@ -376,5 +381,19 @@ func TestCreateAdminUser_DBError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestCreateAdminUser_NoToken(t *testing.T) {
+	srv := newAuthServer(&insertAdminRepo{returnID: 42})
+
+	_, err := srv.CreateAdminUser(context.Background(), &pb.CreateAdminUserRequest{
+		Username: "hacker",
+		Email:    "hack@bakery.com",
+		Password: "pass",
+		Role:     "admin",
+	})
+	if err == nil {
+		t.Fatal("expected error for unauthenticated request, got nil")
 	}
 }

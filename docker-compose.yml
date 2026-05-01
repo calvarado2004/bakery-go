@@ -9,7 +9,8 @@ services:
       POSTGRES_DB: bakery
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./bakery.sql:/docker-entrypoint-initdb.d/bakery.sql:ro
+      - ./bakery.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./seed-dev.sql:/docker-entrypoint-initdb.d/02-seed-dev.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -133,6 +134,7 @@ services:
     environment:
       BAKERY_SERVICE_ADDR: server:50051
       JWT_SECRET: ${JWT_SECRET:-change-in-production}
+      CSRF_KEY: ${CSRF_KEY:-change-in-production}
     ports:
       - "8080:8080"
     depends_on:

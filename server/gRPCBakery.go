@@ -406,19 +406,28 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
 	ctx := stream.Context()
 
+	log.Printf("BuyBreadStream started for order %s", in.BuyOrderUuid)
+
 	if err := s.RabbitMQBakery.Repo.WaitForOrderNotification(ctx, in.BuyOrderUuid); err != nil {
+		log.Errorf("BuyBreadStream: WaitForOrderNotification failed for order %s: %v", in.BuyOrderUuid, err)
 		return status.Errorf(codes.DeadlineExceeded, "order not settled within timeout: %v", err)
 	}
 
+	log.Printf("BuyBreadStream: received notification for order %s", in.BuyOrderUuid)
+
 	savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
 	if err != nil {
+		log.Errorf("BuyBreadStream: failed to get order %s: %v", in.BuyOrderUuid, err)
 		return status.Errorf(codes.Internal, "failed to get order: %v", err)
 	}
 
 	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
 	if err != nil {
+		log.Errorf("BuyBreadStream: failed to get total cost for order %s: %v", in.BuyOrderUuid, err)
 		return status.Errorf(codes.Internal, "failed to get order total cost: %v", err)
 	}
+
+	log.Printf("BuyBreadStream: sending settled response for order %s (total=$%.2f)", in.BuyOrderUuid, totalCost)
 
 	return stream.Send(&pb.BreadResponse{
 		Message:      fmt.Sprintf("Order %v settled, total cost $%.2f", savedOrder.BuyOrderUUID, totalCost),

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
@@ -18,17 +19,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var jwtSecret = []byte(getJWTSecret())
+var _jwtSecret []byte
+var _jwtOnce sync.Once
 
-func getJWTSecret() string {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		// Auto-generate a 32-byte random secret for production
-		// In Kubernetes, this should be provided via a Secret
-		secret = "bakery-go-secret-key-change-in-production"
-		log.WithField("secret", secret).Info("JWT_SECRET not set, using fallback")
-	}
-	return secret
+func getJWTSecret() []byte {
+	_jwtOnce.Do(func() {
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			log.Fatal("JWT_SECRET environment variable is not set")
+		}
+		_jwtSecret = []byte(secret)
+	})
+	return _jwtSecret
 }
 
 type AuthServiceServer struct {
@@ -71,7 +73,7 @@ func requireAdminToken(ctx context.Context) (*Claims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 	if err != nil || !token.Valid {
 		return nil, status.Errorf(codes.Unauthenticated, "invalid or expired token")
@@ -119,7 +121,7 @@ func (s *AuthServiceServer) AdminLogin(ctx context.Context, in *pb.LoginRequest)
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(getJWTSecret())
 	if err != nil {
 		log.Errorf("Error generating token: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to generate token")
@@ -173,7 +175,7 @@ func (s *AuthServiceServer) CustomerLogin(ctx context.Context, in *pb.CustomerLo
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(getJWTSecret())
 	if err != nil {
 		log.Errorf("Error generating token: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to generate token")
@@ -200,7 +202,7 @@ func (s *AuthServiceServer) ValidateToken(ctx context.Context, in *pb.ValidateTo
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil || !token.Valid {

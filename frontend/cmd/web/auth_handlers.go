@@ -7,25 +7,28 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/csrf"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 )
 
-var jwtSecret = []byte(getJWTSecret())
+var _jwtSecret []byte
+var _jwtOnce sync.Once
 
-func getJWTSecret() string {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		// Auto-generate a 32-byte random secret for production
-		// In Kubernetes, this should be provided via a Secret
-		secret = "bakery-go-secret-key-change-in-production"
-		log.WithField("secret", secret).Info("JWT_SECRET not set, using fallback")
-	}
-	return secret
+func getJWTSecret() []byte {
+	_jwtOnce.Do(func() {
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			log.Fatal("JWT_SECRET environment variable is not set")
+		}
+		_jwtSecret = []byte(secret)
+	})
+	return _jwtSecret
 }
 
 type Claims struct {
@@ -37,9 +40,10 @@ type Claims struct {
 }
 
 type AuthTemplateData struct {
-	Title   string
-	Error   string
-	Message string
+	Title     string
+	Error     string
+	Message   string
+	CSRFToken string
 }
 
 // adminGRPCContext returns a context with the authenticated admin's token
@@ -78,8 +82,9 @@ func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := AuthTemplateData{
-		Title: "Admin Login",
-		Error: r.URL.Query().Get("error"),
+		Title:     "Admin Login",
+		Error:     r.URL.Query().Get("error"),
+		CSRFToken: csrf.Token(r),
 	}
 
 	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/admin/login.html")))
@@ -161,8 +166,9 @@ func CustomerLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := AuthTemplateData{
-		Title: "Customer Login",
-		Error: r.URL.Query().Get("error"),
+		Title:     "Customer Login",
+		Error:     r.URL.Query().Get("error"),
+		CSRFToken: csrf.Token(r),
 	}
 
 	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/portal/login.html")))
@@ -276,7 +282,7 @@ func validateToken(tokenString string, expectedType string) bool {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil || !token.Valid {
@@ -298,7 +304,7 @@ func getCustomerIDFromToken(r *http.Request) int {
 
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil || !token.Valid {
@@ -316,7 +322,7 @@ func getAdminUserFromToken(r *http.Request) (int, string, string) {
 
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil || !token.Valid {

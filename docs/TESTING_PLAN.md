@@ -347,9 +347,12 @@ func waitForService(url string, timeout time.Duration) error {
 5. Assert: bread quantities decremented in DB
 6. Assert: bread-bought queue contains confirmation
 7. Assert: buy_order status = "Processed"
-8. Admin marks order "completed"
-9. Assert: invoice row created in DB
-10. Assert: invoice items match order details
+8. Assert: BuyBreadStream receives settlement response within 40 s
+   (This is the critical bug reproduction — if the stream times out,
+   the buyer never got the fill confirmation.)
+9. Admin marks order "completed"
+10. Assert: invoice row created in DB
+11. Assert: invoice items match order details
 ```
 
 #### Scenario 3: Customer Portal Order Visibility

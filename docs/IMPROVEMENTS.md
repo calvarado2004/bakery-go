@@ -21,24 +21,13 @@ This document catalogues all identified issues across the codebase, organised by
 
 These issues create immediate security exposure and must be resolved before any non-development deployment.
 
-### C-1: Hardcoded JWT Secret
+### C-1: Hardcoded JWT Secret ✅ FIXED
 
-**File:** `server/gRPCAuth.go`
+**File:** `server/gRPCAuth.go`, `frontend/cmd/web/auth_handlers.go`
 
-**Current:** Falls back to `"bakery-go-secret-key-change-in-production"` when `JWT_SECRET` is not set.
+**Previous:** Fell back to `"bakery-go-secret-key-change-in-production"` when `JWT_SECRET` was not set.
 
-**Risk:** Anyone who knows this default secret can forge valid JWT tokens for any user or role.
-
-**Fix:**
-```go
-func getJWTSecret() []byte {
-    secret := os.Getenv("JWT_SECRET")
-    if secret == "" {
-        log.Fatal("JWT_SECRET environment variable is not set")
-    }
-    return []byte(secret)
-}
-```
+**Fix:** Both server and frontend now call `log.Fatal` at startup if `JWT_SECRET` is not set. Lazy initialisation via `sync.Once` ensures tests can set the env var before first use.
 
 ---
 
@@ -54,47 +43,50 @@ func getJWTSecret() []byte {
 
 ---
 
-### C-3: Seed Credentials in Version Control
+### C-3: Seed Credentials in Version Control ✅ FIXED
 
-**File:** `bakery.sql`
+**File:** `bakery.sql`, `kubernetes/postgres.yaml`, `kubernetes/bakery-secrets.yaml`
 
-**Current:** The SQL schema includes bcrypt hashes of known default passwords (`password123`, `admin123`).
+**Previous:** The SQL schema and K8s ConfigMap included bcrypt hashes of known default passwords (`password123`, `admin123`).
 
-**Risk:** While bcrypt hashes are not reversible trivially, the known plaintexts are documented in `README.md`. Any deployed instance that retains seed data is compromised.
-
-**Fix:** Remove seed credentials from `bakery.sql`. Provide a separate `seed-dev.sql` file that is explicitly excluded from production `docker-compose` or Kubernetes Job manifests.
+**Fix:** Seed INSERTs removed from `bakery.sql` and `kubernetes/postgres.yaml`. Moved to `seed-dev.sql` for local development only. `docker-compose.yml` and test infrastructure mount `seed-dev.sql` explicitly. `bakery-secrets.yaml` now requires explicit values.
 
 ---
 
-### C-4: No CSRF Protection on Forms
+### C-4: No CSRF Protection on Forms ✅ FIXED
 
-**File:** `frontend/cmd/web/main.go`
+**File:** `frontend/cmd/web/main.go`, `frontend/cmd/web/auth_handlers.go`, `frontend/cmd/web/admin_handlers.go`
 
-**Current:** POST handlers (`/admin/bread/create`, `/admin/orders/{id}/status`, etc.) have no CSRF token validation.
+**Previous:** POST handlers had no CSRF token validation.
 
-**Risk:** An attacker can craft a malicious page that submits forms to the admin portal on behalf of an authenticated admin user.
-
-**Fix:** Add `gorilla/csrf` middleware:
-```go
-csrfMiddleware := csrf.Protect(
-    []byte(os.Getenv("CSRF_KEY")),
-    csrf.Secure(true),
-)
-router.Use(csrfMiddleware)
-```
-Add `{{ .csrfField }}` to all POST forms in templates.
+**Fix:** Added `gorilla/csrf` middleware with `CSRF_KEY` from env. All POST forms in templates include `<input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">`. Frontend fails fast if `CSRF_KEY` is not set.
 
 ---
 
-### C-5: `CreateAdminUser` Has No Authorization Check
+### C-5: `CreateAdminUser` Has No Authorization Check ✅ FIXED
 
 **File:** `server/gRPCAuth.go`
 
-**Current:** Any gRPC client can call `CreateAdminUser` without presenting any credentials.
+**Previous:** Any gRPC client could call `CreateAdminUser` without credentials.
 
-**Risk:** Unauthenticated actor can create admin accounts.
+**Fix:** `CreateAdminUser` now calls `requireAdminToken(ctx)` at the start of the handler. Unauthenticated requests receive `codes.Unauthenticated`. Added `TestCreateAdminUser_NoToken` to cover this path.
 
-**Fix:** Add a gRPC interceptor that validates an admin JWT before allowing `CreateAdminUser` to proceed. Alternatively, restrict this RPC to be called only from `localhost` or a trusted internal address.
+---
+
+### C-6: `BuyBreadStream` Never Receives Order Settlement (Critical Production Bug) ✅ FIXED
+
+**Files:** `data/models.go`, `server/gRPCBakery.go`, `buyers/main.go`, `buyers/integration_test.go`
+
+**Previous:** `WaitForOrderNotification` used `database/sql` `conn.Raw()` + pgx `WaitForNotification`. In containerised environments (OpenShift, Docker), PostgreSQL LISTEN/NOTIFY silently failed — the server never received the notification that the broker had settled the order. Buyers sat on `stream.Recv()` forever, eventually getting EOF when the server pod recycled. This is the electronic-market equivalent of a trader never receiving their fill confirmation.
+
+**Fix:**
+- `WaitForOrderNotification` rewritten with a **dual-strategy**:
+  1. **Fast path:** raw `pgx.Connect` + `LISTEN bakery_orders` + `WaitForNotification`
+  2. **Guaranteed fallback:** polls `GetBuyOrderByUUID` every 500 ms for `status = 'Processed'` or `'Failed'`
+- Added `PostgresRepository.SetDSN()` so services can open raw pgx connections for LISTEN/NOTIFY
+- Updated `server/main.go`, `broker/main.go`, `makers/main.go` to call `SetDSN()`
+- Added `TestIntegrationFullBuyFlow` in `buyers/integration_test.go` — a strict e2e test that **FAILS** if the stream never receives the settlement (reproduces the exact bug)
+- Improved buyer logging: replaced raw protobuf dumps with structured order summaries and explicit `CONFIRMED & FULFILLED` messages
 
 ---
 

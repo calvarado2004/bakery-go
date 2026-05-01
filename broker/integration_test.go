@@ -78,6 +78,14 @@ func setupBrokerIntegrationEnv(t *testing.T) *brokerTestEnv {
 
 func (env *brokerTestEnv) teardown(t *testing.T) {
 	t.Helper()
+
+	// Clean up test data to avoid primary key conflicts across tests
+	_, _ = env.db.Exec("DELETE FROM outbox")
+	_, _ = env.db.Exec("DELETE FROM orders_processed")
+	_, _ = env.db.Exec("DELETE FROM order_details")
+	_, _ = env.db.Exec("DELETE FROM buy_order")
+	_, _ = env.db.Exec("ALTER SEQUENCE outbox_id_seq RESTART WITH 1")
+
 	if err := env.rabbitChannel.Close(); err != nil {
 		t.Logf("Warning: failed to close RabbitMQ channel: %v", err)
 	}
