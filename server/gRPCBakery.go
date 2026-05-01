@@ -400,40 +400,86 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 	}
 }
 
-// BuyBreadStream waits for the broker to settle the order using PostgreSQL
-// LISTEN/NOTIFY, then streams a single response with the order summary.
-// No polling and no RabbitMQ consumption in the server.
+// BuyBreadStream waits for the broker to settle the order and streams the
+// result back to the buyer.
+//
+// Architecture (electronic-market pattern):
+//   1. Register with the central SettlementDispatcher (waits for AMQP
+//      "bread-bought" messages from the broker).
+//   2. If the AMQP message arrives, send the settlement immediately.
+//   3. If the AMQP message is lost, fall back to a single DB poll after
+//      a short grace period.
+//
+// This scales: one AMQP consumer serves N concurrent streams, with zero
+// DB polling per stream under normal conditions.
 func (s *BuyBreadServer) BuyBreadStream(in *pb.BreadRequest, stream pb.BuyBread_BuyBreadStreamServer) error {
 	ctx := stream.Context()
+	uuid := in.BuyOrderUuid
 
-	log.Printf("BuyBreadStream started for order %s", in.BuyOrderUuid)
+	log.Printf("BuyBreadStream started for order %s", uuid)
 
-	if err := s.RabbitMQBakery.Repo.WaitForOrderNotification(ctx, in.BuyOrderUuid); err != nil {
-		log.Errorf("BuyBreadStream: WaitForOrderNotification failed for order %s: %v", in.BuyOrderUuid, err)
-		return status.Errorf(codes.DeadlineExceeded, "order not settled within timeout: %v", err)
+	dispatcher := s.RabbitMQBakery.settlementDispatcher
+	if dispatcher == nil {
+		log.Error("BuyBreadStream: settlement dispatcher not initialized")
+		return status.Error(codes.Internal, "settlement dispatcher not ready")
 	}
 
-	log.Printf("BuyBreadStream: received notification for order %s", in.BuyOrderUuid)
+	// Register with the central dispatcher.
+	waiter := dispatcher.Register(uuid)
+	defer dispatcher.Unregister(uuid)
 
-	savedOrder, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(in.BuyOrderUuid)
-	if err != nil {
-		log.Errorf("BuyBreadStream: failed to get order %s: %v", in.BuyOrderUuid, err)
-		return status.Errorf(codes.Internal, "failed to get order: %v", err)
+	var order *data.BuyOrder
+	select {
+	case o := <-waiter:
+		if o == nil {
+			// Dispatcher closed the channel without a settlement.
+			// This means the notification arrived but the DB lookup failed.
+			log.Warnf("BuyBreadStream: dispatcher closed without settlement for order %s (DB lookup failed)", uuid)
+			return status.Errorf(codes.Internal, "order %s settled but could not be retrieved", uuid)
+		}
+		log.Printf("BuyBreadStream: received AMQP settlement for order %s", uuid)
+		order = o
+	case <-ctx.Done():
+		log.Warnf("BuyBreadStream: context cancelled for order %s before AMQP settlement", uuid)
+		return status.Errorf(codes.DeadlineExceeded, "order settlement timed out: %v", ctx.Err())
+	case <-time.After(12 * time.Second):
+		// AMQP message didn't arrive (lost message, or broker is slow).
+		// Single DB fallback — no continuous polling.
+		log.Warnf("BuyBreadStream: AMQP settlement missing for order %s, falling back to DB", uuid)
+		order = s.fallbackGetSettledOrder(ctx, uuid)
+		if order == nil {
+			return status.Errorf(codes.DeadlineExceeded, "order %s not settled within timeout", uuid)
+		}
 	}
 
-	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(savedOrder.ID)
+	totalCost, err := s.RabbitMQBakery.Repo.GetOrderTotalCost(order.ID)
 	if err != nil {
-		log.Errorf("BuyBreadStream: failed to get total cost for order %s: %v", in.BuyOrderUuid, err)
+		log.Errorf("BuyBreadStream: failed to get total cost for order %s: %v", uuid, err)
 		return status.Errorf(codes.Internal, "failed to get order total cost: %v", err)
 	}
 
-	log.Printf("BuyBreadStream: sending settled response for order %s (total=$%.2f)", in.BuyOrderUuid, totalCost)
+	log.Printf("BuyBreadStream: sending settled response for order %s (total=$%.2f)", uuid, totalCost)
 
 	return stream.Send(&pb.BreadResponse{
-		Message:      fmt.Sprintf("Order %v settled, total cost $%.2f", savedOrder.BuyOrderUUID, totalCost),
-		BuyOrderId:   int32(savedOrder.ID),
-		BuyOrderUuid: savedOrder.BuyOrderUUID,
+		Message:      fmt.Sprintf("Order %v settled, total cost $%.2f", order.BuyOrderUUID, totalCost),
+		BuyOrderId:   int32(order.ID),
+		BuyOrderUuid: order.BuyOrderUUID,
 	})
+}
+
+// fallbackGetSettledOrder checks the DB once for a settled order.
+// Returns nil if the order is not yet settled.
+func (s *BuyBreadServer) fallbackGetSettledOrder(ctx context.Context, uuid string) *data.BuyOrder {
+	order, err := s.RabbitMQBakery.Repo.GetBuyOrderByUUID(uuid)
+	if err != nil {
+		log.Errorf("BuyBreadStream: DB fallback failed to get order %s: %v", uuid, err)
+		return nil
+	}
+	if order.Status == "Processed" || order.Status == "Failed" {
+		log.Printf("BuyBreadStream: DB fallback found order %s status=%s", uuid, order.Status)
+		return &order
+	}
+	return nil
 }
 
 func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequest) (*pb.BuyOrderResponse, error) {

@@ -19,7 +19,8 @@ import (
 
 type RabbitMQBakery struct {
 	Config
-	rabbitmqURL string
+	rabbitmqURL            string
+	settlementDispatcher   settlementDispatcher
 }
 
 type MakeBreadServer struct {
@@ -142,6 +143,11 @@ func main() {
 
 	// Initialize RabbitMQ
 	rabbitMQBakery.init()
+
+	// Start the central settlement dispatcher (electronic-market pattern:
+	// one AMQP consumer routes fill confirmations to N waiting gRPC streams).
+	rabbitMQBakery.settlementDispatcher = NewSettlementDispatcher(rabbitMQBakery, rabbitMQAddress)
+	rabbitMQBakery.settlementDispatcher.Start()
 
 	server := grpc.NewServer()
 

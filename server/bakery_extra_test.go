@@ -25,12 +25,46 @@ func newCheckInventoryServer(repo data.Repository) *CheckInventoryServer {
 }
 
 func newBuyBreadServer(repo data.Repository) *BuyBreadServer {
+	bakery := &RabbitMQBakery{
+		Config: Config{Repo: repo},
+	}
+	// For unit tests, create a dispatcher that wraps the repo's
+	// WaitForOrderNotification so the old test mocks still work.
+	bakery.settlementDispatcher = newTestDispatcher(bakery)
 	return &BuyBreadServer{
-		RabbitMQBakery: &RabbitMQBakery{
-			Config: Config{Repo: repo},
-		},
+		RabbitMQBakery: bakery,
 	}
 }
+
+// testDispatcher is a test-only dispatcher that routes to the repo's
+// WaitForOrderNotification instead of consuming RabbitMQ.
+type testDispatcher struct {
+	bakery *RabbitMQBakery
+}
+
+func newTestDispatcher(bakery *RabbitMQBakery) settlementDispatcher {
+	return &testDispatcher{bakery: bakery}
+}
+
+func (d *testDispatcher) Start()                       {}
+func (d *testDispatcher) Register(uuid string) <-chan *data.BuyOrder {
+	ch := make(chan *data.BuyOrder, 1)
+	go func() {
+		// Simulate the old behavior: call WaitForOrderNotification
+		if err := d.bakery.Repo.WaitForOrderNotification(context.Background(), uuid); err != nil {
+			close(ch)
+			return
+		}
+		order, err := d.bakery.Repo.GetBuyOrderByUUID(uuid)
+		if err != nil {
+			close(ch)
+			return
+		}
+		ch <- &order
+	}()
+	return ch
+}
+func (d *testDispatcher) Unregister(uuid string) {}
 
 func newBuyOrderStreamServer(repo data.Repository) *BuyOrderServiceServer {
 	return &BuyOrderServiceServer{
