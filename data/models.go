@@ -59,15 +59,29 @@ type Bread struct {
 	Status      string    `json:"status"`
 }
 
+// OrderItem tracks per-item fulfillment state in the matching engine.
+type OrderItem struct {
+	BreadID           int    `json:"bread_id"`
+	QuantityRequested int    `json:"quantity_requested"`
+	QuantityFulfilled int    `json:"quantity_fulfilled"`
+	BidPrice          float32 `json:"bid_price"`
+	Status            string `json:"status"` // "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
+}
+
 type BuyOrder struct {
-	ID           int       `json:"id"`
-	CustomerID   int       `json:"customer_id"`
-	BuyOrderUUID string    `json:"buy_order_uuid"`
-	Customer     Customer  `json:"customer"`
-	Breads       []Bread   `json:"breads"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                   int        `json:"id"`
+	CustomerID           int        `json:"customer_id"`
+	BuyOrderUUID         string     `json:"buy_order_uuid"`
+	Customer             Customer   `json:"customer"`
+	Breads               []Bread    `json:"breads"`
+	Status               string     `json:"status"`
+	SequenceNumber       int64      `json:"sequence_number"`
+	BidPrice             float32    `json:"bid_price"`
+	AllowPartial         bool       `json:"allow_partial"`
+	SkipUnavailableItems bool       `json:"skip_unavailable_items"`
+	MatchedItems         []OrderItem `json:"matched_items,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 type OrdersProcessed struct {
@@ -444,6 +458,57 @@ func (u *PostgresRepository) FulfillOrderTx(order BuyOrder) error {
 	}
 
 	return tx.Commit()
+}
+
+// FulfillOrderItem atomically checks stock and deducts a single bread item.
+// Used by the matching engine for per-item partial fulfillment.
+// Returns the actual quantity fulfilled (may be less than requested).
+// Returns ErrInsufficientStock if stock is zero.
+func (u *PostgresRepository) FulfillOrderItem(breadID int, requestedQty int) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*3)
+	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	// Lock the row and check stock.
+	var currentQty int
+	err = tx.QueryRowContext(ctx,
+		`SELECT quantity FROM bread WHERE id = $1 FOR UPDATE`,
+		breadID,
+	).Scan(&currentQty)
+	if err != nil {
+		return 0, fmt.Errorf("lock bread id=%d: %w", breadID, err)
+	}
+
+	// Determine how much we can fulfill.
+	fulfilled := requestedQty
+	if fulfilled > currentQty {
+		fulfilled = currentQty
+	}
+
+	if fulfilled <= 0 {
+		return 0, ErrInsufficientStock
+	}
+
+	// Deduct stock.
+	_, err = tx.ExecContext(ctx,
+		`UPDATE bread SET quantity = quantity - $1, updated_at = NOW() WHERE id = $2`,
+		fulfilled, breadID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("deduct bread id=%d: %w", breadID, err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+
+	log.Infof("FulfillOrderItem: deducted %d units from bread id=%d (requested=%d)", fulfilled, breadID, requestedQty)
+	return fulfilled, nil
 }
 
 func (u *PostgresRepository) PasswordMatches(plainText string, customer Customer) (bool, error) {

@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"sync"
@@ -18,11 +18,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// contextWithTimeout is a local alias to avoid import conflict.
+func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), d)
+}
+
 type RabbitMQBakery struct {
 	Config
 	orders      map[int]*OrderStatus
 	mu          sync.Mutex
 	rabbitmqURL string
+	buffer      orderBuffer // incoming orders waiting for matching
 }
 
 type OrderStatus struct {
@@ -125,8 +131,8 @@ func startBroker(rabbitmqURL string) {
 	// Set up Postgres Repository for RabbitMQ Bakery
 	rabbitMQBakery.setupRepo(pgConn)
 
-	// Start the order-processing goroutine
-	go startOrderProcessor(rabbitMQBakery)
+	// Start the order-matching goroutine (buffered, batched)
+	go startMatchingEngine(rabbitMQBakery)
 
 	// Start the outbox publisher goroutine
 	go startOutboxPublisher(rabbitMQBakery)
@@ -134,9 +140,23 @@ func startBroker(rabbitmqURL string) {
 	select {}
 }
 
-// startOrderProcessor runs the order processing loop in the background.
-// It continuously attempts to process buy bread orders from RabbitMQ.
-func startOrderProcessor(rabbitMQBakery *RabbitMQBakery) {
+// startMatchingEngine runs the order ingestion and matching pipeline.
+// It consumes orders from RabbitMQ, buffers them, and processes them in batches.
+func startMatchingEngine(rabbitMQBakery *RabbitMQBakery) {
+	// Connect to RabbitMQ once for the matchLoop (batch timer).
+	conn, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+	if err != nil {
+		log.Errorf("Failed to connect to RabbitMQ for matchLoop: %v", err)
+		return
+	}
+	channel, err := conn.Channel()
+	if err != nil {
+		log.Errorf("Failed to open channel for matchLoop: %v", err)
+		conn.Close()
+		return
+	}
+	go rabbitMQBakery.matchLoop(conn, channel)
+
 	for {
 		err := rabbitMQBakery.performBuyBread()
 		if err != nil {
@@ -146,6 +166,32 @@ func startOrderProcessor(rabbitMQBakery *RabbitMQBakery) {
 		}
 		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
 		time.Sleep(20 * time.Second)
+	}
+}
+
+// matchLoop buffers incoming orders and processes them in batches.
+// Each order is ACKed immediately upon ingestion. Matching happens
+// in batches collected over matchBatchWindow or when matchBatchSize is reached.
+func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitmq.Channel) {
+	ticker := time.NewTicker(matchBatchWindow)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			batch := app.buffer.drain()
+			if len(batch) > 0 {
+				log.Infof("matchLoop: batch timer fired, processing %d orders", len(batch))
+				app.processMatchingBatch(batch, channel)
+			}
+		default:
+			if app.buffer.len() >= matchBatchSize {
+				batch := app.buffer.drain()
+				log.Infof("matchLoop: batch size reached (%d), processing", len(batch))
+				app.processMatchingBatch(batch, channel)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 }
 
@@ -214,15 +260,17 @@ func processOutboxMessage(repo data.Repository, pub publisher, msg data.OutboxMe
 	}
 }
 
-// performBuyBread listens for buy bread orders and fulfills them atomically.
+// performBuyBread listens for buy bread orders and buffers them for batch matching.
 //
 // Key invariants:
-//   - Every message is acknowledged exactly once, whether the order succeeds or fails.
-//   - Stock deduction uses FulfillOrderTx (SELECT FOR UPDATE), which prevents
-//     two concurrent broker instances from both deducting the same inventory.
+//   - Every message is acknowledged exactly once, whether the order is valid or not.
+//   - Orders are inserted into the database immediately, then buffered for matching.
 //   - Duplicate messages (RabbitMQ redelivery after a broker crash) are detected
 //     by checking the database for an existing record with the same UUID before
 //     inserting a new one.
+//   - Stock deduction happens asynchronously in the matching engine via
+//     SELECT FOR UPDATE, which prevents two concurrent broker instances from
+//     both deducting the same inventory.
 func (rabbit *RabbitMQBakery) performBuyBread() error {
 
 	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
@@ -270,15 +318,16 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 	log.Printf("Listening for buy bread orders on RabbitMQ queue...")
 
 	for delivery := range buyOrderMessages {
-		rabbit.processOneOrder(channel, delivery) // *rabbitmq.Channel satisfies publisher
+		rabbit.processOneOrder(delivery)
 	}
 
 	return nil
 }
 
-// processOneOrder handles a single buy-bread-order delivery end-to-end.
-// It always acknowledges the delivery before returning.
-func (rabbit *RabbitMQBakery) processOneOrder(pub publisher, delivery rabbitmq.Delivery) {
+// processOneOrder receives a buy-bread-order delivery, validates it,
+// inserts the order into the database, and buffers it for batch matching.
+// The delivery is ACKed immediately upon successful buffering.
+func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery) {
 	var order data.BuyOrder
 	if err := json.Unmarshal(delivery.Body, &order); err != nil {
 		log.Errorf("Failed to unmarshal buy order: %v", err)
@@ -288,7 +337,7 @@ func (rabbit *RabbitMQBakery) processOneOrder(pub publisher, delivery rabbitmq.D
 
 	log.WithField("order_uuid", order.BuyOrderUUID).Info("Received buy order")
 
-	// --- Deduplication (TASK-03) ---
+	// --- Deduplication ---
 	// If a record with this UUID already exists in the database, this is a
 	// RabbitMQ redelivery after a previous broker run crashed after inserting
 	// but before acking. Ack and skip to avoid double-processing.
@@ -313,78 +362,19 @@ func (rabbit *RabbitMQBakery) processOneOrder(pub publisher, delivery rabbitmq.D
 		order.ID = buyOrderID
 	}
 
-	// --- Outbox record for at-least-once publish reliability ---
-	outbox := data.OutboxMessage{
-		Payload:   delivery.Body,
-		Sent:      false,
-		ID:        buyOrderID,
-		CreatedAt: time.Now(),
-	}
-	if err := rabbit.Repo.InsertOutboxMessage(outbox); err != nil {
-		log.Errorf("Failed to insert outbox message: %v", err)
-		// Continue — the outbox publisher will retry if the final publish fails.
-	}
-
-	// --- Atomic stock check + deduction (TASK-01) ---
-	// FulfillOrderTx uses SELECT FOR UPDATE inside a transaction, so two
-	// concurrent brokers cannot both pass the stock check and both deduct.
-	if err := rabbit.Repo.FulfillOrderTx(order); err != nil {
-		if errors.Is(err, data.ErrInsufficientStock) {
-			log.WithField("order_uuid", order.BuyOrderUUID).
-				Warn("Insufficient stock — marking order as failed")
-		} else {
-			log.WithField("order_uuid", order.BuyOrderUUID).
-				Errorf("FulfillOrderTx error: %v", err)
-		}
-		rabbit.failOrder(order.BuyOrderUUID, buyOrderID, delivery)
-		return
-	}
-
-	// --- Order fulfilled successfully ---
-	order.CustomerID = 1
-	order.Customer = data.Customer{Name: "John Doe", Email: "john@doe.com", ID: 1}
-
-	if err := rabbit.Repo.UpdateOrderStatus(order.BuyOrderUUID, "Processed"); err != nil {
-		log.Errorf("Failed to update order status to Processed: %v", err)
-		rabbit.failOrder(order.BuyOrderUUID, buyOrderID, delivery)
-		return
-	}
+	// --- Buffer for matching engine ---
+	// The matching engine will process this order asynchronously,
+	// checking stock and fulfilling/partially fulfilling as appropriate.
+	rabbit.buffer.add(order)
 
 	delivery.Ack(false) //nolint:errcheck
-	log.WithField("order_uuid", order.BuyOrderUUID).Info("Buy order processed successfully")
-
-	// Publish confirmation so the server stream can deliver the result to the client.
-	orderData, err := json.Marshal(&order)
-	if err != nil {
-		log.Errorf("Failed to marshal processed order for publish: %v", err)
-		// Outbox publisher will retry; do not delete the outbox entry.
-		return
-	}
-
-	if err := pub.Publish("", "bread-bought", false, false, rabbitmq.Publishing{
-		ContentType:  "text/json",
-		Body:         orderData,
-		DeliveryMode: rabbitmq.Persistent,
-	}); err != nil {
-		log.Errorf("Failed to publish bread-bought message: %v", err)
-		// Outbox publisher will retry this publish; do not delete the entry.
-		return
-	}
-
-	// Publish succeeded — remove the outbox entry so it is not re-sent.
-	if err := rabbit.Repo.DeleteOutboxMessage(buyOrderID); err != nil {
-		log.Errorf("Failed to delete outbox message: %v", err)
-	}
+	log.WithField("order_uuid", order.BuyOrderUUID).Info("Order buffered for matching")
 }
 
-// failOrder marks the order as Failed, acks the delivery, and cleans up the
-// outbox entry. Used from processOneOrder when fulfillment cannot proceed.
-func (rabbit *RabbitMQBakery) failOrder(uuid string, outboxID int, delivery rabbitmq.Delivery) {
-	if err := rabbit.Repo.UpdateOrderStatus(uuid, "Failed"); err != nil {
-		log.Errorf("Failed to update order status to Failed: %v", err)
-	}
-	delivery.Ack(false) //nolint:errcheck
-	if err := rabbit.Repo.DeleteOutboxMessage(outboxID); err != nil {
-		log.Errorf("Failed to delete outbox message on failure: %v", err)
+// failOrder marks an order as Failed in the database.
+// Called by the matching engine when fulfillment cannot proceed.
+func (rabbit *RabbitMQBakery) failOrder(uuid string, status string) {
+	if err := rabbit.Repo.UpdateOrderStatus(uuid, status); err != nil {
+		log.Errorf("Failed to update order status to %s: %v", status, err)
 	}
 }

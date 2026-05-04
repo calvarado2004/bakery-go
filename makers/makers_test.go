@@ -57,6 +57,7 @@ func (r *makersStubRepo) GetInvoicesByCustomerID(int) ([]data.Invoice, error)   
 func (r *makersStubRepo) GetAllInvoices() ([]data.Invoice, error)                     { return nil, nil }
 func (r *makersStubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)               { return data.Invoice{}, nil }
 func (r *makersStubRepo) FulfillOrderTx(data.BuyOrder) error                          { return nil }
+func (r *makersStubRepo) FulfillOrderItem(int, int) (int, error)                      { return 0, nil }
 func (r *makersStubRepo) WaitForOrderNotification(context.Context, string) error      { return nil }
 
 // --- adjustCapturingRepo records the call arguments ---

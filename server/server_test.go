@@ -57,6 +57,7 @@ func (r *stubRepo) GetInvoicesByCustomerID(int) ([]data.Invoice, error)         
 func (r *stubRepo) GetAllInvoices() ([]data.Invoice, error)                         { return nil, nil }
 func (r *stubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)                   { return data.Invoice{}, nil }
 func (r *stubRepo) FulfillOrderTx(data.BuyOrder) error                              { return nil }
+func (r *stubRepo) FulfillOrderItem(int, int) (int, error)                          { return 0, nil }
 func (r *stubRepo) WaitForOrderNotification(context.Context, string) error           { return nil }
 
 // --- notFoundRepo: returns sql.ErrNoRows for GetBuyOrderByUUID ---

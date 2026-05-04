@@ -57,6 +57,12 @@ type Repository interface {
 	// separately, which is susceptible to a TOCTOU race condition.
 	FulfillOrderTx(order BuyOrder) error
 
+	// FulfillOrderItem atomically checks stock and deducts a single bread item.
+	// Returns the actual quantity fulfilled (may be less than requested).
+	// Returns ErrInsufficientStock if stock is zero.
+	// Used by the matching engine for per-item partial fulfillment.
+	FulfillOrderItem(breadID int, requestedQty int) (int, error)
+
 	InsertCustomer(customer Customer) (int, error)
 	InsertBread(bread Bread) (int, error)
 	InsertBreadMaker(baker BreadMaker) (int, error)

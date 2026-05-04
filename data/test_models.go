@@ -236,3 +236,8 @@ func (u *PostgresTestRepository) GetOutboxMessages() ([]OutboxMessage, error) {
 func (u *PostgresTestRepository) FulfillOrderTx(order BuyOrder) error {
 	return nil
 }
+
+// FulfillOrderItem always succeeds in the test repository.
+func (u *PostgresTestRepository) FulfillOrderItem(breadID int, qty int) (int, error) {
+	return qty, nil
+}
