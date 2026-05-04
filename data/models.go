@@ -225,95 +225,78 @@ func (u *PostgresRepository) InsertBreadMaker(baker BreadMaker) (int, error) {
 	return newID, nil
 }
 
-// InsertBuyOrder inserts a new buy order into the database, along with the order details, and returns the new ID
+// InsertBuyOrder inserts a new buy order header and order details into the database.
+// It does NOT adjust inventory — that is the sole responsibility of FulfillOrderTx.
+// The entire order (header + all details) is persisted in a single transaction.
 func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int, error) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	var countBread bool
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Errorf("Error starting transaction: %v", err)
+		return 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	var newID int
 	stmt := `INSERT INTO buy_order (customer_id, buy_order_uuid, status) VALUES ($1, $2, $3) RETURNING id`
 
-	err := db.QueryRowContext(ctx, stmt,
+	err = tx.QueryRowContext(ctx, stmt,
 		order.CustomerID, order.BuyOrderUUID, "processing",
 	).Scan(&newID)
-
 	if err != nil {
 		log.Errorf("Error inserting buy order: %v", err)
 		return 0, err
 	}
 
 	for _, bread := range breads {
-		// Start a transaction
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			log.Errorf("Error starting a transaction: %v", err)
-			return 0, err
-		}
-
 		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 
 		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price, time.Now(), time.Now())
-
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)
-			// Rollback the transaction for this bread
-			err := tx.Rollback()
-			if err != nil {
-				log.Errorf("Error rolling back transaction: %v", err)
-			}
-			continue // This will skip to the next bread in the loop
-		}
-
-		countBread, err = u.AdjustBreadQuantity(bread.ID, -bread.Quantity)
-		if err != nil || !countBread {
-			if err != nil {
-				log.Errorf("Error adjusting bread quantity: %v", err)
-			}
-
-			// Rollback the transaction for this bread
-			err := tx.Rollback()
-			if err != nil {
-				log.Errorf("Error rolling back transaction: %v", err)
-			}
-			continue // This will skip to the next bread in the loop
-		}
-
-		// If everything went well, commit the transaction for this bread
-		err = tx.Commit()
-		if err != nil {
-			log.Errorf("Error committing transaction: %v", err)
 			return 0, err
 		}
 	}
+
+	if err = tx.Commit(); err != nil {
+		log.Errorf("Error committing buy order transaction: %v", err)
+		return 0, err
+	}
+
 	return newID, nil
 }
 
+// InsertMakeOrder inserts a new make order header and details in a single transaction,
+// then adjusts bread inventory (adds stock) for each item.
 func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (int, error) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Errorf("Error starting transaction: %v", err)
+		return 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
 
 	var newID int
 	stmt := `INSERT INTO make_order (bread_maker_id, make_order_uuid) VALUES ($1, $2) RETURNING id`
 
-	err := db.QueryRowContext(ctx, stmt,
+	err = tx.QueryRowContext(ctx, stmt,
 		order.BreadMakerID,
 		order.MakeOrderUUID,
 	).Scan(&newID)
-
 	if err != nil {
 		log.Errorf("Error inserting make order: %v", err)
 		return 0, err
 	}
 
 	for _, bread := range breads {
-
 		stmt = `INSERT INTO make_order_details (make_order_id, bread_id, quantity) VALUES ($1, $2, $3)`
 
-		_, err := db.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
-
+		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity)
 		if err != nil {
 			log.Errorf("Error inserting make order details: %v", err)
 			return 0, err
@@ -324,6 +307,11 @@ func (u *PostgresRepository) InsertMakeOrder(order MakeOrder, breads []Bread) (i
 			log.Errorf("Error adjusting bread quantity: %v", err)
 			return 0, err
 		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		log.Errorf("Error committing make order transaction: %v", err)
+		return 0, err
 	}
 
 	return newID, nil
@@ -1388,10 +1376,17 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Errorf("Error starting transaction: %v", err)
+		return 0, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	var newID int
 	stmt := `INSERT INTO invoices(buy_order_id, customer_id, invoice_number, subtotal, tax, total, status, created_at, due_date, paid_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
 
-	err := db.QueryRowContext(ctx, stmt,
+	err = tx.QueryRowContext(ctx, stmt,
 		invoice.BuyOrderID,
 		invoice.CustomerID,
 		invoice.InvoiceNumber,
@@ -1403,19 +1398,23 @@ func (u *PostgresRepository) InsertInvoice(invoice Invoice) (int, error) {
 		invoice.DueDate,
 		invoice.PaidAt,
 	).Scan(&newID)
-
 	if err != nil {
 		log.Errorf("Error inserting invoice: %v", err)
 		return 0, err
 	}
 
-	// Insert invoice items
 	for _, item := range invoice.Items {
 		itemStmt := `INSERT INTO invoice_items(invoice_id, bread_id, bread_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)`
-		_, err = db.ExecContext(ctx, itemStmt, newID, item.BreadID, item.BreadName, item.Quantity, item.UnitPrice, item.Total)
+		_, err = tx.ExecContext(ctx, itemStmt, newID, item.BreadID, item.BreadName, item.Quantity, item.UnitPrice, item.Total)
 		if err != nil {
 			log.Errorf("Error inserting invoice item: %v", err)
+			return 0, err
 		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		log.Errorf("Error committing invoice transaction: %v", err)
+		return 0, err
 	}
 
 	return newID, nil

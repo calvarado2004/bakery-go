@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: bakery
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./bakery.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./seed-dev.sql:/docker-entrypoint-initdb.d/02-seed-dev.sql:ro
     ports:

@@ -94,8 +94,11 @@ CREATE TABLE public.customer (
                                  password character varying(255),
                                  created_at timestamp without time zone,
                                  updated_at timestamp without time zone,
-                                 PRIMARY KEY (id)
+                                 PRIMARY KEY (id),
+                                 CONSTRAINT uq_customer_email UNIQUE (email)
 );
+
+CREATE INDEX idx_customer_email ON customer(email);
 
 ALTER TABLE public.customer_id_seq OWNER TO postgres;
 
@@ -107,8 +110,13 @@ CREATE TABLE public.buy_order (
                                   buy_order_uuid character varying(255),
                                   status character varying(255),
                                   PRIMARY KEY (id),
-                                  FOREIGN KEY (customer_id) REFERENCES public.customer(id)
+                                  FOREIGN KEY (customer_id) REFERENCES public.customer(id),
+                                  CONSTRAINT uq_buy_order_uuid UNIQUE (buy_order_uuid)
 );
+
+CREATE INDEX idx_buy_order_uuid ON buy_order(buy_order_uuid);
+CREATE INDEX idx_buy_order_customer_id ON buy_order(customer_id);
+CREATE INDEX idx_buy_order_status ON buy_order(status);
 
 ALTER TABLE public.buy_id_seq OWNER TO postgres;
 
