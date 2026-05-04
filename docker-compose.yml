@@ -68,6 +68,12 @@ services:
       - bakery-network
 
   # Broker - processes buy orders from RabbitMQ
+  #
+  # SINGLE-INSTANCE CONSTRAINT: The matching engine runs as a single instance.
+  # Horizontal scaling requires hash-partitioning by buy_order_uuid so orders
+  # for the same buyer always go to the same broker. Until that is implemented,
+  # do NOT run multiple broker replicas.
+  # See: ARCHITECTURE_AUDIT.md §9.3 and §10 (Phase 2).
   broker:
     build:
       context: .

@@ -125,6 +125,7 @@ CREATE TABLE public.order_details (
                                       bread_id integer NOT NULL,
                                       quantity integer,
                                       price float,
+                                      status text DEFAULT 'pending',
                                       created_at timestamp without time zone,
                                       updated_at timestamp without time zone,
                                       PRIMARY KEY (buy_order_id, bread_id),

@@ -265,9 +265,9 @@ func (u *PostgresRepository) InsertBuyOrder(order BuyOrder, breads []Bread) (int
 	}
 
 	for _, bread := range breads {
-		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+		stmt = `INSERT INTO order_details (buy_order_id, bread_id, quantity, price, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price, time.Now(), time.Now())
+		_, err = tx.ExecContext(ctx, stmt, newID, bread.ID, bread.Quantity, bread.Price, "pending", time.Now(), time.Now())
 		if err != nil {
 			log.Errorf("Error inserting order details: %v", err)
 			return 0, err
@@ -403,16 +403,21 @@ func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) err
 // FulfillOrderTx atomically checks inventory and deducts bread quantities for
 // every item in the order inside a single database transaction.
 //
-// It acquires a row-level lock (SELECT FOR UPDATE) on each bread row in
-// primary-key order before inspecting quantities, which prevents two concurrent
-// brokers from observing sufficient stock and both deducting — the classic
-// TOCTOU race condition that caused overselling.
+// FulfillOrderTx atomically processes a buy order with per-item partial fulfillment
+// and status tracking. Unlike the old all-or-nothing version, this supports:
+//   - Partial fulfillment: if bread A has stock but bread B doesn't, bread A is fulfilled
+//     and bread B is marked as skipped (when order.SkipUnavailableItems is true).
+//   - Per-item status: each order_detail row gets a status ("fulfilled", "partially_fulfilled",
+//     "skipped", or "rejected") that reflects the outcome for that specific item.
+//   - Order-level status: the buy_order status is set to "processed", "partially_processed",
+//     "failed", or "rejected" based on the aggregate outcome.
 //
-// Returns ErrInsufficientStock if any bread item has less stock than requested.
-// The transaction is automatically rolled back in all error cases.
+// It acquires a row-level lock (SELECT FOR UPDATE) on each bread row in primary-key order
+// before inspecting quantities, which prevents deadlocks between concurrent brokers.
+//
+// Returns ErrInsufficientStock only if all items are out of stock and no partial fulfillment
+// is allowed. The transaction is automatically rolled back on unrecoverable errors.
 func (u *PostgresRepository) FulfillOrderTx(order BuyOrder) error {
-	// Give the transaction more time than a single query: it must acquire locks
-	// and write to multiple rows.
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*3)
 	defer cancel()
 
@@ -428,33 +433,102 @@ func (u *PostgresRepository) FulfillOrderTx(order BuyOrder) error {
 	copy(sorted, order.Breads)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
 
-	// Phase 1: lock each row and verify stock.
-	for _, ordered := range sorted {
+	var totalRequested int
+	var totalFulfilled int
+	var hasRejected bool
+
+	for _, bread := range sorted {
+		totalRequested += bread.Quantity
+
+		// Lock the row and check stock.
 		var currentQty int
 		err := tx.QueryRowContext(ctx,
 			`SELECT quantity FROM bread WHERE id = $1 FOR UPDATE`,
-			ordered.ID,
+			bread.ID,
 		).Scan(&currentQty)
 		if err != nil {
-			return fmt.Errorf("lock bread id=%d: %w", ordered.ID, err)
+			return fmt.Errorf("lock bread id=%d: %w", bread.ID, err)
 		}
-		if currentQty < ordered.Quantity {
-			log.Warningf("FulfillOrderTx: bread id=%d has %d in stock, order wants %d",
-				ordered.ID, currentQty, ordered.Quantity)
-			return ErrInsufficientStock
-		}
-	}
 
-	// Phase 2: all stock verified — apply deductions within the same transaction.
-	for _, ordered := range sorted {
-		_, err := tx.ExecContext(ctx,
+		if currentQty == 0 {
+			// No stock — skip or reject based on order preferences.
+			if order.SkipUnavailableItems || order.AllowPartial {
+				_, err = tx.ExecContext(ctx,
+					`UPDATE order_details SET status = 'skipped', updated_at = NOW()
+					 WHERE buy_order_id = $1 AND bread_id = $2`,
+					order.ID, bread.ID,
+				)
+				if err != nil {
+					return fmt.Errorf("mark skipped order_detail: %w", err)
+				}
+				log.Infof("FulfillOrderTx: bread id=%d skipped (no stock, skipUnavailable=%t)",
+					bread.ID, order.SkipUnavailableItems)
+			} else {
+				hasRejected = true
+				_, err = tx.ExecContext(ctx,
+					`UPDATE order_details SET status = 'rejected', updated_at = NOW()
+					 WHERE buy_order_id = $1 AND bread_id = $2`,
+					order.ID, bread.ID,
+				)
+				if err != nil {
+					return fmt.Errorf("mark rejected order_detail: %w", err)
+				}
+				log.Infof("FulfillOrderTx: bread id=%d rejected (no stock)", bread.ID)
+			}
+			continue
+		}
+
+		// Determine how much to fulfill.
+		fulfillQty := bread.Quantity
+		if currentQty < fulfillQty {
+			fulfillQty = currentQty
+		}
+
+		// Deduct stock atomically.
+		_, err = tx.ExecContext(ctx,
 			`UPDATE bread SET quantity = quantity - $1, updated_at = NOW() WHERE id = $2`,
-			ordered.Quantity, ordered.ID,
+			fulfillQty, bread.ID,
 		)
 		if err != nil {
-			return fmt.Errorf("deduct bread id=%d: %w", ordered.ID, err)
+			return fmt.Errorf("deduct bread id=%d: %w", bread.ID, err)
 		}
-		log.Infof("FulfillOrderTx: deducted %d units from bread id=%d", ordered.Quantity, ordered.ID)
+
+		// Update order_details status.
+		status := "fulfilled"
+		if fulfillQty < bread.Quantity {
+			status = "partially_fulfilled"
+		}
+		_, err = tx.ExecContext(ctx,
+			`UPDATE order_details SET quantity = $1, status = $2, updated_at = NOW()
+			 WHERE buy_order_id = $3 AND bread_id = $4`,
+			fulfillQty, status, order.ID, bread.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update order_detail: %w", err)
+		}
+
+		totalFulfilled += fulfillQty
+		log.Infof("FulfillOrderTx: bread id=%d fulfilled %d/%d", bread.ID, fulfillQty, bread.Quantity)
+	}
+
+	// Determine order-level status.
+	var orderStatus string
+	if hasRejected && !order.AllowPartial {
+		orderStatus = "rejected"
+	} else if totalFulfilled == totalRequested && totalRequested > 0 {
+		orderStatus = "processed"
+	} else if totalFulfilled > 0 {
+		orderStatus = "partially_processed"
+	} else {
+		orderStatus = "failed"
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`UPDATE buy_order SET status = $1 WHERE id = $2`,
+		orderStatus, order.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update order status: %w", err)
 	}
 
 	return tx.Commit()
