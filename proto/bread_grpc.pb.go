@@ -4,7 +4,7 @@
 // - protoc             v3.19.6
 // source: proto/bread.proto
 
-package bread
+package proto
 
 import (
 	context "context"

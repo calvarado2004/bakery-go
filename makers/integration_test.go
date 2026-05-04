@@ -152,12 +152,21 @@ func TestMakers_Repos_Integration(t *testing.T) {
 	t.Run("AdjustBreadQuantityPositive", func(t *testing.T) {
 		repo := data.NewPostgresRepository(db)
 
-		// Get a bread item
+		// Get a bread item with low enough quantity that +20 won't hit the 100 cap
 		var bread data.Bread
-		err := db.QueryRow("SELECT id, name, quantity FROM bread LIMIT 1").
+		err := db.QueryRow("SELECT id, name, quantity FROM bread WHERE quantity < 80 LIMIT 1").
 			Scan(&bread.ID, &bread.Name, &bread.Quantity)
 		if err != nil {
-			t.Skipf("No bread available: %v", err)
+			// No low-stock bread — create one for this test
+			var newID int
+			err = db.QueryRow(
+				"INSERT INTO bread (name, quantity, price, description, type, status) VALUES ('test-restock', 50, 1.00, 'test', 'loaf', 'available') RETURNING id",
+			).Scan(&newID)
+			if err != nil {
+				t.Skipf("No bread available for restock test: %v", err)
+			}
+			bread.ID = newID
+			bread.Quantity = 50
 		}
 
 		initialQty := bread.Quantity

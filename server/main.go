@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgconn"
@@ -60,6 +61,10 @@ var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 var rabbitMQAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
 var counts int64
+
+// orderSequence is a monotonically increasing counter for buy order sequence numbers.
+// Used by the matching engine to establish priority (FIFO within same bid price).
+var orderSequence atomic.Int64
 
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)

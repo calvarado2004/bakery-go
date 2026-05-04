@@ -4,7 +4,7 @@
 // 	protoc        v3.19.6
 // source: proto/bread.proto
 
-package bread
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -137,20 +137,102 @@ func (x *Bread) GetImage() string {
 	return ""
 }
 
+type BuyOrderItem struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	BreadId           int32                  `protobuf:"varint,1,opt,name=breadId,proto3" json:"breadId,omitempty"`
+	QuantityRequested int32                  `protobuf:"varint,2,opt,name=quantityRequested,proto3" json:"quantityRequested,omitempty"`
+	QuantityFulfilled int32                  `protobuf:"varint,3,opt,name=quantityFulfilled,proto3" json:"quantityFulfilled,omitempty"`
+	BidPrice          float32                `protobuf:"fixed32,4,opt,name=bidPrice,proto3" json:"bidPrice,omitempty"`
+	Status            string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"` // "pending" | "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *BuyOrderItem) Reset() {
+	*x = BuyOrderItem{}
+	mi := &file_proto_bread_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyOrderItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyOrderItem) ProtoMessage() {}
+
+func (x *BuyOrderItem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyOrderItem.ProtoReflect.Descriptor instead.
+func (*BuyOrderItem) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *BuyOrderItem) GetBreadId() int32 {
+	if x != nil {
+		return x.BreadId
+	}
+	return 0
+}
+
+func (x *BuyOrderItem) GetQuantityRequested() int32 {
+	if x != nil {
+		return x.QuantityRequested
+	}
+	return 0
+}
+
+func (x *BuyOrderItem) GetQuantityFulfilled() int32 {
+	if x != nil {
+		return x.QuantityFulfilled
+	}
+	return 0
+}
+
+func (x *BuyOrderItem) GetBidPrice() float32 {
+	if x != nil {
+		return x.BidPrice
+	}
+	return 0
+}
+
+func (x *BuyOrderItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 type BuyOrder struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	CustomerId    int32                  `protobuf:"varint,2,opt,name=customerId,proto3" json:"customerId,omitempty"`
-	BuyOrderUuid  string                 `protobuf:"bytes,3,opt,name=buyOrderUuid,proto3" json:"buyOrderUuid,omitempty"`
-	TotalCost     float32                `protobuf:"fixed32,4,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
-	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Id                   int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	CustomerId           int32                  `protobuf:"varint,2,opt,name=customerId,proto3" json:"customerId,omitempty"`
+	BuyOrderUuid         string                 `protobuf:"bytes,3,opt,name=buyOrderUuid,proto3" json:"buyOrderUuid,omitempty"`
+	TotalCost            float32                `protobuf:"fixed32,4,opt,name=totalCost,proto3" json:"totalCost,omitempty"`
+	Status               string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	SequenceNumber       int64                  `protobuf:"varint,6,opt,name=sequenceNumber,proto3" json:"sequenceNumber,omitempty"`
+	BidPrice             float32                `protobuf:"fixed32,7,opt,name=bidPrice,proto3" json:"bidPrice,omitempty"`
+	AllowPartial         bool                   `protobuf:"varint,8,opt,name=allowPartial,proto3" json:"allowPartial,omitempty"`
+	SkipUnavailableItems bool                   `protobuf:"varint,9,opt,name=skipUnavailableItems,proto3" json:"skipUnavailableItems,omitempty"`
+	CreatedAt            string                 `protobuf:"bytes,10,opt,name=createdAt,proto3" json:"createdAt,omitempty"`
+	Items                []*BuyOrderItem        `protobuf:"bytes,11,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *BuyOrder) Reset() {
 	*x = BuyOrder{}
-	mi := &file_proto_bread_proto_msgTypes[1]
+	mi := &file_proto_bread_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -162,7 +244,7 @@ func (x *BuyOrder) String() string {
 func (*BuyOrder) ProtoMessage() {}
 
 func (x *BuyOrder) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[1]
+	mi := &file_proto_bread_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -175,7 +257,7 @@ func (x *BuyOrder) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrder.ProtoReflect.Descriptor instead.
 func (*BuyOrder) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{1}
+	return file_proto_bread_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BuyOrder) GetId() int32 {
@@ -213,6 +295,48 @@ func (x *BuyOrder) GetStatus() string {
 	return ""
 }
 
+func (x *BuyOrder) GetSequenceNumber() int64 {
+	if x != nil {
+		return x.SequenceNumber
+	}
+	return 0
+}
+
+func (x *BuyOrder) GetBidPrice() float32 {
+	if x != nil {
+		return x.BidPrice
+	}
+	return 0
+}
+
+func (x *BuyOrder) GetAllowPartial() bool {
+	if x != nil {
+		return x.AllowPartial
+	}
+	return false
+}
+
+func (x *BuyOrder) GetSkipUnavailableItems() bool {
+	if x != nil {
+		return x.SkipUnavailableItems
+	}
+	return false
+}
+
+func (x *BuyOrder) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *BuyOrder) GetItems() []*BuyOrderItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 type BuyOrderDetails struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BuyOrderId    int32                  `protobuf:"varint,1,opt,name=buyOrderId,proto3" json:"buyOrderId,omitempty"`
@@ -229,7 +353,7 @@ type BuyOrderDetails struct {
 
 func (x *BuyOrderDetails) Reset() {
 	*x = BuyOrderDetails{}
-	mi := &file_proto_bread_proto_msgTypes[2]
+	mi := &file_proto_bread_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -241,7 +365,7 @@ func (x *BuyOrderDetails) String() string {
 func (*BuyOrderDetails) ProtoMessage() {}
 
 func (x *BuyOrderDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[2]
+	mi := &file_proto_bread_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -254,7 +378,7 @@ func (x *BuyOrderDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderDetails.ProtoReflect.Descriptor instead.
 func (*BuyOrderDetails) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{2}
+	return file_proto_bread_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BuyOrderDetails) GetBuyOrderId() int32 {
@@ -323,7 +447,7 @@ type BuyOrderList struct {
 
 func (x *BuyOrderList) Reset() {
 	*x = BuyOrderList{}
-	mi := &file_proto_bread_proto_msgTypes[3]
+	mi := &file_proto_bread_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +459,7 @@ func (x *BuyOrderList) String() string {
 func (*BuyOrderList) ProtoMessage() {}
 
 func (x *BuyOrderList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[3]
+	mi := &file_proto_bread_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +472,7 @@ func (x *BuyOrderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderList.ProtoReflect.Descriptor instead.
 func (*BuyOrderList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{3}
+	return file_proto_bread_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BuyOrderList) GetBuyOrders() []*BuyOrder {
@@ -375,7 +499,7 @@ type BuyOrderRequest struct {
 
 func (x *BuyOrderRequest) Reset() {
 	*x = BuyOrderRequest{}
-	mi := &file_proto_bread_proto_msgTypes[4]
+	mi := &file_proto_bread_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -387,7 +511,7 @@ func (x *BuyOrderRequest) String() string {
 func (*BuyOrderRequest) ProtoMessage() {}
 
 func (x *BuyOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[4]
+	mi := &file_proto_bread_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -400,7 +524,7 @@ func (x *BuyOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderRequest.ProtoReflect.Descriptor instead.
 func (*BuyOrderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{4}
+	return file_proto_bread_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *BuyOrderRequest) GetBuyOrders() *BuyOrderList {
@@ -428,7 +552,7 @@ type BuyOrderResponse struct {
 
 func (x *BuyOrderResponse) Reset() {
 	*x = BuyOrderResponse{}
-	mi := &file_proto_bread_proto_msgTypes[5]
+	mi := &file_proto_bread_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +564,7 @@ func (x *BuyOrderResponse) String() string {
 func (*BuyOrderResponse) ProtoMessage() {}
 
 func (x *BuyOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[5]
+	mi := &file_proto_bread_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +577,7 @@ func (x *BuyOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderResponse.ProtoReflect.Descriptor instead.
 func (*BuyOrderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{5}
+	return file_proto_bread_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BuyOrderResponse) GetMessage() string {
@@ -487,7 +611,7 @@ type MakeOrder struct {
 
 func (x *MakeOrder) Reset() {
 	*x = MakeOrder{}
-	mi := &file_proto_bread_proto_msgTypes[6]
+	mi := &file_proto_bread_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -499,7 +623,7 @@ func (x *MakeOrder) String() string {
 func (*MakeOrder) ProtoMessage() {}
 
 func (x *MakeOrder) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[6]
+	mi := &file_proto_bread_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -512,7 +636,7 @@ func (x *MakeOrder) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOrder.ProtoReflect.Descriptor instead.
 func (*MakeOrder) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{6}
+	return file_proto_bread_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MakeOrder) GetId() int32 {
@@ -544,7 +668,7 @@ type MakeOrderDetails struct {
 
 func (x *MakeOrderDetails) Reset() {
 	*x = MakeOrderDetails{}
-	mi := &file_proto_bread_proto_msgTypes[7]
+	mi := &file_proto_bread_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -556,7 +680,7 @@ func (x *MakeOrderDetails) String() string {
 func (*MakeOrderDetails) ProtoMessage() {}
 
 func (x *MakeOrderDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[7]
+	mi := &file_proto_bread_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -569,7 +693,7 @@ func (x *MakeOrderDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOrderDetails.ProtoReflect.Descriptor instead.
 func (*MakeOrderDetails) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{7}
+	return file_proto_bread_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *MakeOrderDetails) GetMakeOrderId() int32 {
@@ -630,7 +754,7 @@ type BreadList struct {
 
 func (x *BreadList) Reset() {
 	*x = BreadList{}
-	mi := &file_proto_bread_proto_msgTypes[8]
+	mi := &file_proto_bread_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +766,7 @@ func (x *BreadList) String() string {
 func (*BreadList) ProtoMessage() {}
 
 func (x *BreadList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[8]
+	mi := &file_proto_bread_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +779,7 @@ func (x *BreadList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadList.ProtoReflect.Descriptor instead.
 func (*BreadList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{8}
+	return file_proto_bread_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BreadList) GetBreads() []*Bread {
@@ -665,18 +789,80 @@ func (x *BreadList) GetBreads() []*Bread {
 	return nil
 }
 
+// BuyOrderPreferences lets the buyer specify matching engine rules.
+type BuyOrderPreferences struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	BidPrice             float32                `protobuf:"fixed32,1,opt,name=bidPrice,proto3" json:"bidPrice,omitempty"`                        // price per unit the buyer is willing to pay
+	AllowPartial         bool                   `protobuf:"varint,2,opt,name=allowPartial,proto3" json:"allowPartial,omitempty"`                 // allow partial fulfillment of the entire order
+	SkipUnavailableItems bool                   `protobuf:"varint,3,opt,name=skipUnavailableItems,proto3" json:"skipUnavailableItems,omitempty"` // skip items with zero stock instead of failing the order
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *BuyOrderPreferences) Reset() {
+	*x = BuyOrderPreferences{}
+	mi := &file_proto_bread_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyOrderPreferences) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyOrderPreferences) ProtoMessage() {}
+
+func (x *BuyOrderPreferences) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bread_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyOrderPreferences.ProtoReflect.Descriptor instead.
+func (*BuyOrderPreferences) Descriptor() ([]byte, []int) {
+	return file_proto_bread_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *BuyOrderPreferences) GetBidPrice() float32 {
+	if x != nil {
+		return x.BidPrice
+	}
+	return 0
+}
+
+func (x *BuyOrderPreferences) GetAllowPartial() bool {
+	if x != nil {
+		return x.AllowPartial
+	}
+	return false
+}
+
+func (x *BuyOrderPreferences) GetSkipUnavailableItems() bool {
+	if x != nil {
+		return x.SkipUnavailableItems
+	}
+	return false
+}
+
 type BreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Breads        *BreadList             `protobuf:"bytes,3,opt,name=breads,proto3" json:"breads,omitempty"`
 	BuyOrderUuid  string                 `protobuf:"bytes,2,opt,name=buy_order_uuid,json=buyOrderUuid,proto3" json:"buy_order_uuid,omitempty"`
 	MakeOrderUuid string                 `protobuf:"bytes,4,opt,name=make_order_uuid,json=makeOrderUuid,proto3" json:"make_order_uuid,omitempty"`
+	Preferences   *BuyOrderPreferences   `protobuf:"bytes,5,opt,name=preferences,proto3" json:"preferences,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BreadRequest) Reset() {
 	*x = BreadRequest{}
-	mi := &file_proto_bread_proto_msgTypes[9]
+	mi := &file_proto_bread_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +874,7 @@ func (x *BreadRequest) String() string {
 func (*BreadRequest) ProtoMessage() {}
 
 func (x *BreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[9]
+	mi := &file_proto_bread_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +887,7 @@ func (x *BreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadRequest.ProtoReflect.Descriptor instead.
 func (*BreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{9}
+	return file_proto_bread_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BreadRequest) GetBreads() *BreadList {
@@ -725,6 +911,13 @@ func (x *BreadRequest) GetMakeOrderUuid() string {
 	return ""
 }
 
+func (x *BreadRequest) GetPreferences() *BuyOrderPreferences {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
 type BreadResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -740,7 +933,7 @@ type BreadResponse struct {
 
 func (x *BreadResponse) Reset() {
 	*x = BreadResponse{}
-	mi := &file_proto_bread_proto_msgTypes[10]
+	mi := &file_proto_bread_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -752,7 +945,7 @@ func (x *BreadResponse) String() string {
 func (*BreadResponse) ProtoMessage() {}
 
 func (x *BreadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[10]
+	mi := &file_proto_bread_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -765,7 +958,7 @@ func (x *BreadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadResponse.ProtoReflect.Descriptor instead.
 func (*BreadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{10}
+	return file_proto_bread_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BreadResponse) GetMessage() string {
@@ -826,7 +1019,7 @@ type Empty struct {
 
 func (x *Empty) Reset() {
 	*x = Empty{}
-	mi := &file_proto_bread_proto_msgTypes[11]
+	mi := &file_proto_bread_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -838,7 +1031,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[11]
+	mi := &file_proto_bread_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -851,7 +1044,7 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{11}
+	return file_proto_bread_proto_rawDescGZIP(), []int{13}
 }
 
 type DashboardStats struct {
@@ -868,7 +1061,7 @@ type DashboardStats struct {
 
 func (x *DashboardStats) Reset() {
 	*x = DashboardStats{}
-	mi := &file_proto_bread_proto_msgTypes[12]
+	mi := &file_proto_bread_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -880,7 +1073,7 @@ func (x *DashboardStats) String() string {
 func (*DashboardStats) ProtoMessage() {}
 
 func (x *DashboardStats) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[12]
+	mi := &file_proto_bread_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -893,7 +1086,7 @@ func (x *DashboardStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardStats.ProtoReflect.Descriptor instead.
 func (*DashboardStats) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{12}
+	return file_proto_bread_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DashboardStats) GetTotalOrders() int32 {
@@ -951,7 +1144,7 @@ type Customer struct {
 
 func (x *Customer) Reset() {
 	*x = Customer{}
-	mi := &file_proto_bread_proto_msgTypes[13]
+	mi := &file_proto_bread_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -963,7 +1156,7 @@ func (x *Customer) String() string {
 func (*Customer) ProtoMessage() {}
 
 func (x *Customer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[13]
+	mi := &file_proto_bread_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -976,7 +1169,7 @@ func (x *Customer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Customer.ProtoReflect.Descriptor instead.
 func (*Customer) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{13}
+	return file_proto_bread_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Customer) GetId() int32 {
@@ -1023,7 +1216,7 @@ type CustomerList struct {
 
 func (x *CustomerList) Reset() {
 	*x = CustomerList{}
-	mi := &file_proto_bread_proto_msgTypes[14]
+	mi := &file_proto_bread_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1035,7 +1228,7 @@ func (x *CustomerList) String() string {
 func (*CustomerList) ProtoMessage() {}
 
 func (x *CustomerList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[14]
+	mi := &file_proto_bread_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1048,7 +1241,7 @@ func (x *CustomerList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerList.ProtoReflect.Descriptor instead.
 func (*CustomerList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{14}
+	return file_proto_bread_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CustomerList) GetCustomers() []*Customer {
@@ -1071,7 +1264,7 @@ type BreadMakerProto struct {
 
 func (x *BreadMakerProto) Reset() {
 	*x = BreadMakerProto{}
-	mi := &file_proto_bread_proto_msgTypes[15]
+	mi := &file_proto_bread_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1083,7 +1276,7 @@ func (x *BreadMakerProto) String() string {
 func (*BreadMakerProto) ProtoMessage() {}
 
 func (x *BreadMakerProto) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[15]
+	mi := &file_proto_bread_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1096,7 +1289,7 @@ func (x *BreadMakerProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadMakerProto.ProtoReflect.Descriptor instead.
 func (*BreadMakerProto) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{15}
+	return file_proto_bread_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *BreadMakerProto) GetId() int32 {
@@ -1143,7 +1336,7 @@ type BreadMakerList struct {
 
 func (x *BreadMakerList) Reset() {
 	*x = BreadMakerList{}
-	mi := &file_proto_bread_proto_msgTypes[16]
+	mi := &file_proto_bread_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1155,7 +1348,7 @@ func (x *BreadMakerList) String() string {
 func (*BreadMakerList) ProtoMessage() {}
 
 func (x *BreadMakerList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[16]
+	mi := &file_proto_bread_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1168,7 +1361,7 @@ func (x *BreadMakerList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadMakerList.ProtoReflect.Descriptor instead.
 func (*BreadMakerList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{16}
+	return file_proto_bread_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *BreadMakerList) GetBreadMakers() []*BreadMakerProto {
@@ -1192,7 +1385,7 @@ type CreateBreadRequest struct {
 
 func (x *CreateBreadRequest) Reset() {
 	*x = CreateBreadRequest{}
-	mi := &file_proto_bread_proto_msgTypes[17]
+	mi := &file_proto_bread_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1204,7 +1397,7 @@ func (x *CreateBreadRequest) String() string {
 func (*CreateBreadRequest) ProtoMessage() {}
 
 func (x *CreateBreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[17]
+	mi := &file_proto_bread_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1217,7 +1410,7 @@ func (x *CreateBreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBreadRequest.ProtoReflect.Descriptor instead.
 func (*CreateBreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{17}
+	return file_proto_bread_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateBreadRequest) GetName() string {
@@ -1277,7 +1470,7 @@ type UpdateBreadRequest struct {
 
 func (x *UpdateBreadRequest) Reset() {
 	*x = UpdateBreadRequest{}
-	mi := &file_proto_bread_proto_msgTypes[18]
+	mi := &file_proto_bread_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1482,7 @@ func (x *UpdateBreadRequest) String() string {
 func (*UpdateBreadRequest) ProtoMessage() {}
 
 func (x *UpdateBreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[18]
+	mi := &file_proto_bread_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1495,7 @@ func (x *UpdateBreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateBreadRequest.ProtoReflect.Descriptor instead.
 func (*UpdateBreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{18}
+	return file_proto_bread_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UpdateBreadRequest) GetId() int32 {
@@ -1363,7 +1556,7 @@ type DeleteBreadRequest struct {
 
 func (x *DeleteBreadRequest) Reset() {
 	*x = DeleteBreadRequest{}
-	mi := &file_proto_bread_proto_msgTypes[19]
+	mi := &file_proto_bread_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1375,7 +1568,7 @@ func (x *DeleteBreadRequest) String() string {
 func (*DeleteBreadRequest) ProtoMessage() {}
 
 func (x *DeleteBreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[19]
+	mi := &file_proto_bread_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1388,7 +1581,7 @@ func (x *DeleteBreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBreadRequest.ProtoReflect.Descriptor instead.
 func (*DeleteBreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{19}
+	return file_proto_bread_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DeleteBreadRequest) GetId() int32 {
@@ -1408,7 +1601,7 @@ type UpdateOrderStatusRequest struct {
 
 func (x *UpdateOrderStatusRequest) Reset() {
 	*x = UpdateOrderStatusRequest{}
-	mi := &file_proto_bread_proto_msgTypes[20]
+	mi := &file_proto_bread_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1420,7 +1613,7 @@ func (x *UpdateOrderStatusRequest) String() string {
 func (*UpdateOrderStatusRequest) ProtoMessage() {}
 
 func (x *UpdateOrderStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[20]
+	mi := &file_proto_bread_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1433,7 +1626,7 @@ func (x *UpdateOrderStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOrderStatusRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOrderStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{20}
+	return file_proto_bread_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *UpdateOrderStatusRequest) GetBuyOrderUuid() string {
@@ -1459,7 +1652,7 @@ type BreadIdRequest struct {
 
 func (x *BreadIdRequest) Reset() {
 	*x = BreadIdRequest{}
-	mi := &file_proto_bread_proto_msgTypes[21]
+	mi := &file_proto_bread_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1471,7 +1664,7 @@ func (x *BreadIdRequest) String() string {
 func (*BreadIdRequest) ProtoMessage() {}
 
 func (x *BreadIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[21]
+	mi := &file_proto_bread_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1484,7 +1677,7 @@ func (x *BreadIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadIdRequest.ProtoReflect.Descriptor instead.
 func (*BreadIdRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{21}
+	return file_proto_bread_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *BreadIdRequest) GetId() int32 {
@@ -1503,7 +1696,7 @@ type CustomerIdRequest struct {
 
 func (x *CustomerIdRequest) Reset() {
 	*x = CustomerIdRequest{}
-	mi := &file_proto_bread_proto_msgTypes[22]
+	mi := &file_proto_bread_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +1708,7 @@ func (x *CustomerIdRequest) String() string {
 func (*CustomerIdRequest) ProtoMessage() {}
 
 func (x *CustomerIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[22]
+	mi := &file_proto_bread_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +1721,7 @@ func (x *CustomerIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerIdRequest.ProtoReflect.Descriptor instead.
 func (*CustomerIdRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{22}
+	return file_proto_bread_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CustomerIdRequest) GetId() int32 {
@@ -1547,7 +1740,7 @@ type BreadMakerIdRequest struct {
 
 func (x *BreadMakerIdRequest) Reset() {
 	*x = BreadMakerIdRequest{}
-	mi := &file_proto_bread_proto_msgTypes[23]
+	mi := &file_proto_bread_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1559,7 +1752,7 @@ func (x *BreadMakerIdRequest) String() string {
 func (*BreadMakerIdRequest) ProtoMessage() {}
 
 func (x *BreadMakerIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[23]
+	mi := &file_proto_bread_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1572,7 +1765,7 @@ func (x *BreadMakerIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreadMakerIdRequest.ProtoReflect.Descriptor instead.
 func (*BreadMakerIdRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{23}
+	return file_proto_bread_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *BreadMakerIdRequest) GetId() int32 {
@@ -1592,7 +1785,7 @@ type CustomerOrdersResponse struct {
 
 func (x *CustomerOrdersResponse) Reset() {
 	*x = CustomerOrdersResponse{}
-	mi := &file_proto_bread_proto_msgTypes[24]
+	mi := &file_proto_bread_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +1797,7 @@ func (x *CustomerOrdersResponse) String() string {
 func (*CustomerOrdersResponse) ProtoMessage() {}
 
 func (x *CustomerOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[24]
+	mi := &file_proto_bread_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +1810,7 @@ func (x *CustomerOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerOrdersResponse.ProtoReflect.Descriptor instead.
 func (*CustomerOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{24}
+	return file_proto_bread_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CustomerOrdersResponse) GetCustomer() *Customer {
@@ -1644,7 +1837,7 @@ type MakerOrdersResponse struct {
 
 func (x *MakerOrdersResponse) Reset() {
 	*x = MakerOrdersResponse{}
-	mi := &file_proto_bread_proto_msgTypes[25]
+	mi := &file_proto_bread_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1656,7 +1849,7 @@ func (x *MakerOrdersResponse) String() string {
 func (*MakerOrdersResponse) ProtoMessage() {}
 
 func (x *MakerOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[25]
+	mi := &file_proto_bread_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1669,7 +1862,7 @@ func (x *MakerOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakerOrdersResponse.ProtoReflect.Descriptor instead.
 func (*MakerOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{25}
+	return file_proto_bread_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *MakerOrdersResponse) GetMaker() *BreadMakerProto {
@@ -1700,7 +1893,7 @@ type MakeOrderProto struct {
 
 func (x *MakeOrderProto) Reset() {
 	*x = MakeOrderProto{}
-	mi := &file_proto_bread_proto_msgTypes[26]
+	mi := &file_proto_bread_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1712,7 +1905,7 @@ func (x *MakeOrderProto) String() string {
 func (*MakeOrderProto) ProtoMessage() {}
 
 func (x *MakeOrderProto) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[26]
+	mi := &file_proto_bread_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1725,7 +1918,7 @@ func (x *MakeOrderProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOrderProto.ProtoReflect.Descriptor instead.
 func (*MakeOrderProto) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{26}
+	return file_proto_bread_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *MakeOrderProto) GetId() int32 {
@@ -1779,7 +1972,7 @@ type MakeOrderList struct {
 
 func (x *MakeOrderList) Reset() {
 	*x = MakeOrderList{}
-	mi := &file_proto_bread_proto_msgTypes[27]
+	mi := &file_proto_bread_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1791,7 +1984,7 @@ func (x *MakeOrderList) String() string {
 func (*MakeOrderList) ProtoMessage() {}
 
 func (x *MakeOrderList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[27]
+	mi := &file_proto_bread_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1804,7 +1997,7 @@ func (x *MakeOrderList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MakeOrderList.ProtoReflect.Descriptor instead.
 func (*MakeOrderList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{27}
+	return file_proto_bread_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *MakeOrderList) GetMakeOrders() []*MakeOrderProto {
@@ -1828,7 +2021,7 @@ type AdminUser struct {
 
 func (x *AdminUser) Reset() {
 	*x = AdminUser{}
-	mi := &file_proto_bread_proto_msgTypes[28]
+	mi := &file_proto_bread_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1840,7 +2033,7 @@ func (x *AdminUser) String() string {
 func (*AdminUser) ProtoMessage() {}
 
 func (x *AdminUser) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[28]
+	mi := &file_proto_bread_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1853,7 +2046,7 @@ func (x *AdminUser) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminUser.ProtoReflect.Descriptor instead.
 func (*AdminUser) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{28}
+	return file_proto_bread_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AdminUser) GetId() int32 {
@@ -1901,7 +2094,7 @@ type LoginRequest struct {
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_proto_bread_proto_msgTypes[29]
+	mi := &file_proto_bread_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1913,7 +2106,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[29]
+	mi := &file_proto_bread_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1926,7 +2119,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{29}
+	return file_proto_bread_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *LoginRequest) GetUsername() string {
@@ -1955,7 +2148,7 @@ type LoginResponse struct {
 
 func (x *LoginResponse) Reset() {
 	*x = LoginResponse{}
-	mi := &file_proto_bread_proto_msgTypes[30]
+	mi := &file_proto_bread_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1967,7 +2160,7 @@ func (x *LoginResponse) String() string {
 func (*LoginResponse) ProtoMessage() {}
 
 func (x *LoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[30]
+	mi := &file_proto_bread_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1980,7 +2173,7 @@ func (x *LoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
 func (*LoginResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{30}
+	return file_proto_bread_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *LoginResponse) GetSuccess() bool {
@@ -2021,7 +2214,7 @@ type CustomerLoginRequest struct {
 
 func (x *CustomerLoginRequest) Reset() {
 	*x = CustomerLoginRequest{}
-	mi := &file_proto_bread_proto_msgTypes[31]
+	mi := &file_proto_bread_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2033,7 +2226,7 @@ func (x *CustomerLoginRequest) String() string {
 func (*CustomerLoginRequest) ProtoMessage() {}
 
 func (x *CustomerLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[31]
+	mi := &file_proto_bread_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2046,7 +2239,7 @@ func (x *CustomerLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerLoginRequest.ProtoReflect.Descriptor instead.
 func (*CustomerLoginRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{31}
+	return file_proto_bread_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CustomerLoginRequest) GetEmail() string {
@@ -2075,7 +2268,7 @@ type CustomerLoginResponse struct {
 
 func (x *CustomerLoginResponse) Reset() {
 	*x = CustomerLoginResponse{}
-	mi := &file_proto_bread_proto_msgTypes[32]
+	mi := &file_proto_bread_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2087,7 +2280,7 @@ func (x *CustomerLoginResponse) String() string {
 func (*CustomerLoginResponse) ProtoMessage() {}
 
 func (x *CustomerLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[32]
+	mi := &file_proto_bread_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2100,7 +2293,7 @@ func (x *CustomerLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerLoginResponse.ProtoReflect.Descriptor instead.
 func (*CustomerLoginResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{32}
+	return file_proto_bread_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CustomerLoginResponse) GetSuccess() bool {
@@ -2140,7 +2333,7 @@ type ValidateTokenRequest struct {
 
 func (x *ValidateTokenRequest) Reset() {
 	*x = ValidateTokenRequest{}
-	mi := &file_proto_bread_proto_msgTypes[33]
+	mi := &file_proto_bread_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2345,7 @@ func (x *ValidateTokenRequest) String() string {
 func (*ValidateTokenRequest) ProtoMessage() {}
 
 func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[33]
+	mi := &file_proto_bread_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2165,7 +2358,7 @@ func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
 func (*ValidateTokenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{33}
+	return file_proto_bread_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ValidateTokenRequest) GetToken() string {
@@ -2186,7 +2379,7 @@ type ValidateTokenResponse struct {
 
 func (x *ValidateTokenResponse) Reset() {
 	*x = ValidateTokenResponse{}
-	mi := &file_proto_bread_proto_msgTypes[34]
+	mi := &file_proto_bread_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2198,7 +2391,7 @@ func (x *ValidateTokenResponse) String() string {
 func (*ValidateTokenResponse) ProtoMessage() {}
 
 func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[34]
+	mi := &file_proto_bread_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2211,7 +2404,7 @@ func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
 func (*ValidateTokenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{34}
+	return file_proto_bread_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ValidateTokenResponse) GetValid() bool {
@@ -2256,7 +2449,7 @@ type Invoice struct {
 
 func (x *Invoice) Reset() {
 	*x = Invoice{}
-	mi := &file_proto_bread_proto_msgTypes[35]
+	mi := &file_proto_bread_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2268,7 +2461,7 @@ func (x *Invoice) String() string {
 func (*Invoice) ProtoMessage() {}
 
 func (x *Invoice) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[35]
+	mi := &file_proto_bread_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2281,7 +2474,7 @@ func (x *Invoice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invoice.ProtoReflect.Descriptor instead.
 func (*Invoice) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{35}
+	return file_proto_bread_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *Invoice) GetId() int32 {
@@ -2383,7 +2576,7 @@ type InvoiceItem struct {
 
 func (x *InvoiceItem) Reset() {
 	*x = InvoiceItem{}
-	mi := &file_proto_bread_proto_msgTypes[36]
+	mi := &file_proto_bread_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2395,7 +2588,7 @@ func (x *InvoiceItem) String() string {
 func (*InvoiceItem) ProtoMessage() {}
 
 func (x *InvoiceItem) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[36]
+	mi := &file_proto_bread_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2408,7 +2601,7 @@ func (x *InvoiceItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvoiceItem.ProtoReflect.Descriptor instead.
 func (*InvoiceItem) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{36}
+	return file_proto_bread_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *InvoiceItem) GetId() int32 {
@@ -2469,7 +2662,7 @@ type InvoiceList struct {
 
 func (x *InvoiceList) Reset() {
 	*x = InvoiceList{}
-	mi := &file_proto_bread_proto_msgTypes[37]
+	mi := &file_proto_bread_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2481,7 +2674,7 @@ func (x *InvoiceList) String() string {
 func (*InvoiceList) ProtoMessage() {}
 
 func (x *InvoiceList) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[37]
+	mi := &file_proto_bread_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2494,7 +2687,7 @@ func (x *InvoiceList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvoiceList.ProtoReflect.Descriptor instead.
 func (*InvoiceList) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{37}
+	return file_proto_bread_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *InvoiceList) GetInvoices() []*Invoice {
@@ -2513,7 +2706,7 @@ type CreateInvoiceRequest struct {
 
 func (x *CreateInvoiceRequest) Reset() {
 	*x = CreateInvoiceRequest{}
-	mi := &file_proto_bread_proto_msgTypes[38]
+	mi := &file_proto_bread_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2525,7 +2718,7 @@ func (x *CreateInvoiceRequest) String() string {
 func (*CreateInvoiceRequest) ProtoMessage() {}
 
 func (x *CreateInvoiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[38]
+	mi := &file_proto_bread_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2538,7 +2731,7 @@ func (x *CreateInvoiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateInvoiceRequest.ProtoReflect.Descriptor instead.
 func (*CreateInvoiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{38}
+	return file_proto_bread_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CreateInvoiceRequest) GetBuyOrderId() int32 {
@@ -2557,7 +2750,7 @@ type InvoiceIdRequest struct {
 
 func (x *InvoiceIdRequest) Reset() {
 	*x = InvoiceIdRequest{}
-	mi := &file_proto_bread_proto_msgTypes[39]
+	mi := &file_proto_bread_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2569,7 +2762,7 @@ func (x *InvoiceIdRequest) String() string {
 func (*InvoiceIdRequest) ProtoMessage() {}
 
 func (x *InvoiceIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[39]
+	mi := &file_proto_bread_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2582,7 +2775,7 @@ func (x *InvoiceIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvoiceIdRequest.ProtoReflect.Descriptor instead.
 func (*InvoiceIdRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{39}
+	return file_proto_bread_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *InvoiceIdRequest) GetId() int32 {
@@ -2601,7 +2794,7 @@ type CustomerInvoicesRequest struct {
 
 func (x *CustomerInvoicesRequest) Reset() {
 	*x = CustomerInvoicesRequest{}
-	mi := &file_proto_bread_proto_msgTypes[40]
+	mi := &file_proto_bread_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2613,7 +2806,7 @@ func (x *CustomerInvoicesRequest) String() string {
 func (*CustomerInvoicesRequest) ProtoMessage() {}
 
 func (x *CustomerInvoicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[40]
+	mi := &file_proto_bread_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2626,7 +2819,7 @@ func (x *CustomerInvoicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerInvoicesRequest.ProtoReflect.Descriptor instead.
 func (*CustomerInvoicesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{40}
+	return file_proto_bread_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CustomerInvoicesRequest) GetCustomerId() int32 {
@@ -2648,7 +2841,7 @@ type CreateAdminUserRequest struct {
 
 func (x *CreateAdminUserRequest) Reset() {
 	*x = CreateAdminUserRequest{}
-	mi := &file_proto_bread_proto_msgTypes[41]
+	mi := &file_proto_bread_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2660,7 +2853,7 @@ func (x *CreateAdminUserRequest) String() string {
 func (*CreateAdminUserRequest) ProtoMessage() {}
 
 func (x *CreateAdminUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[41]
+	mi := &file_proto_bread_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2673,7 +2866,7 @@ func (x *CreateAdminUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAdminUserRequest.ProtoReflect.Descriptor instead.
 func (*CreateAdminUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{41}
+	return file_proto_bread_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CreateAdminUserRequest) GetUsername() string {
@@ -2713,7 +2906,7 @@ type BuyOrderIdRequest struct {
 
 func (x *BuyOrderIdRequest) Reset() {
 	*x = BuyOrderIdRequest{}
-	mi := &file_proto_bread_proto_msgTypes[42]
+	mi := &file_proto_bread_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2725,7 +2918,7 @@ func (x *BuyOrderIdRequest) String() string {
 func (*BuyOrderIdRequest) ProtoMessage() {}
 
 func (x *BuyOrderIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[42]
+	mi := &file_proto_bread_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2738,7 +2931,7 @@ func (x *BuyOrderIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderIdRequest.ProtoReflect.Descriptor instead.
 func (*BuyOrderIdRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{42}
+	return file_proto_bread_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *BuyOrderIdRequest) GetId() int32 {
@@ -2759,7 +2952,7 @@ type BuyOrderDetailsResponse struct {
 
 func (x *BuyOrderDetailsResponse) Reset() {
 	*x = BuyOrderDetailsResponse{}
-	mi := &file_proto_bread_proto_msgTypes[43]
+	mi := &file_proto_bread_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2771,7 +2964,7 @@ func (x *BuyOrderDetailsResponse) String() string {
 func (*BuyOrderDetailsResponse) ProtoMessage() {}
 
 func (x *BuyOrderDetailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bread_proto_msgTypes[43]
+	mi := &file_proto_bread_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2784,7 +2977,7 @@ func (x *BuyOrderDetailsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuyOrderDetailsResponse.ProtoReflect.Descriptor instead.
 func (*BuyOrderDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bread_proto_rawDescGZIP(), []int{43}
+	return file_proto_bread_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *BuyOrderDetailsResponse) GetOrder() *BuyOrder {
@@ -2824,7 +3017,13 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\tcreatedAt\x18\b \x01(\tR\tcreatedAt\x12\x1c\n" +
 	"\tupdatedAt\x18\t \x01(\tR\tupdatedAt\x12\x14\n" +
 	"\x05image\x18\n" +
-	" \x01(\tR\x05image\"\x94\x01\n" +
+	" \x01(\tR\x05image\"\xb8\x01\n" +
+	"\fBuyOrderItem\x12\x18\n" +
+	"\abreadId\x18\x01 \x01(\x05R\abreadId\x12,\n" +
+	"\x11quantityRequested\x18\x02 \x01(\x05R\x11quantityRequested\x12,\n" +
+	"\x11quantityFulfilled\x18\x03 \x01(\x05R\x11quantityFulfilled\x12\x1a\n" +
+	"\bbidPrice\x18\x04 \x01(\x02R\bbidPrice\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"\xf9\x02\n" +
 	"\bBuyOrder\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1e\n" +
 	"\n" +
@@ -2832,7 +3031,14 @@ const file_proto_bread_proto_rawDesc = "" +
 	"customerId\x12\"\n" +
 	"\fbuyOrderUuid\x18\x03 \x01(\tR\fbuyOrderUuid\x12\x1c\n" +
 	"\ttotalCost\x18\x04 \x01(\x02R\ttotalCost\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\"\xf7\x01\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12&\n" +
+	"\x0esequenceNumber\x18\x06 \x01(\x03R\x0esequenceNumber\x12\x1a\n" +
+	"\bbidPrice\x18\a \x01(\x02R\bbidPrice\x12\"\n" +
+	"\fallowPartial\x18\b \x01(\bR\fallowPartial\x122\n" +
+	"\x14skipUnavailableItems\x18\t \x01(\bR\x14skipUnavailableItems\x12\x1c\n" +
+	"\tcreatedAt\x18\n" +
+	" \x01(\tR\tcreatedAt\x12)\n" +
+	"\x05items\x18\v \x03(\v2\x13.bread.BuyOrderItemR\x05items\"\xf7\x01\n" +
 	"\x0fBuyOrderDetails\x12\x1e\n" +
 	"\n" +
 	"buyOrderId\x18\x01 \x01(\x05R\n" +
@@ -2870,11 +3076,16 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\b \x01(\tR\tupdatedAt\"1\n" +
 	"\tBreadList\x12$\n" +
-	"\x06breads\x18\x01 \x03(\v2\f.bread.BreadR\x06breads\"\x86\x01\n" +
+	"\x06breads\x18\x01 \x03(\v2\f.bread.BreadR\x06breads\"\x89\x01\n" +
+	"\x13BuyOrderPreferences\x12\x1a\n" +
+	"\bbidPrice\x18\x01 \x01(\x02R\bbidPrice\x12\"\n" +
+	"\fallowPartial\x18\x02 \x01(\bR\fallowPartial\x122\n" +
+	"\x14skipUnavailableItems\x18\x03 \x01(\bR\x14skipUnavailableItems\"\xc4\x01\n" +
 	"\fBreadRequest\x12(\n" +
 	"\x06breads\x18\x03 \x01(\v2\x10.bread.BreadListR\x06breads\x12$\n" +
 	"\x0ebuy_order_uuid\x18\x02 \x01(\tR\fbuyOrderUuid\x12&\n" +
-	"\x0fmake_order_uuid\x18\x04 \x01(\tR\rmakeOrderUuid\"\xfd\x01\n" +
+	"\x0fmake_order_uuid\x18\x04 \x01(\tR\rmakeOrderUuid\x12<\n" +
+	"\vpreferences\x18\x05 \x01(\v2\x1a.bread.BuyOrderPreferencesR\vpreferences\"\xfd\x01\n" +
 	"\rBreadResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12(\n" +
 	"\x06breads\x18\x03 \x01(\v2\x10.bread.BreadListR\x06breads\x12\x14\n" +
@@ -3077,7 +3288,7 @@ const file_proto_bread_proto_rawDesc = "" +
 	"\x15CustomerPortalService\x12F\n" +
 	"\vGetMyOrders\x12\x18.bread.CustomerIdRequest\x1a\x1d.bread.CustomerOrdersResponse\x12=\n" +
 	"\rGetMyInvoices\x12\x18.bread.CustomerIdRequest\x1a\x12.bread.InvoiceList\x12K\n" +
-	"\x0fGetOrderDetails\x12\x18.bread.BuyOrderIdRequest\x1a\x1e.bread.BuyOrderDetailsResponseB*Z(github.com/calvarado2004/bakery-go/breadb\x06proto3"
+	"\x0fGetOrderDetails\x12\x18.bread.BuyOrderIdRequest\x1a\x1e.bread.BuyOrderDetailsResponseB*Z(github.com/calvarado2004/bakery-go/protob\x06proto3"
 
 var (
 	file_proto_bread_proto_rawDescOnce sync.Once
@@ -3091,156 +3302,160 @@ func file_proto_bread_proto_rawDescGZIP() []byte {
 	return file_proto_bread_proto_rawDescData
 }
 
-var file_proto_bread_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_proto_bread_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_proto_bread_proto_goTypes = []any{
 	(*Bread)(nil),                    // 0: bread.Bread
-	(*BuyOrder)(nil),                 // 1: bread.BuyOrder
-	(*BuyOrderDetails)(nil),          // 2: bread.BuyOrderDetails
-	(*BuyOrderList)(nil),             // 3: bread.BuyOrderList
-	(*BuyOrderRequest)(nil),          // 4: bread.BuyOrderRequest
-	(*BuyOrderResponse)(nil),         // 5: bread.BuyOrderResponse
-	(*MakeOrder)(nil),                // 6: bread.MakeOrder
-	(*MakeOrderDetails)(nil),         // 7: bread.MakeOrderDetails
-	(*BreadList)(nil),                // 8: bread.BreadList
-	(*BreadRequest)(nil),             // 9: bread.BreadRequest
-	(*BreadResponse)(nil),            // 10: bread.BreadResponse
-	(*Empty)(nil),                    // 11: bread.Empty
-	(*DashboardStats)(nil),           // 12: bread.DashboardStats
-	(*Customer)(nil),                 // 13: bread.Customer
-	(*CustomerList)(nil),             // 14: bread.CustomerList
-	(*BreadMakerProto)(nil),          // 15: bread.BreadMakerProto
-	(*BreadMakerList)(nil),           // 16: bread.BreadMakerList
-	(*CreateBreadRequest)(nil),       // 17: bread.CreateBreadRequest
-	(*UpdateBreadRequest)(nil),       // 18: bread.UpdateBreadRequest
-	(*DeleteBreadRequest)(nil),       // 19: bread.DeleteBreadRequest
-	(*UpdateOrderStatusRequest)(nil), // 20: bread.UpdateOrderStatusRequest
-	(*BreadIdRequest)(nil),           // 21: bread.BreadIdRequest
-	(*CustomerIdRequest)(nil),        // 22: bread.CustomerIdRequest
-	(*BreadMakerIdRequest)(nil),      // 23: bread.BreadMakerIdRequest
-	(*CustomerOrdersResponse)(nil),   // 24: bread.CustomerOrdersResponse
-	(*MakerOrdersResponse)(nil),      // 25: bread.MakerOrdersResponse
-	(*MakeOrderProto)(nil),           // 26: bread.MakeOrderProto
-	(*MakeOrderList)(nil),            // 27: bread.MakeOrderList
-	(*AdminUser)(nil),                // 28: bread.AdminUser
-	(*LoginRequest)(nil),             // 29: bread.LoginRequest
-	(*LoginResponse)(nil),            // 30: bread.LoginResponse
-	(*CustomerLoginRequest)(nil),     // 31: bread.CustomerLoginRequest
-	(*CustomerLoginResponse)(nil),    // 32: bread.CustomerLoginResponse
-	(*ValidateTokenRequest)(nil),     // 33: bread.ValidateTokenRequest
-	(*ValidateTokenResponse)(nil),    // 34: bread.ValidateTokenResponse
-	(*Invoice)(nil),                  // 35: bread.Invoice
-	(*InvoiceItem)(nil),              // 36: bread.InvoiceItem
-	(*InvoiceList)(nil),              // 37: bread.InvoiceList
-	(*CreateInvoiceRequest)(nil),     // 38: bread.CreateInvoiceRequest
-	(*InvoiceIdRequest)(nil),         // 39: bread.InvoiceIdRequest
-	(*CustomerInvoicesRequest)(nil),  // 40: bread.CustomerInvoicesRequest
-	(*CreateAdminUserRequest)(nil),   // 41: bread.CreateAdminUserRequest
-	(*BuyOrderIdRequest)(nil),        // 42: bread.BuyOrderIdRequest
-	(*BuyOrderDetailsResponse)(nil),  // 43: bread.BuyOrderDetailsResponse
+	(*BuyOrderItem)(nil),             // 1: bread.BuyOrderItem
+	(*BuyOrder)(nil),                 // 2: bread.BuyOrder
+	(*BuyOrderDetails)(nil),          // 3: bread.BuyOrderDetails
+	(*BuyOrderList)(nil),             // 4: bread.BuyOrderList
+	(*BuyOrderRequest)(nil),          // 5: bread.BuyOrderRequest
+	(*BuyOrderResponse)(nil),         // 6: bread.BuyOrderResponse
+	(*MakeOrder)(nil),                // 7: bread.MakeOrder
+	(*MakeOrderDetails)(nil),         // 8: bread.MakeOrderDetails
+	(*BreadList)(nil),                // 9: bread.BreadList
+	(*BuyOrderPreferences)(nil),      // 10: bread.BuyOrderPreferences
+	(*BreadRequest)(nil),             // 11: bread.BreadRequest
+	(*BreadResponse)(nil),            // 12: bread.BreadResponse
+	(*Empty)(nil),                    // 13: bread.Empty
+	(*DashboardStats)(nil),           // 14: bread.DashboardStats
+	(*Customer)(nil),                 // 15: bread.Customer
+	(*CustomerList)(nil),             // 16: bread.CustomerList
+	(*BreadMakerProto)(nil),          // 17: bread.BreadMakerProto
+	(*BreadMakerList)(nil),           // 18: bread.BreadMakerList
+	(*CreateBreadRequest)(nil),       // 19: bread.CreateBreadRequest
+	(*UpdateBreadRequest)(nil),       // 20: bread.UpdateBreadRequest
+	(*DeleteBreadRequest)(nil),       // 21: bread.DeleteBreadRequest
+	(*UpdateOrderStatusRequest)(nil), // 22: bread.UpdateOrderStatusRequest
+	(*BreadIdRequest)(nil),           // 23: bread.BreadIdRequest
+	(*CustomerIdRequest)(nil),        // 24: bread.CustomerIdRequest
+	(*BreadMakerIdRequest)(nil),      // 25: bread.BreadMakerIdRequest
+	(*CustomerOrdersResponse)(nil),   // 26: bread.CustomerOrdersResponse
+	(*MakerOrdersResponse)(nil),      // 27: bread.MakerOrdersResponse
+	(*MakeOrderProto)(nil),           // 28: bread.MakeOrderProto
+	(*MakeOrderList)(nil),            // 29: bread.MakeOrderList
+	(*AdminUser)(nil),                // 30: bread.AdminUser
+	(*LoginRequest)(nil),             // 31: bread.LoginRequest
+	(*LoginResponse)(nil),            // 32: bread.LoginResponse
+	(*CustomerLoginRequest)(nil),     // 33: bread.CustomerLoginRequest
+	(*CustomerLoginResponse)(nil),    // 34: bread.CustomerLoginResponse
+	(*ValidateTokenRequest)(nil),     // 35: bread.ValidateTokenRequest
+	(*ValidateTokenResponse)(nil),    // 36: bread.ValidateTokenResponse
+	(*Invoice)(nil),                  // 37: bread.Invoice
+	(*InvoiceItem)(nil),              // 38: bread.InvoiceItem
+	(*InvoiceList)(nil),              // 39: bread.InvoiceList
+	(*CreateInvoiceRequest)(nil),     // 40: bread.CreateInvoiceRequest
+	(*InvoiceIdRequest)(nil),         // 41: bread.InvoiceIdRequest
+	(*CustomerInvoicesRequest)(nil),  // 42: bread.CustomerInvoicesRequest
+	(*CreateAdminUserRequest)(nil),   // 43: bread.CreateAdminUserRequest
+	(*BuyOrderIdRequest)(nil),        // 44: bread.BuyOrderIdRequest
+	(*BuyOrderDetailsResponse)(nil),  // 45: bread.BuyOrderDetailsResponse
 }
 var file_proto_bread_proto_depIdxs = []int32{
-	1,  // 0: bread.BuyOrderList.buyOrders:type_name -> bread.BuyOrder
-	2,  // 1: bread.BuyOrderList.buyOrderDetails:type_name -> bread.BuyOrderDetails
-	3,  // 2: bread.BuyOrderRequest.buyOrders:type_name -> bread.BuyOrderList
-	3,  // 3: bread.BuyOrderResponse.buyOrders:type_name -> bread.BuyOrderList
-	0,  // 4: bread.BreadList.breads:type_name -> bread.Bread
-	8,  // 5: bread.BreadRequest.breads:type_name -> bread.BreadList
-	8,  // 6: bread.BreadResponse.breads:type_name -> bread.BreadList
-	13, // 7: bread.CustomerList.customers:type_name -> bread.Customer
-	15, // 8: bread.BreadMakerList.breadMakers:type_name -> bread.BreadMakerProto
-	13, // 9: bread.CustomerOrdersResponse.customer:type_name -> bread.Customer
-	1,  // 10: bread.CustomerOrdersResponse.orders:type_name -> bread.BuyOrder
-	15, // 11: bread.MakerOrdersResponse.maker:type_name -> bread.BreadMakerProto
-	26, // 12: bread.MakerOrdersResponse.orders:type_name -> bread.MakeOrderProto
-	0,  // 13: bread.MakeOrderProto.breads:type_name -> bread.Bread
-	26, // 14: bread.MakeOrderList.makeOrders:type_name -> bread.MakeOrderProto
-	28, // 15: bread.LoginResponse.user:type_name -> bread.AdminUser
-	13, // 16: bread.CustomerLoginResponse.customer:type_name -> bread.Customer
-	36, // 17: bread.Invoice.items:type_name -> bread.InvoiceItem
-	35, // 18: bread.InvoiceList.invoices:type_name -> bread.Invoice
-	1,  // 19: bread.BuyOrderDetailsResponse.order:type_name -> bread.BuyOrder
-	2,  // 20: bread.BuyOrderDetailsResponse.details:type_name -> bread.BuyOrderDetails
-	9,  // 21: bread.MakeBread.BakeBread:input_type -> bread.BreadRequest
-	9,  // 22: bread.MakeBread.SendBreadToBakery:input_type -> bread.BreadRequest
-	9,  // 23: bread.MakeBread.MadeBreadStream:input_type -> bread.BreadRequest
-	9,  // 24: bread.CheckInventory.CheckBreadInventory:input_type -> bread.BreadRequest
-	9,  // 25: bread.CheckInventory.CheckBreadInventoryStream:input_type -> bread.BreadRequest
-	9,  // 26: bread.BuyBread.BuyBread:input_type -> bread.BreadRequest
-	9,  // 27: bread.BuyBread.BuyBreadStream:input_type -> bread.BreadRequest
-	4,  // 28: bread.BuyOrderService.BuyOrder:input_type -> bread.BuyOrderRequest
-	4,  // 29: bread.BuyOrderService.BuyOrderStream:input_type -> bread.BuyOrderRequest
-	9,  // 30: bread.RemoveOldBread.RemoveBread:input_type -> bread.BreadRequest
-	9,  // 31: bread.RemoveOldBread.RemoveBreadStream:input_type -> bread.BreadRequest
-	9,  // 32: bread.MakeOrderService.MakeOrder:input_type -> bread.BreadRequest
-	9,  // 33: bread.MakeOrderService.MakeOrderStream:input_type -> bread.BreadRequest
-	11, // 34: bread.AdminService.GetDashboardStats:input_type -> bread.Empty
-	11, // 35: bread.AdminService.GetAllCustomers:input_type -> bread.Empty
-	11, // 36: bread.AdminService.GetAllBreadMakers:input_type -> bread.Empty
-	11, // 37: bread.AdminService.GetAllBread:input_type -> bread.Empty
-	21, // 38: bread.AdminService.GetBreadById:input_type -> bread.BreadIdRequest
-	17, // 39: bread.AdminService.CreateBread:input_type -> bread.CreateBreadRequest
-	18, // 40: bread.AdminService.UpdateBread:input_type -> bread.UpdateBreadRequest
-	19, // 41: bread.AdminService.DeleteBread:input_type -> bread.DeleteBreadRequest
-	11, // 42: bread.AdminService.GetLowStockAlerts:input_type -> bread.Empty
-	20, // 43: bread.AdminService.UpdateOrderStatus:input_type -> bread.UpdateOrderStatusRequest
-	22, // 44: bread.AdminService.GetCustomerOrders:input_type -> bread.CustomerIdRequest
-	23, // 45: bread.AdminService.GetMakerOrders:input_type -> bread.BreadMakerIdRequest
-	11, // 46: bread.AdminService.GetAllOrders:input_type -> bread.Empty
-	11, // 47: bread.AdminService.GetAllMakeOrders:input_type -> bread.Empty
-	29, // 48: bread.AuthService.AdminLogin:input_type -> bread.LoginRequest
-	31, // 49: bread.AuthService.CustomerLogin:input_type -> bread.CustomerLoginRequest
-	33, // 50: bread.AuthService.ValidateToken:input_type -> bread.ValidateTokenRequest
-	41, // 51: bread.AuthService.CreateAdminUser:input_type -> bread.CreateAdminUserRequest
-	38, // 52: bread.InvoiceService.CreateInvoice:input_type -> bread.CreateInvoiceRequest
-	39, // 53: bread.InvoiceService.GetInvoice:input_type -> bread.InvoiceIdRequest
-	40, // 54: bread.InvoiceService.GetCustomerInvoices:input_type -> bread.CustomerInvoicesRequest
-	11, // 55: bread.InvoiceService.GetAllInvoices:input_type -> bread.Empty
-	22, // 56: bread.CustomerPortalService.GetMyOrders:input_type -> bread.CustomerIdRequest
-	22, // 57: bread.CustomerPortalService.GetMyInvoices:input_type -> bread.CustomerIdRequest
-	42, // 58: bread.CustomerPortalService.GetOrderDetails:input_type -> bread.BuyOrderIdRequest
-	10, // 59: bread.MakeBread.BakeBread:output_type -> bread.BreadResponse
-	10, // 60: bread.MakeBread.SendBreadToBakery:output_type -> bread.BreadResponse
-	10, // 61: bread.MakeBread.MadeBreadStream:output_type -> bread.BreadResponse
-	10, // 62: bread.CheckInventory.CheckBreadInventory:output_type -> bread.BreadResponse
-	10, // 63: bread.CheckInventory.CheckBreadInventoryStream:output_type -> bread.BreadResponse
-	10, // 64: bread.BuyBread.BuyBread:output_type -> bread.BreadResponse
-	10, // 65: bread.BuyBread.BuyBreadStream:output_type -> bread.BreadResponse
-	5,  // 66: bread.BuyOrderService.BuyOrder:output_type -> bread.BuyOrderResponse
-	5,  // 67: bread.BuyOrderService.BuyOrderStream:output_type -> bread.BuyOrderResponse
-	10, // 68: bread.RemoveOldBread.RemoveBread:output_type -> bread.BreadResponse
-	10, // 69: bread.RemoveOldBread.RemoveBreadStream:output_type -> bread.BreadResponse
-	10, // 70: bread.MakeOrderService.MakeOrder:output_type -> bread.BreadResponse
-	10, // 71: bread.MakeOrderService.MakeOrderStream:output_type -> bread.BreadResponse
-	12, // 72: bread.AdminService.GetDashboardStats:output_type -> bread.DashboardStats
-	14, // 73: bread.AdminService.GetAllCustomers:output_type -> bread.CustomerList
-	16, // 74: bread.AdminService.GetAllBreadMakers:output_type -> bread.BreadMakerList
-	8,  // 75: bread.AdminService.GetAllBread:output_type -> bread.BreadList
-	0,  // 76: bread.AdminService.GetBreadById:output_type -> bread.Bread
-	0,  // 77: bread.AdminService.CreateBread:output_type -> bread.Bread
-	0,  // 78: bread.AdminService.UpdateBread:output_type -> bread.Bread
-	11, // 79: bread.AdminService.DeleteBread:output_type -> bread.Empty
-	8,  // 80: bread.AdminService.GetLowStockAlerts:output_type -> bread.BreadList
-	1,  // 81: bread.AdminService.UpdateOrderStatus:output_type -> bread.BuyOrder
-	24, // 82: bread.AdminService.GetCustomerOrders:output_type -> bread.CustomerOrdersResponse
-	25, // 83: bread.AdminService.GetMakerOrders:output_type -> bread.MakerOrdersResponse
-	3,  // 84: bread.AdminService.GetAllOrders:output_type -> bread.BuyOrderList
-	27, // 85: bread.AdminService.GetAllMakeOrders:output_type -> bread.MakeOrderList
-	30, // 86: bread.AuthService.AdminLogin:output_type -> bread.LoginResponse
-	32, // 87: bread.AuthService.CustomerLogin:output_type -> bread.CustomerLoginResponse
-	34, // 88: bread.AuthService.ValidateToken:output_type -> bread.ValidateTokenResponse
-	28, // 89: bread.AuthService.CreateAdminUser:output_type -> bread.AdminUser
-	35, // 90: bread.InvoiceService.CreateInvoice:output_type -> bread.Invoice
-	35, // 91: bread.InvoiceService.GetInvoice:output_type -> bread.Invoice
-	37, // 92: bread.InvoiceService.GetCustomerInvoices:output_type -> bread.InvoiceList
-	37, // 93: bread.InvoiceService.GetAllInvoices:output_type -> bread.InvoiceList
-	24, // 94: bread.CustomerPortalService.GetMyOrders:output_type -> bread.CustomerOrdersResponse
-	37, // 95: bread.CustomerPortalService.GetMyInvoices:output_type -> bread.InvoiceList
-	43, // 96: bread.CustomerPortalService.GetOrderDetails:output_type -> bread.BuyOrderDetailsResponse
-	59, // [59:97] is the sub-list for method output_type
-	21, // [21:59] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	1,  // 0: bread.BuyOrder.items:type_name -> bread.BuyOrderItem
+	2,  // 1: bread.BuyOrderList.buyOrders:type_name -> bread.BuyOrder
+	3,  // 2: bread.BuyOrderList.buyOrderDetails:type_name -> bread.BuyOrderDetails
+	4,  // 3: bread.BuyOrderRequest.buyOrders:type_name -> bread.BuyOrderList
+	4,  // 4: bread.BuyOrderResponse.buyOrders:type_name -> bread.BuyOrderList
+	0,  // 5: bread.BreadList.breads:type_name -> bread.Bread
+	9,  // 6: bread.BreadRequest.breads:type_name -> bread.BreadList
+	10, // 7: bread.BreadRequest.preferences:type_name -> bread.BuyOrderPreferences
+	9,  // 8: bread.BreadResponse.breads:type_name -> bread.BreadList
+	15, // 9: bread.CustomerList.customers:type_name -> bread.Customer
+	17, // 10: bread.BreadMakerList.breadMakers:type_name -> bread.BreadMakerProto
+	15, // 11: bread.CustomerOrdersResponse.customer:type_name -> bread.Customer
+	2,  // 12: bread.CustomerOrdersResponse.orders:type_name -> bread.BuyOrder
+	17, // 13: bread.MakerOrdersResponse.maker:type_name -> bread.BreadMakerProto
+	28, // 14: bread.MakerOrdersResponse.orders:type_name -> bread.MakeOrderProto
+	0,  // 15: bread.MakeOrderProto.breads:type_name -> bread.Bread
+	28, // 16: bread.MakeOrderList.makeOrders:type_name -> bread.MakeOrderProto
+	30, // 17: bread.LoginResponse.user:type_name -> bread.AdminUser
+	15, // 18: bread.CustomerLoginResponse.customer:type_name -> bread.Customer
+	38, // 19: bread.Invoice.items:type_name -> bread.InvoiceItem
+	37, // 20: bread.InvoiceList.invoices:type_name -> bread.Invoice
+	2,  // 21: bread.BuyOrderDetailsResponse.order:type_name -> bread.BuyOrder
+	3,  // 22: bread.BuyOrderDetailsResponse.details:type_name -> bread.BuyOrderDetails
+	11, // 23: bread.MakeBread.BakeBread:input_type -> bread.BreadRequest
+	11, // 24: bread.MakeBread.SendBreadToBakery:input_type -> bread.BreadRequest
+	11, // 25: bread.MakeBread.MadeBreadStream:input_type -> bread.BreadRequest
+	11, // 26: bread.CheckInventory.CheckBreadInventory:input_type -> bread.BreadRequest
+	11, // 27: bread.CheckInventory.CheckBreadInventoryStream:input_type -> bread.BreadRequest
+	11, // 28: bread.BuyBread.BuyBread:input_type -> bread.BreadRequest
+	11, // 29: bread.BuyBread.BuyBreadStream:input_type -> bread.BreadRequest
+	5,  // 30: bread.BuyOrderService.BuyOrder:input_type -> bread.BuyOrderRequest
+	5,  // 31: bread.BuyOrderService.BuyOrderStream:input_type -> bread.BuyOrderRequest
+	11, // 32: bread.RemoveOldBread.RemoveBread:input_type -> bread.BreadRequest
+	11, // 33: bread.RemoveOldBread.RemoveBreadStream:input_type -> bread.BreadRequest
+	11, // 34: bread.MakeOrderService.MakeOrder:input_type -> bread.BreadRequest
+	11, // 35: bread.MakeOrderService.MakeOrderStream:input_type -> bread.BreadRequest
+	13, // 36: bread.AdminService.GetDashboardStats:input_type -> bread.Empty
+	13, // 37: bread.AdminService.GetAllCustomers:input_type -> bread.Empty
+	13, // 38: bread.AdminService.GetAllBreadMakers:input_type -> bread.Empty
+	13, // 39: bread.AdminService.GetAllBread:input_type -> bread.Empty
+	23, // 40: bread.AdminService.GetBreadById:input_type -> bread.BreadIdRequest
+	19, // 41: bread.AdminService.CreateBread:input_type -> bread.CreateBreadRequest
+	20, // 42: bread.AdminService.UpdateBread:input_type -> bread.UpdateBreadRequest
+	21, // 43: bread.AdminService.DeleteBread:input_type -> bread.DeleteBreadRequest
+	13, // 44: bread.AdminService.GetLowStockAlerts:input_type -> bread.Empty
+	22, // 45: bread.AdminService.UpdateOrderStatus:input_type -> bread.UpdateOrderStatusRequest
+	24, // 46: bread.AdminService.GetCustomerOrders:input_type -> bread.CustomerIdRequest
+	25, // 47: bread.AdminService.GetMakerOrders:input_type -> bread.BreadMakerIdRequest
+	13, // 48: bread.AdminService.GetAllOrders:input_type -> bread.Empty
+	13, // 49: bread.AdminService.GetAllMakeOrders:input_type -> bread.Empty
+	31, // 50: bread.AuthService.AdminLogin:input_type -> bread.LoginRequest
+	33, // 51: bread.AuthService.CustomerLogin:input_type -> bread.CustomerLoginRequest
+	35, // 52: bread.AuthService.ValidateToken:input_type -> bread.ValidateTokenRequest
+	43, // 53: bread.AuthService.CreateAdminUser:input_type -> bread.CreateAdminUserRequest
+	40, // 54: bread.InvoiceService.CreateInvoice:input_type -> bread.CreateInvoiceRequest
+	41, // 55: bread.InvoiceService.GetInvoice:input_type -> bread.InvoiceIdRequest
+	42, // 56: bread.InvoiceService.GetCustomerInvoices:input_type -> bread.CustomerInvoicesRequest
+	13, // 57: bread.InvoiceService.GetAllInvoices:input_type -> bread.Empty
+	24, // 58: bread.CustomerPortalService.GetMyOrders:input_type -> bread.CustomerIdRequest
+	24, // 59: bread.CustomerPortalService.GetMyInvoices:input_type -> bread.CustomerIdRequest
+	44, // 60: bread.CustomerPortalService.GetOrderDetails:input_type -> bread.BuyOrderIdRequest
+	12, // 61: bread.MakeBread.BakeBread:output_type -> bread.BreadResponse
+	12, // 62: bread.MakeBread.SendBreadToBakery:output_type -> bread.BreadResponse
+	12, // 63: bread.MakeBread.MadeBreadStream:output_type -> bread.BreadResponse
+	12, // 64: bread.CheckInventory.CheckBreadInventory:output_type -> bread.BreadResponse
+	12, // 65: bread.CheckInventory.CheckBreadInventoryStream:output_type -> bread.BreadResponse
+	12, // 66: bread.BuyBread.BuyBread:output_type -> bread.BreadResponse
+	12, // 67: bread.BuyBread.BuyBreadStream:output_type -> bread.BreadResponse
+	6,  // 68: bread.BuyOrderService.BuyOrder:output_type -> bread.BuyOrderResponse
+	6,  // 69: bread.BuyOrderService.BuyOrderStream:output_type -> bread.BuyOrderResponse
+	12, // 70: bread.RemoveOldBread.RemoveBread:output_type -> bread.BreadResponse
+	12, // 71: bread.RemoveOldBread.RemoveBreadStream:output_type -> bread.BreadResponse
+	12, // 72: bread.MakeOrderService.MakeOrder:output_type -> bread.BreadResponse
+	12, // 73: bread.MakeOrderService.MakeOrderStream:output_type -> bread.BreadResponse
+	14, // 74: bread.AdminService.GetDashboardStats:output_type -> bread.DashboardStats
+	16, // 75: bread.AdminService.GetAllCustomers:output_type -> bread.CustomerList
+	18, // 76: bread.AdminService.GetAllBreadMakers:output_type -> bread.BreadMakerList
+	9,  // 77: bread.AdminService.GetAllBread:output_type -> bread.BreadList
+	0,  // 78: bread.AdminService.GetBreadById:output_type -> bread.Bread
+	0,  // 79: bread.AdminService.CreateBread:output_type -> bread.Bread
+	0,  // 80: bread.AdminService.UpdateBread:output_type -> bread.Bread
+	13, // 81: bread.AdminService.DeleteBread:output_type -> bread.Empty
+	9,  // 82: bread.AdminService.GetLowStockAlerts:output_type -> bread.BreadList
+	2,  // 83: bread.AdminService.UpdateOrderStatus:output_type -> bread.BuyOrder
+	26, // 84: bread.AdminService.GetCustomerOrders:output_type -> bread.CustomerOrdersResponse
+	27, // 85: bread.AdminService.GetMakerOrders:output_type -> bread.MakerOrdersResponse
+	4,  // 86: bread.AdminService.GetAllOrders:output_type -> bread.BuyOrderList
+	29, // 87: bread.AdminService.GetAllMakeOrders:output_type -> bread.MakeOrderList
+	32, // 88: bread.AuthService.AdminLogin:output_type -> bread.LoginResponse
+	34, // 89: bread.AuthService.CustomerLogin:output_type -> bread.CustomerLoginResponse
+	36, // 90: bread.AuthService.ValidateToken:output_type -> bread.ValidateTokenResponse
+	30, // 91: bread.AuthService.CreateAdminUser:output_type -> bread.AdminUser
+	37, // 92: bread.InvoiceService.CreateInvoice:output_type -> bread.Invoice
+	37, // 93: bread.InvoiceService.GetInvoice:output_type -> bread.Invoice
+	39, // 94: bread.InvoiceService.GetCustomerInvoices:output_type -> bread.InvoiceList
+	39, // 95: bread.InvoiceService.GetAllInvoices:output_type -> bread.InvoiceList
+	26, // 96: bread.CustomerPortalService.GetMyOrders:output_type -> bread.CustomerOrdersResponse
+	39, // 97: bread.CustomerPortalService.GetMyInvoices:output_type -> bread.InvoiceList
+	45, // 98: bread.CustomerPortalService.GetOrderDetails:output_type -> bread.BuyOrderDetailsResponse
+	61, // [61:99] is the sub-list for method output_type
+	23, // [23:61] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_proto_bread_proto_init() }
@@ -3254,7 +3469,7 @@ func file_proto_bread_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_bread_proto_rawDesc), len(file_proto_bread_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   44,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   10,
 		},

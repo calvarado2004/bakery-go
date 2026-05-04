@@ -321,6 +321,16 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 		buyOrder.BuyOrderUUID = uuid.NewString()
 	}
 
+	// Assign a monotonically increasing sequence number for matching engine priority.
+	buyOrder.SequenceNumber = orderSequence.Add(1)
+
+	// Pass through buyer's matching engine preferences.
+	if in.Preferences != nil {
+		buyOrder.BidPrice = in.Preferences.BidPrice
+		buyOrder.AllowPartial = in.Preferences.AllowPartial
+		buyOrder.SkipUnavailableItems = in.Preferences.SkipUnavailableItems
+	}
+
 	breadsToBuy := in.Breads.GetBreads()
 
 	buyerCustomer := data.Customer{

@@ -1,10 +1,8 @@
 syntax = "proto3";
 
-package  bread;
+package bread;
 
-
-
-option go_package = "github.com/calvarado2004/bakery-go/bread";
+option go_package = "github.com/calvarado2004/bakery-go/proto";
 
 
 message Bread {
@@ -20,12 +18,26 @@ message Bread {
     string image = 10;
 }
 
+message BuyOrderItem {
+  int32 breadId = 1;
+  int32 quantityRequested = 2;
+  int32 quantityFulfilled = 3;
+  float bidPrice = 4;
+  string status = 5; // "pending" | "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
+}
+
 message BuyOrder {
   int32 id = 1;
   int32 customerId = 2;
   string buyOrderUuid = 3;
   float totalCost = 4;
   string status = 5;
+  int64 sequenceNumber = 6;
+  float bidPrice = 7;
+  bool allowPartial = 8;
+  bool skipUnavailableItems = 9;
+  string createdAt = 10;
+  repeated BuyOrderItem items = 11;
 }
 
 message BuyOrderDetails {
@@ -74,10 +86,18 @@ message BreadList {
     repeated Bread breads = 1;
 }
 
+// BuyOrderPreferences lets the buyer specify matching engine rules.
+message BuyOrderPreferences {
+    float bidPrice = 1;               // price per unit the buyer is willing to pay
+    bool allowPartial = 2;            // allow partial fulfillment of the entire order
+    bool skipUnavailableItems = 3;    // skip items with zero stock instead of failing the order
+}
+
 message BreadRequest {
     BreadList breads = 3;
     string buy_order_uuid = 2;
     string make_order_uuid = 4;
+    BuyOrderPreferences preferences = 5;
 }
 
 message BreadResponse {
