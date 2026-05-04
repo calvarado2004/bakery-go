@@ -125,6 +125,9 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 		BreadMakerID: breadMaker.ID,
 	}
 
+	// Collect low-stock breads to batch them into a single make order
+	var lowStockBreads []data.Bread
+
 	for _, bread := range breads {
 		if bread.Quantity > 10 {
 			log.Printf("Enough bread of %s left, there are available %d", bread.Name, bread.Quantity)
@@ -150,15 +153,18 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 				return status.Errorf(codes.Internal, "Failed to publish a message: %v", err)
 			}
 
-			breadMakeOrder.Breads = append(breadMakeOrder.Breads, bread)
-			order, err := rabbit.Repo.InsertMakeOrder(breadMakeOrder, breads)
-			if err != nil {
-				return err
-			}
-
-			log.Printf("Make Bread Order ID %d created", order)
+			lowStockBreads = append(lowStockBreads, bread)
 		}
+	}
 
+	// Create a single make order for all low-stock breads (avoids duplicate inserts)
+	if len(lowStockBreads) > 0 {
+		breadMakeOrder.Breads = lowStockBreads
+		order, err := rabbit.Repo.InsertMakeOrder(breadMakeOrder, lowStockBreads)
+		if err != nil {
+			return err
+		}
+		log.Printf("Make Bread Order ID %d created for %d items", order, len(lowStockBreads))
 	}
 
 	return nil
