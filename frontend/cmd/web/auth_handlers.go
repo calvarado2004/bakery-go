@@ -346,10 +346,10 @@ type PortalTemplateData struct {
 	Invoice        *pb.Invoice
 	Message        string
 	Error          string
-	TotalCost      float32
+	TotalCost      float64
 	TotalOrders    int
 	TotalInvoices  int
-	TotalSpent     float32
+	TotalSpent     float64
 	RecentOrders   []*pb.BuyOrder
 	RecentInvoices []*pb.Invoice
 }
@@ -396,7 +396,7 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 			data.CustomerID = ordersResp.Customer.Id
 		}
 		// Calculate total spent and get recent orders (up to 5)
-		var totalSpent float32
+		var totalSpent float64
 		for _, order := range ordersResp.Orders {
 			totalSpent += order.TotalCost
 		}

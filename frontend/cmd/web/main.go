@@ -27,7 +27,7 @@ type BreadLog struct {
 	Buyer    string
 	Maker    string
 	Quantity int
-	Price    float32
+	Price    float64
 	Image    string
 }
 

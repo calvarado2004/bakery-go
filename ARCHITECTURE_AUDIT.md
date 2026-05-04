@@ -1070,19 +1070,19 @@ These fixes are **bugs** — they cause incorrect data today.
 
 ### Phase 4 — Database Performance & Correctness
 
-| # | Task | Files | Effort |
-|---|------|-------|--------|
-| 4.1 | Change financial columns from `float` to `numeric(10,2)` | `bakery.sql`, migration, `data/models.go`, `proto/bread.proto` | 4h |
-| 4.2 | Add all missing indexes | `bakery.sql`, migration | 2h |
-| 4.3 | Change `timestamp` to `timestamptz` | `bakery.sql`, migration | 1h |
-| 4.4 | Add CHECK constraints on status columns | `bakery.sql`, migration | 1h |
-| 4.5 | Fix outbox query with `LIMIT`, `ORDER BY`, `FOR UPDATE SKIP LOCKED` | `data/models.go` | 2h |
+| # | Task | Files | Effort | Status |
+|---|------|-------|--------|--------|
+| 4.1 | Change financial columns from `float` to `numeric(10,2)` | `bakery.sql`, migration, `data/models.go`, `proto/bread.proto` | 4h | ✅ Done |
+| 4.2 | Add all missing indexes | `bakery.sql`, migration | 2h | ✅ Done |
+| 4.3 | Change `timestamp` to `timestamptz` | `bakery.sql`, migration | 1h | ✅ Done |
+| 4.4 | Add CHECK constraints on status columns | `bakery.sql`, migration | 1h | ✅ Done |
+| 4.5 | Fix outbox query with `LIMIT`, `ORDER BY`, `FOR UPDATE SKIP LOCKED` | `data/models.go` | 2h | ✅ Done |
 
 **Verify with:**
-- [ ] Unit tests pass (may need updates due to type changes)
-- [ ] Container built: all 5 images (schema + model changes are transitive)
-- [ ] Integration tests: query all indexed columns — verify `EXPLAIN ANALYZE` shows index scans
-- [ ] E2E: verify invoice totals are mathematically correct to 2 decimal places for edge cases (e.g., $0.07 + $0.08 = $0.15, not $0.15000000000000002)
+- [x] Unit tests pass
+- [x] Container built: all 5 images (schema + model changes are transitive)
+- [x] Integration tests: query all indexed columns — verify `EXPLAIN ANALYZE` shows index scans
+- [x] E2E: verify invoice totals are mathematically correct to 2 decimal places for edge cases (e.g., $0.07 + $0.08 = $0.15, not $0.15000000000000002)
 
 ---
 

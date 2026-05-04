@@ -78,6 +78,6 @@ func (r *errNoRowsRepo) GetBuyOrderByUUID(_ string) (BuyOrder, error) {
 // in PostgresRepository where a NULL SUM result is converted to 0 instead of scan error.
 type nullTotalCostRepo struct{ PostgresTestRepository }
 
-func (r *nullTotalCostRepo) GetOrderTotalCost(_ int) (float32, error) {
+func (r *nullTotalCostRepo) GetOrderTotalCost(_ int) (float64, error) {
 	return 0, nil
 }

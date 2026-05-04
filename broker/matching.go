@@ -51,7 +51,7 @@ func (b *orderBuffer) len() int {
 
 // maxBidPrice returns the highest bid price in the order's items.
 // Orders with no explicit bid price get 0 (lowest priority).
-func maxBidPrice(o data.BuyOrder) float32 {
+func maxBidPrice(o data.BuyOrder) float64 {
 	if o.BidPrice > 0 {
 		return o.BidPrice
 	}

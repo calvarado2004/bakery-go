@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var _jwtSecret []byte
@@ -136,7 +137,7 @@ func (s *AuthServiceServer) AdminLogin(ctx context.Context, in *pb.LoginRequest)
 			Username:  user.Username,
 			Email:     user.Email,
 			Role:      user.Role,
-			CreatedAt: user.CreatedAt.String(),
+			CreatedAt: timestamppb.New(user.CreatedAt),
 		},
 	}, nil
 }
@@ -189,8 +190,8 @@ func (s *AuthServiceServer) CustomerLogin(ctx context.Context, in *pb.CustomerLo
 			Id:        int32(customer.ID),
 			Name:      customer.Name,
 			Email:     customer.Email,
-			CreatedAt: customer.CreatedAt.String(),
-			UpdatedAt: customer.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(customer.CreatedAt),
+			UpdatedAt: timestamppb.New(customer.UpdatedAt),
 		},
 	}, nil
 }
@@ -246,6 +247,6 @@ func (s *AuthServiceServer) CreateAdminUser(ctx context.Context, in *pb.CreateAd
 		Username:  user.Username,
 		Email:     user.Email,
 		Role:      user.Role,
-		CreatedAt: time.Now().String(),
+		CreatedAt: timestamppb.New(time.Now()),
 	}, nil
 }

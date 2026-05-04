@@ -23,7 +23,7 @@ func (r *makersStubRepo) InsertBreadMaker(data.BreadMaker) (int, error)         
 func (r *makersStubRepo) InsertBuyOrder(data.BuyOrder, []data.Bread) (int, error)     { return 0, nil }
 func (r *makersStubRepo) InsertMakeOrder(data.MakeOrder, []data.Bread) (int, error)   { return 0, nil }
 func (r *makersStubRepo) AdjustBreadQuantity(int, int) (bool, error)                  { return true, nil }
-func (r *makersStubRepo) AdjustBreadPrice(int, float32) error                         { return nil }
+func (r *makersStubRepo) AdjustBreadPrice(int, float64) error                         { return nil }
 func (r *makersStubRepo) PasswordMatches(string, data.Customer) (bool, error)         { return true, nil }
 func (r *makersStubRepo) GetAvailableBread() ([]data.Bread, error)                    { return nil, nil }
 func (r *makersStubRepo) GetBreadByID(int) (data.Bread, error)                        { return data.Bread{}, nil }
@@ -32,7 +32,7 @@ func (r *makersStubRepo) GetBuyOrderByID(int) (data.BuyOrder, error)            
 func (r *makersStubRepo) GetBuyOrderByUUID(string) (data.BuyOrder, error)             { return data.BuyOrder{}, nil }
 func (r *makersStubRepo) GetAllBuyOrders() ([]data.BuyOrder, error)                   { return nil, nil }
 func (r *makersStubRepo) UpdateOrderStatus(string, string) error                      { return nil }
-func (r *makersStubRepo) GetOrderTotalCost(int) (float32, error)                      { return 0, nil }
+func (r *makersStubRepo) GetOrderTotalCost(int) (float64, error)                      { return 0, nil }
 func (r *makersStubRepo) DeleteOutboxMessage(int) error                               { return nil }
 func (r *makersStubRepo) InsertOutboxMessage(data.OutboxMessage) error                { return nil }
 func (r *makersStubRepo) GetUnprocessedOutboxMessages() ([]data.OutboxMessage, error) { return nil, nil }

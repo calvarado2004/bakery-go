@@ -203,7 +203,7 @@ func TestPostgresRepository_Integration(t *testing.T) {
 		}
 
 		bread := breads[0]
-		newPrice := float32(9.99)
+		newPrice := float64(9.99)
 
 		err = repo.AdjustBreadPrice(bread.ID, newPrice)
 		if err != nil {

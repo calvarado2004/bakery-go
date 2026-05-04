@@ -87,10 +87,10 @@ func (r *orderWithBreadsRepo) GetCustomerOrders(customerID int) ([]data.BuyOrder
 	return nil, nil
 }
 
-func (r *orderWithBreadsRepo) GetOrderTotalCost(int) (float32, error) {
-	var total float32
+func (r *orderWithBreadsRepo) GetOrderTotalCost(int) (float64, error) {
+	var total float64
 	for _, b := range r.order.Breads {
-		total += b.Price * float32(b.Quantity)
+		total += b.Price * float64(b.Quantity)
 	}
 	return total, nil
 }

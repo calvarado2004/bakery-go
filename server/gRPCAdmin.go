@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AdminServiceServer struct {
@@ -25,12 +26,12 @@ func (s *AdminServiceServer) GetDashboardStats(ctx context.Context, in *pb.Empty
 	}
 
 	return &pb.DashboardStats{
-		TotalOrders:     int32(stats.TotalOrders),
-		TotalRevenue:    stats.TotalRevenue,
-		TotalProducts:   int32(stats.TotalProducts),
-		TotalCustomers:  int32(stats.TotalCustomers),
+		TotalOrders:      int32(stats.TotalOrders),
+		TotalRevenue:     stats.TotalRevenue,
+		TotalProducts:    int32(stats.TotalProducts),
+		TotalCustomers:   int32(stats.TotalCustomers),
 		TotalBreadMakers: int32(stats.TotalBreadMakers),
-		LowStockCount:   int32(stats.LowStockCount),
+		LowStockCount:    int32(stats.LowStockCount),
 	}, nil
 }
 
@@ -47,8 +48,8 @@ func (s *AdminServiceServer) GetAllCustomers(ctx context.Context, in *pb.Empty) 
 			Id:        int32(c.ID),
 			Name:      c.Name,
 			Email:     c.Email,
-			CreatedAt: c.CreatedAt.String(),
-			UpdatedAt: c.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(c.CreatedAt),
+			UpdatedAt: timestamppb.New(c.UpdatedAt),
 		})
 	}
 
@@ -68,8 +69,8 @@ func (s *AdminServiceServer) GetAllBreadMakers(ctx context.Context, in *pb.Empty
 			Id:        int32(m.ID),
 			Name:      m.Name,
 			Email:     m.Email,
-			CreatedAt: m.CreatedAt.String(),
-			UpdatedAt: m.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(m.CreatedAt),
+			UpdatedAt: timestamppb.New(m.UpdatedAt),
 		})
 	}
 
@@ -93,8 +94,8 @@ func (s *AdminServiceServer) GetAllBread(ctx context.Context, in *pb.Empty) (*pb
 			Description: b.Description,
 			Type:        b.Type,
 			Status:      b.Status,
-			CreatedAt:   b.CreatedAt.String(),
-			UpdatedAt:   b.UpdatedAt.String(),
+			CreatedAt:   timestamppb.New(b.CreatedAt),
+			UpdatedAt:   timestamppb.New(b.UpdatedAt),
 			Image:       b.Image,
 		})
 	}
@@ -117,8 +118,8 @@ func (s *AdminServiceServer) GetBreadById(ctx context.Context, in *pb.BreadIdReq
 		Description: bread.Description,
 		Type:        bread.Type,
 		Status:      bread.Status,
-		CreatedAt:   bread.CreatedAt.String(),
-		UpdatedAt:   bread.UpdatedAt.String(),
+		CreatedAt:   timestamppb.New(bread.CreatedAt),
+		UpdatedAt:   timestamppb.New(bread.UpdatedAt),
 		Image:       bread.Image,
 	}, nil
 }
@@ -151,8 +152,8 @@ func (s *AdminServiceServer) CreateBread(ctx context.Context, in *pb.CreateBread
 		Type:        bread.Type,
 		Status:      bread.Status,
 		Image:       bread.Image,
-		CreatedAt:   bread.CreatedAt.String(),
-		UpdatedAt:   bread.UpdatedAt.String(),
+		CreatedAt:   timestamppb.New(bread.CreatedAt),
+		UpdatedAt:   timestamppb.New(bread.UpdatedAt),
 	}, nil
 }
 
@@ -189,8 +190,8 @@ func (s *AdminServiceServer) UpdateBread(ctx context.Context, in *pb.UpdateBread
 		Type:        updatedBread.Type,
 		Status:      updatedBread.Status,
 		Image:       updatedBread.Image,
-		CreatedAt:   updatedBread.CreatedAt.String(),
-		UpdatedAt:   updatedBread.UpdatedAt.String(),
+		CreatedAt:   timestamppb.New(updatedBread.CreatedAt),
+		UpdatedAt:   timestamppb.New(updatedBread.UpdatedAt),
 	}, nil
 }
 
@@ -221,8 +222,8 @@ func (s *AdminServiceServer) GetLowStockAlerts(ctx context.Context, in *pb.Empty
 			Description: b.Description,
 			Type:        b.Type,
 			Status:      b.Status,
-			CreatedAt:   b.CreatedAt.String(),
-			UpdatedAt:   b.UpdatedAt.String(),
+			CreatedAt:   timestamppb.New(b.CreatedAt),
+			UpdatedAt:   timestamppb.New(b.UpdatedAt),
 			Image:       b.Image,
 		})
 	}
@@ -274,7 +275,7 @@ func (s *AdminServiceServer) UpdateOrderStatus(ctx context.Context, in *pb.Updat
 }
 
 // generateInvoiceForOrder creates an invoice when an order is completed
-func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtotal float32) error {
+func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtotal float64) error {
 	// Check if an invoice already exists for this order
 	existingInvoice, err := s.RabbitMQBakery.Repo.GetInvoiceByOrderID(order.ID)
 	if err == nil && existingInvoice.ID > 0 {
@@ -283,7 +284,7 @@ func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtot
 	}
 
 	// Calculate tax (10% tax rate)
-	taxRate := float32(0.10)
+	taxRate := float64(0.10)
 	tax := subtotal * taxRate
 	total := subtotal + tax
 
@@ -298,7 +299,7 @@ func (s *AdminServiceServer) generateInvoiceForOrder(order data.BuyOrder, subtot
 			BreadName: bread.Name,
 			Quantity:  bread.Quantity,
 			UnitPrice: bread.Price,
-			Total:     bread.Price * float32(bread.Quantity),
+			Total:     bread.Price * float64(bread.Quantity),
 		}
 		invoiceItems = append(invoiceItems, item)
 	}
@@ -357,8 +358,8 @@ func (s *AdminServiceServer) GetCustomerOrders(ctx context.Context, in *pb.Custo
 			Id:        int32(customer.ID),
 			Name:      customer.Name,
 			Email:     customer.Email,
-			CreatedAt: customer.CreatedAt.String(),
-			UpdatedAt: customer.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(customer.CreatedAt),
+			UpdatedAt: timestamppb.New(customer.UpdatedAt),
 		},
 		Orders: pbOrders,
 	}, nil
@@ -395,8 +396,8 @@ func (s *AdminServiceServer) GetMakerOrders(ctx context.Context, in *pb.BreadMak
 			Id:            int32(o.ID),
 			BreadMakerId:  int32(o.BreadMakerID),
 			MakeOrderUuid: o.MakeOrderUUID,
-			CreatedAt:     o.CreatedAt.String(),
-			UpdatedAt:     o.UpdatedAt.String(),
+			CreatedAt:     timestamppb.New(o.CreatedAt),
+			UpdatedAt:     timestamppb.New(o.UpdatedAt),
 			Breads:        pbBreads,
 		})
 	}
@@ -406,8 +407,8 @@ func (s *AdminServiceServer) GetMakerOrders(ctx context.Context, in *pb.BreadMak
 			Id:        int32(maker.ID),
 			Name:      maker.Name,
 			Email:     maker.Email,
-			CreatedAt: maker.CreatedAt.String(),
-			UpdatedAt: maker.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(maker.CreatedAt),
+			UpdatedAt: timestamppb.New(maker.UpdatedAt),
 		},
 		Orders: pbOrders,
 	}, nil
@@ -441,8 +442,8 @@ func (s *AdminServiceServer) GetAllOrders(ctx context.Context, in *pb.Empty) (*p
 				Quantity:     int32(b.Quantity),
 				Price:        b.Price,
 				Status:       b.Status,
-				CreatedAt:    o.CreatedAt.String(),
-				UpdatedAt:    o.UpdatedAt.String(),
+				CreatedAt:    timestamppb.New(o.CreatedAt),
+				UpdatedAt:    timestamppb.New(o.UpdatedAt),
 			})
 		}
 	}
@@ -478,8 +479,8 @@ func (s *AdminServiceServer) GetAllMakeOrders(ctx context.Context, in *pb.Empty)
 			Id:            int32(o.ID),
 			BreadMakerId:  int32(o.BreadMakerID),
 			MakeOrderUuid: o.MakeOrderUUID,
-			CreatedAt:     o.CreatedAt.String(),
-			UpdatedAt:     o.UpdatedAt.String(),
+			CreatedAt:     timestamppb.New(o.CreatedAt),
+			UpdatedAt:     timestamppb.New(o.UpdatedAt),
 			Breads:        pbBreads,
 		})
 	}

@@ -7,7 +7,7 @@ import (
 
 type DashboardStats struct {
 	TotalOrders      int
-	TotalRevenue     float32
+	TotalRevenue     float64
 	TotalProducts    int
 	TotalCustomers   int
 	TotalBreadMakers int
@@ -29,9 +29,9 @@ type Invoice struct {
 	BuyOrderID    int           `json:"buy_order_id"`
 	CustomerID    int           `json:"customer_id"`
 	InvoiceNumber string        `json:"invoice_number"`
-	Subtotal      float32       `json:"subtotal"`
-	Tax           float32       `json:"tax"`
-	Total         float32       `json:"total"`
+	Subtotal      float64       `json:"subtotal"`
+	Tax           float64       `json:"tax"`
+	Total         float64       `json:"total"`
 	Status        string        `json:"status"`
 	CreatedAt     time.Time     `json:"created_at"`
 	DueDate       time.Time     `json:"due_date"`
@@ -45,8 +45,8 @@ type InvoiceItem struct {
 	BreadID   int     `json:"bread_id"`
 	BreadName string  `json:"bread_name"`
 	Quantity  int     `json:"quantity"`
-	UnitPrice float32 `json:"unit_price"`
-	Total     float32 `json:"total"`
+	UnitPrice float64 `json:"unit_price"`
+	Total     float64 `json:"total"`
 }
 
 type Repository interface {
@@ -69,7 +69,7 @@ type Repository interface {
 	InsertBuyOrder(order BuyOrder, breads []Bread) (int, error)
 	InsertMakeOrder(order MakeOrder, breads []Bread) (int, error)
 	AdjustBreadQuantity(breadID int, quantityChange int) (bool, error)
-	AdjustBreadPrice(breadID int, newPrice float32) error
+	AdjustBreadPrice(breadID int, newPrice float64) error
 	PasswordMatches(plainText string, customer Customer) (bool, error)
 	GetAvailableBread() ([]Bread, error)
 	GetBreadByID(breadID int) (bread Bread, err error)
@@ -78,7 +78,7 @@ type Repository interface {
 	GetBuyOrderByUUID(uuid string) (order BuyOrder, err error)
 	GetAllBuyOrders() (orders []BuyOrder, err error)
 	UpdateOrderStatus(buyOrderUUID string, status string) error
-	GetOrderTotalCost(orderID int) (float32, error)
+	GetOrderTotalCost(orderID int) (float64, error)
 	DeleteOutboxMessage(id int) error
 	InsertOutboxMessage(message OutboxMessage) error
 	GetUnprocessedOutboxMessages() ([]OutboxMessage, error)

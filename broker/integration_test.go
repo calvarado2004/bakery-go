@@ -272,7 +272,7 @@ func TestIntegrationPerformBuyBread_FullFlow(t *testing.T) {
 		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
-		Status:       "Pending",
+		Status:       "pending",
 	}
 
 	// Verify we can insert the order
@@ -323,7 +323,7 @@ func TestIntegrationPerformBuyBread_OutboxMessage(t *testing.T) {
 		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
-		Status:       "Pending",
+		Status:       "pending",
 	}
 
 	// Insert order
@@ -393,13 +393,13 @@ func TestIntegrationPerformBuyBread_OrderStatusUpdate(t *testing.T) {
 		CustomerID:   customerID,
 		BuyOrderUUID: buyOrderUUID,
 		Breads:       testBread,
-		Status:       "Pending",
+		Status:       "pending",
 	}
 
 	_, _ = env.repo.InsertBuyOrder(buyOrder, testBread)
 
 	// Update status
-	err = env.repo.UpdateOrderStatus(buyOrderUUID, "Processed")
+	err = env.repo.UpdateOrderStatus(buyOrderUUID, "processed")
 	if err != nil {
 		t.Errorf("Failed to update order status: %v", err)
 	}
@@ -409,8 +409,8 @@ func TestIntegrationPerformBuyBread_OrderStatusUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to retrieve order: %v", err)
 	}
-	if storedOrder.Status != "Processed" {
-		t.Errorf("Expected status 'Processed', got '%s'", storedOrder.Status)
+	if storedOrder.Status != "processed" {
+		t.Errorf("Expected status 'processed', got '%s'", storedOrder.Status)
 	}
 
 	// Clean up
@@ -541,7 +541,7 @@ func TestIntegrationBroker_ConcurrentOrderProcessing(t *testing.T) {
 				CustomerID:   customerID,
 				BuyOrderUUID: buyOrderUUID,
 				Breads:       testBread,
-				Status:       "Pending",
+				Status:       "pending",
 			}
 
 			_, err := env.repo.InsertBuyOrder(buyOrder, testBread)

@@ -23,7 +23,7 @@ func (r *brokerStubRepo) InsertBreadMaker(data.BreadMaker) (int, error)         
 func (r *brokerStubRepo) InsertBuyOrder(data.BuyOrder, []data.Bread) (int, error)     { return 1, nil }
 func (r *brokerStubRepo) InsertMakeOrder(data.MakeOrder, []data.Bread) (int, error)   { return 0, nil }
 func (r *brokerStubRepo) AdjustBreadQuantity(int, int) (bool, error)                  { return true, nil }
-func (r *brokerStubRepo) AdjustBreadPrice(int, float32) error                         { return nil }
+func (r *brokerStubRepo) AdjustBreadPrice(int, float64) error                         { return nil }
 func (r *brokerStubRepo) PasswordMatches(string, data.Customer) (bool, error)         { return true, nil }
 func (r *brokerStubRepo) GetAvailableBread() ([]data.Bread, error)                    { return nil, nil }
 func (r *brokerStubRepo) GetBreadByID(int) (data.Bread, error)                        { return data.Bread{}, nil }
@@ -32,7 +32,7 @@ func (r *brokerStubRepo) GetBuyOrderByID(int) (data.BuyOrder, error)            
 func (r *brokerStubRepo) GetBuyOrderByUUID(string) (data.BuyOrder, error)             { return data.BuyOrder{}, nil }
 func (r *brokerStubRepo) GetAllBuyOrders() ([]data.BuyOrder, error)                   { return nil, nil }
 func (r *brokerStubRepo) UpdateOrderStatus(string, string) error                      { return nil }
-func (r *brokerStubRepo) GetOrderTotalCost(int) (float32, error)                      { return 0, nil }
+func (r *brokerStubRepo) GetOrderTotalCost(int) (float64, error)                      { return 0, nil }
 func (r *brokerStubRepo) DeleteOutboxMessage(int) error                               { return nil }
 func (r *brokerStubRepo) InsertOutboxMessage(data.OutboxMessage) error                { return nil }
 func (r *brokerStubRepo) GetUnprocessedOutboxMessages() ([]data.OutboxMessage, error) { return nil, nil }

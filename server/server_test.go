@@ -23,7 +23,7 @@ func (r *stubRepo) InsertBreadMaker(data.BreadMaker) (int, error)               
 func (r *stubRepo) InsertBuyOrder(data.BuyOrder, []data.Bread) (int, error)         { return 0, nil }
 func (r *stubRepo) InsertMakeOrder(data.MakeOrder, []data.Bread) (int, error)       { return 0, nil }
 func (r *stubRepo) AdjustBreadQuantity(int, int) (bool, error)                      { return true, nil }
-func (r *stubRepo) AdjustBreadPrice(int, float32) error                             { return nil }
+func (r *stubRepo) AdjustBreadPrice(int, float64) error                             { return nil }
 func (r *stubRepo) PasswordMatches(string, data.Customer) (bool, error)             { return true, nil }
 func (r *stubRepo) GetAvailableBread() ([]data.Bread, error)                        { return nil, nil }
 func (r *stubRepo) GetBreadByID(int) (data.Bread, error)                            { return data.Bread{}, nil }
@@ -32,7 +32,7 @@ func (r *stubRepo) GetBuyOrderByID(int) (data.BuyOrder, error)                  
 func (r *stubRepo) GetBuyOrderByUUID(string) (data.BuyOrder, error)                 { return data.BuyOrder{}, nil }
 func (r *stubRepo) GetAllBuyOrders() ([]data.BuyOrder, error)                       { return nil, nil }
 func (r *stubRepo) UpdateOrderStatus(string, string) error                          { return nil }
-func (r *stubRepo) GetOrderTotalCost(int) (float32, error)                          { return 0, nil }
+func (r *stubRepo) GetOrderTotalCost(int) (float64, error)                          { return 0, nil }
 func (r *stubRepo) DeleteOutboxMessage(int) error                                   { return nil }
 func (r *stubRepo) InsertOutboxMessage(data.OutboxMessage) error                    { return nil }
 func (r *stubRepo) GetUnprocessedOutboxMessages() ([]data.OutboxMessage, error)     { return nil, nil }
@@ -76,7 +76,7 @@ type retryRepo struct {
 	calls    int
 	failFor  int
 	order    data.BuyOrder
-	totalCost float32
+	totalCost float64
 }
 
 func (r *retryRepo) GetBuyOrderByUUID(string) (data.BuyOrder, error) {
@@ -89,7 +89,7 @@ func (r *retryRepo) GetBuyOrderByUUID(string) (data.BuyOrder, error) {
 	return r.order, nil
 }
 
-func (r *retryRepo) GetOrderTotalCost(int) (float32, error) {
+func (r *retryRepo) GetOrderTotalCost(int) (float64, error) {
 	return r.totalCost, nil
 }
 

@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
@@ -234,8 +235,8 @@ func (s *CheckInventoryServer) CheckBreadInventory(cx context.Context, in *pb.Br
 		breadgRPC.Name = bread.Name
 		breadgRPC.Quantity = int32(bread.Quantity)
 		breadgRPC.Status = bread.Status
-		breadgRPC.CreatedAt = bread.CreatedAt.String()
-		breadgRPC.UpdatedAt = bread.UpdatedAt.String()
+		breadgRPC.CreatedAt = timestamppb.New(bread.CreatedAt)
+		breadgRPC.UpdatedAt = timestamppb.New(bread.UpdatedAt)
 		breadgRPC.Description = bread.Description
 		breadgRPC.Price = bread.Price
 		breadgRPC.Image = bread.Image
@@ -267,8 +268,8 @@ func (s *CheckInventoryServer) CheckBreadInventoryStream(_ *pb.BreadRequest, str
 			breadgRPC.Name = bread.Name
 			breadgRPC.Quantity = int32(bread.Quantity)
 			breadgRPC.Status = bread.Status
-			breadgRPC.CreatedAt = bread.CreatedAt.String()
-			breadgRPC.UpdatedAt = bread.UpdatedAt.String()
+			breadgRPC.CreatedAt = timestamppb.New(bread.CreatedAt)
+			breadgRPC.UpdatedAt = timestamppb.New(bread.UpdatedAt)
 			breadgRPC.Description = bread.Description
 			breadgRPC.Price = bread.Price
 			breadgRPC.Image = bread.Image
@@ -531,8 +532,8 @@ func (s *BuyOrderServiceServer) BuyOrder(cx context.Context, in *pb.BuyOrderRequ
 			Status:       bread.Status,
 			BuyOrderId:   int32(buyOrderByUUID.ID),
 			BuyOrderUuid: buyOrderByUUID.BuyOrderUUID,
-			CreatedAt:    buyOrderByUUID.CreatedAt.String(),
-			UpdatedAt:    buyOrderByUUID.UpdatedAt.String(),
+			CreatedAt:    timestamppb.New(buyOrderByUUID.CreatedAt),
+			UpdatedAt:    timestamppb.New(buyOrderByUUID.UpdatedAt),
 		})
 	}
 
@@ -614,8 +615,8 @@ func (s *BuyOrderServiceServer) BuyOrderStream(in *pb.BuyOrderRequest, stream pb
 				Status:       bread.Status,
 				BuyOrderId:   int32(buyOrderToProcess.ID),
 				BuyOrderUuid: buyOrderToProcess.BuyOrderUUID,
-				CreatedAt:    buyOrderToProcess.CreatedAt.String(),
-				UpdatedAt:    buyOrderToProcess.UpdatedAt.String(),
+				CreatedAt:    timestamppb.New(buyOrderToProcess.CreatedAt),
+				UpdatedAt:    timestamppb.New(buyOrderToProcess.UpdatedAt),
 			})
 		}
 

@@ -64,7 +64,7 @@ func (m *mockBreadStream) Received() []*pb.BreadResponse {
 type notifySuccessRepo struct {
 	stubRepo
 	order     data.BuyOrder
-	totalCost float32
+	totalCost float64
 }
 
 func (r *notifySuccessRepo) WaitForOrderNotification(_ context.Context, _ string) error {
@@ -75,7 +75,7 @@ func (r *notifySuccessRepo) GetBuyOrderByUUID(_ string) (data.BuyOrder, error) {
 	return r.order, nil
 }
 
-func (r *notifySuccessRepo) GetOrderTotalCost(_ int) (float32, error) {
+func (r *notifySuccessRepo) GetOrderTotalCost(_ int) (float64, error) {
 	return r.totalCost, nil
 }
 
@@ -241,7 +241,7 @@ func TestBuyOrder_ConcurrentDistinctUUIDs(t *testing.T) {
 			defer wg.Done()
 			repo := &retryRepo{
 				failFor:   0,
-				totalCost: float32(i) * 1.5,
+				totalCost: float64(i) * 1.5,
 				order: data.BuyOrder{
 					ID:           i + 1,
 					BuyOrderUUID: "uuid-distinct",
@@ -256,9 +256,9 @@ func TestBuyOrder_ConcurrentDistinctUUIDs(t *testing.T) {
 				t.Errorf("goroutine %d: unexpected error: %v", i, err)
 				return
 			}
-			if resp.BuyOrders.BuyOrders[0].TotalCost != float32(i)*1.5 {
+			if resp.BuyOrders.BuyOrders[0].TotalCost != float64(i)*1.5 {
 				t.Errorf("goroutine %d: expected cost %f, got %f",
-					i, float32(i)*1.5, resp.BuyOrders.BuyOrders[0].TotalCost)
+					i, float64(i)*1.5, resp.BuyOrders.BuyOrders[0].TotalCost)
 			}
 		}()
 	}

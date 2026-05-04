@@ -149,7 +149,7 @@ func (r *richRepo) GetBuyOrderByUUID(uuid string) (data.BuyOrder, error) {
 	return data.BuyOrder{ID: 1, CustomerID: 1, BuyOrderUUID: uuid, Status: "Processed"}, nil
 }
 
-func (r *richRepo) GetOrderTotalCost(int) (float32, error) { return 12.50, nil }
+func (r *richRepo) GetOrderTotalCost(int) (float64, error) { return 12.50, nil }
 
 func (r *richRepo) GetInvoiceByOrderID(int) (data.Invoice, error) {
 	return data.Invoice{}, errors.New("not found")

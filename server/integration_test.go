@@ -296,7 +296,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 		}
 
 		bread := allResp.Breads[0]
-		newPrice := float32(9.99)
+		newPrice := 9.99
 
 		req := &pb.UpdateBreadRequest{
 			Id:       bread.Id,

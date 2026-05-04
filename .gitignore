@@ -2,6 +2,11 @@ googleapis
 .idea
 .DS_Store
 
+# Erlang cookie for RabbitMQ
+rabbitmq_cookie/.erlang.cookie
+rabbitmq_data/.erlang.cookie
+rabbitmq_data/
+
 # Local environment variables — never commit real secrets
 .env
 

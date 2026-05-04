@@ -49,7 +49,7 @@ type Customer struct {
 type Bread struct {
 	ID          int       `json:"id"`
 	Name        string    `json:"name"`
-	Price       float32   `json:"price"`
+	Price       float64   `json:"price"`
 	Quantity    int       `json:"quantity"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -61,11 +61,11 @@ type Bread struct {
 
 // OrderItem tracks per-item fulfillment state in the matching engine.
 type OrderItem struct {
-	BreadID           int    `json:"bread_id"`
-	QuantityRequested int    `json:"quantity_requested"`
-	QuantityFulfilled int    `json:"quantity_fulfilled"`
-	BidPrice          float32 `json:"bid_price"`
-	Status            string `json:"status"` // "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
+	BreadID           int     `json:"bread_id"`
+	QuantityRequested int     `json:"quantity_requested"`
+	QuantityFulfilled int     `json:"quantity_fulfilled"`
+	BidPrice          float64 `json:"bid_price"`
+	Status            string  `json:"status"` // "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
 }
 
 type BuyOrder struct {
@@ -76,7 +76,7 @@ type BuyOrder struct {
 	Breads               []Bread    `json:"breads"`
 	Status               string     `json:"status"`
 	SequenceNumber       int64      `json:"sequence_number"`
-	BidPrice             float32    `json:"bid_price"`
+	BidPrice             float64    `json:"bid_price"`
 	AllowPartial         bool       `json:"allow_partial"`
 	SkipUnavailableItems bool       `json:"skip_unavailable_items"`
 	MatchedItems         []OrderItem `json:"matched_items,omitempty"`
@@ -136,11 +136,11 @@ func (u *PostgresRepository) UpdateOrderStatus(buyOrderUUID string, status strin
 }
 
 // GetOrderTotalCost retrieves the total cost of a given order id
-func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float32, error) {
+func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT sum(od.price * od.quantity) AS total_cost FROM buy_order bo, order_details od  WHERE bo.id = od.buy_order_id AND bo.id = $1;`
+	stmt := `SELECT COALESCE(sum(od.price * od.quantity), 0) FROM buy_order bo, order_details od  WHERE bo.id = od.buy_order_id AND bo.id = $1;`
 
 	var total sql.NullFloat64
 	err := db.QueryRowContext(ctx, stmt, orderID).Scan(&total)
@@ -156,7 +156,7 @@ func (u *PostgresRepository) GetOrderTotalCost(orderID int) (float32, error) {
 		return 0, nil
 	}
 
-	return float32(total.Float64), nil
+	return total.Float64, nil
 }
 
 func (u *PostgresRepository) InsertCustomer(customer Customer) (int, error) {
@@ -385,7 +385,7 @@ func (u *PostgresRepository) AdjustBreadQuantity(breadID int, quantityChange int
 	return countBread, nil
 }
 
-func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float32) error {
+func (u *PostgresRepository) AdjustBreadPrice(breadID int, newPrice float64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
@@ -942,13 +942,15 @@ func (u *PostgresRepository) InsertOutboxMessage(message OutboxMessage) error {
 	return nil
 }
 
-// GetUnprocessedOutboxMessages returns all unprocessed outbox messages from the database
+// GetUnprocessedOutboxMessages returns unprocessed outbox messages in creation order,
+// locked for exclusive processing by concurrent pollers. Uses LIMIT to prevent
+// memory exhaustion and FOR UPDATE SKIP LOCKED for safe horizontal scaling.
 func (u *PostgresRepository) GetUnprocessedOutboxMessages() ([]OutboxMessage, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `SELECT id, payload, sent, created_at FROM outbox WHERE sent = false`
+	stmt := `SELECT id, payload, sent, created_at FROM outbox WHERE sent = false ORDER BY created_at ASC LIMIT 10 FOR UPDATE SKIP LOCKED`
 
 	rows, err := u.Conn.QueryContext(ctx, stmt)
 	if err != nil {

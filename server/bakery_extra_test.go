@@ -148,8 +148,8 @@ func (r *allBuyOrdersRepo) GetAllBuyOrders() ([]data.BuyOrder, error) {
 	}, nil
 }
 
-func (r *allBuyOrdersRepo) GetOrderTotalCost(id int) (float32, error) {
-	return float32(id) * 5.0, nil
+func (r *allBuyOrdersRepo) GetOrderTotalCost(id int) (float64, error) {
+	return float64(id) * 5.0, nil
 }
 
 type buyOrderByUUIDRepo struct{ stubRepo }
@@ -158,7 +158,7 @@ func (r *buyOrderByUUIDRepo) GetBuyOrderByUUID(uuid string) (data.BuyOrder, erro
 	return data.BuyOrder{ID: 7, CustomerID: 3, BuyOrderUUID: uuid, Status: "Processed"}, nil
 }
 
-func (r *buyOrderByUUIDRepo) GetOrderTotalCost(int) (float32, error) { return 14.75, nil }
+func (r *buyOrderByUUIDRepo) GetOrderTotalCost(int) (float64, error) { return 14.75, nil }
 
 type buyOrderByUUIDErrorRepo struct{ stubRepo }
 

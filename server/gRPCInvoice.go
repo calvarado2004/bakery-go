@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type InvoiceServiceServer struct {
@@ -32,10 +33,10 @@ func (s *InvoiceServiceServer) CreateInvoice(ctx context.Context, in *pb.CreateI
 	}
 
 	// Calculate totals
-	var subtotal float32
+	var subtotal float64
 	var items []data.InvoiceItem
 	for _, bread := range order.Breads {
-		itemTotal := bread.Price * float32(bread.Quantity)
+		itemTotal := bread.Price * float64(bread.Quantity)
 		subtotal += itemTotal
 		items = append(items, data.InvoiceItem{
 			BreadID:   bread.ID,
@@ -46,7 +47,8 @@ func (s *InvoiceServiceServer) CreateInvoice(ctx context.Context, in *pb.CreateI
 		})
 	}
 
-	tax := subtotal * 0.08 // 8% tax
+	taxRate := float64(0.08)
+	tax := subtotal * taxRate // 8% tax
 	total := subtotal + tax
 
 	// Generate invoice number
@@ -130,9 +132,9 @@ func invoiceToProto(invoice *data.Invoice) *pb.Invoice {
 		})
 	}
 
-	paidAt := ""
+	var paidAt *timestamppb.Timestamp
 	if invoice.PaidAt != nil {
-		paidAt = invoice.PaidAt.String()
+		paidAt = timestamppb.New(*invoice.PaidAt)
 	}
 
 	return &pb.Invoice{
@@ -144,8 +146,8 @@ func invoiceToProto(invoice *data.Invoice) *pb.Invoice {
 		Tax:           invoice.Tax,
 		Total:         invoice.Total,
 		Status:        invoice.Status,
-		CreatedAt:     invoice.CreatedAt.String(),
-		DueDate:       invoice.DueDate.String(),
+		CreatedAt:     timestamppb.New(invoice.CreatedAt),
+		DueDate:       timestamppb.New(invoice.DueDate),
 		PaidAt:        paidAt,
 		Items:         pbItems,
 	}
@@ -186,8 +188,8 @@ func (s *CustomerPortalServiceServer) GetMyOrders(ctx context.Context, in *pb.Cu
 			Id:        int32(customer.ID),
 			Name:      customer.Name,
 			Email:     customer.Email,
-			CreatedAt: customer.CreatedAt.String(),
-			UpdatedAt: customer.UpdatedAt.String(),
+			CreatedAt: timestamppb.New(customer.CreatedAt),
+			UpdatedAt: timestamppb.New(customer.UpdatedAt),
 		},
 		Orders: pbOrders,
 	}, nil
@@ -226,8 +228,8 @@ func (s *CustomerPortalServiceServer) GetOrderDetails(ctx context.Context, in *p
 			Quantity:     int32(bread.Quantity),
 			Price:        bread.Price,
 			Status:       order.Status,
-			CreatedAt:    order.CreatedAt.String(),
-			UpdatedAt:    order.UpdatedAt.String(),
+			CreatedAt:    timestamppb.New(order.CreatedAt),
+			UpdatedAt:    timestamppb.New(order.UpdatedAt),
 		})
 	}
 

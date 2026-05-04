@@ -172,7 +172,7 @@ func AdminBreadCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = client.CreateBread(ctx, &pb.CreateBreadRequest{
 		Name:        r.FormValue("name"),
-		Price:       float32(price),
+		Price:       float64(price),
 		Quantity:    int32(quantity),
 		Description: r.FormValue("description"),
 		Type:        r.FormValue("type"),
@@ -250,7 +250,7 @@ func AdminBreadUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = client.UpdateBread(ctx, &pb.UpdateBreadRequest{
 		Id:          int32(id),
 		Name:        r.FormValue("name"),
-		Price:       float32(price),
+		Price:       float64(price),
 		Quantity:    int32(quantity),
 		Description: r.FormValue("description"),
 		Type:        r.FormValue("type"),
