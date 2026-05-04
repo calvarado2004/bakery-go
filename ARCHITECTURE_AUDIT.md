@@ -1006,19 +1006,19 @@ The broker must maintain a single instance until partition-based horizontal scal
 
 These fixes are **bugs** — they cause incorrect data today.
 
-| # | Task | Files | Effort |
-|---|------|-------|--------|
-| 1.1 | Remove `AdjustBreadQuantity` from `InsertBuyOrder`; let `FulfillOrderTx` be the sole inventory path | `data/models.go`, `broker/main.go` | 2h |
-| 1.2 | Wrap `InsertMakeOrder` in a transaction | `data/models.go` | 1h |
-| 1.3 | Wrap `InsertInvoice` in a transaction | `data/models.go` | 1h |
-| 1.4 | Add `UNIQUE` constraint on `buy_order_uuid` and index | `bakery.sql`, migration | 1h |
-| 1.5 | Add `UNIQUE` constraint on `customer.email` and index | `bakery.sql`, migration | 0.5h |
+| # | Task | Files | Effort | Status |
+|---|------|-------|--------|--------|
+| 1.1 | Remove `AdjustBreadQuantity` from `InsertBuyOrder`; let `FulfillOrderTx` be the sole inventory path | `data/models.go`, `broker/main.go` | 2h | ✅ Done |
+| 1.2 | Wrap `InsertMakeOrder` in a transaction | `data/models.go` | 1h | ✅ Done |
+| 1.3 | Wrap `InsertInvoice` in a transaction | `data/models.go` | 1h | ✅ Done |
+| 1.4 | Add `UNIQUE` constraint on `buy_order_uuid` and index | `bakery.sql`, migration | 1h | ✅ Done |
+| 1.5 | Add `UNIQUE` constraint on `customer.email` and index | `bakery.sql`, migration | 0.5h | ✅ Done |
 
 **Verify with:**
-- [ ] Unit tests: `go test ./... -race -count=1 -timeout 60s` passes
-- [ ] Container built: rebuild all 5 images (`data/models.go` is a transitive dependency)
-- [ ] Integration tests: concurrent broker test — spin up 2 brokers processing orders for the same bread, verify no double-deduction, no oversell
-- [ ] E2E: `docker compose up -d` → buyer places order → query `SELECT quantity FROM bread WHERE id = ?` confirms exactly 1× deduction → order status is `Processed`
+- [x] Unit tests: `go test ./... -race -count=1 -timeout 60s` passes
+- [x] Container built: rebuild all 5 images (`data/models.go` is a transitive dependency)
+- [x] Integration tests: concurrent broker test — spin up 2 brokers processing orders for the same bread, verify no double-deduction, no oversell
+- [x] E2E: `docker compose up -d` → buyer places order → query `SELECT quantity FROM bread WHERE id = ?` confirms exactly 1× deduction → order status is `processed`
 
 ---
 

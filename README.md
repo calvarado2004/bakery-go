@@ -107,22 +107,31 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
                          ▼                   ▼
                     ┌────────┐         ┌──────────┐
                     │  data  │         │  broker  │
-                    └────────┘         └──────────┘
-                                            │
-                                     make-bread-order
-                                            ▼
-                                       ┌────────┐
-                                       │ makers │
-                                       └────────┘
+                    └────────┘         │ (matching│
+                                        │  engine) │  ← Batch, priority-sort, partial
+                    ┌────────┐         └────┬─────┘     fulfillment, skip items
+                    │ outbox │◀─────────────┘
+                    └───┬────┘
+                        │ PostgreSQL
+                        ▼
+                    ┌────────┐
+                    │ makers │◀── make-bread-order (restock)
+                    └────────┘
 ```
 
 **Message flow:**
-1. `buyers` sends a `BuyBread` gRPC request to `server`.
-2. `server` publishes the order to the `buy-bread-order` RabbitMQ queue.
-3. `broker` consumes the queue, checks stock, adjusts quantities, updates the order status, and publishes the result to `bread-bought`.
-4. `server` streams the result back to `buyers` via `BuyBreadStream`.
+1. `buyers` sends a `BuyBread` gRPC request to `server` with bid price, fulfillment rules (`allowPartial`, `skipUnavailableItems`), and a server-assigned `sequenceNumber`.
+2. `server` authenticates via JWT, publishes the order to the `buy-bread-order` RabbitMQ queue, and returns immediately.
+3. `broker` ingests the order into a batch buffer, ACKs immediately, then processes batches every 500ms:
+   - Sorts by priority: bid price DESC, sequence number ASC
+   - Fulfills, partially fulfills, skips unavailable items, or rejects orders
+   - Persists results to PostgreSQL via the outbox
+   - Publishes per-item results to `bread-bought`
+4. `server` streams the result back to `buyers` via `BuyBreadStream` (listens on `bread-bought`).
 5. When stock drops below 10 units, `server` publishes to `make-bread-order`.
 6. `makers` consumes the queue and restocks the database.
+
+**Order book model:** Orders include bid pricing and fulfillment rules. The broker's matching engine batches orders over a 500ms window, sorts by priority (highest bid first), then fulfills orders with partial fulfillment and item-level skip support. This prevents head-of-line blocking and ensures high-value orders are served first.
 
 ## Services
 
@@ -197,6 +206,22 @@ Added `channel.Qos(1, 0, false)` before consuming the `buy-bread-order` queue. W
 ### Graceful RabbitMQ init in makers (`makers/main.go`)
 `init()` now skips RabbitMQ connection when `RABBITMQ_SERVICE_ADDR` is empty (e.g., during tests) instead of calling `log.Fatalf`.
 
+### Matching engine in broker (Phase 2)
+The broker now implements a batch-processing matching engine:
+- Orders are ingested into a buffer; the engine processes batches every 500ms or at 100 orders.
+- Priority sorting: bid price DESC, sequence number ASC.
+- Partial fulfillment support: orders can be partially fulfilled when stock is insufficient.
+- Item-level skip: unavailable items can be skipped if the buyer allows it.
+- Immediate ACK on ingestion — if the engine crashes mid-batch, the buffer persists and resumes.
+
+### Database schema hardening (Phase 4)
+- Financial columns (`bread.price`, `order_details.price`, `invoices.*`, `invoice_items.*`) changed from `float` to `numeric(10,2)` for precise decimal arithmetic.
+- All timestamps changed to `timestamptz` (was `timestamp` without timezone).
+- CHECK constraints added on `bread.status`, `buy_order.status`, `invoices.status` columns.
+- UNIQUE constraints on `buy_order_uuid` and `customer.email`.
+- Indexes added on all lookup columns: `customer_id`, `status`, `uuid`, `created_at`.
+- Outbox query updated with `LIMIT 10` and `FOR UPDATE SKIP LOCKED` for safe concurrent polling.
+
 ### New gRPC services (`server/`)
 - **AdminService** — full CRUD for bread inventory, order management, dashboard stats, low-stock alerts, invoice auto-generation on order completion.
 - **AuthService** — JWT-based login for admin and customer accounts using bcrypt.
@@ -228,15 +253,14 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 | `server` | `invoice_test.go` | `InvoiceService` (new/existing invoice, not-found) + `CustomerPortalService` |
 | `server` | `async_test.go` | Goroutine cleanup via `parentCancel()`, buffered channel semantics, concurrent `BuyOrder` |
 | `server` | `bakery_extra_test.go` | `CheckBreadInventory`, `BuyOrderStream`, `initializeBakery` |
+| `server` | `integration_test.go` | Real PostgreSQL integration — end-to-end order flow, invoice creation |
 | `broker` | `broker_test.go` | `canFulfillOrder` (7 cases), `processOrderItems`, `NewRabbitMQBakery`, map concurrency |
 | `broker` | `integration_test.go` | Real PostgreSQL + RabbitMQ integration — order processing, outbox messages, concurrent operations, DB/RabbitMQ connectivity |
 | `makers` | `makers_test.go` | `processMakeBreadMessage` — valid JSON, invalid JSON, repo error, all 7 bread types, concurrent |
-| `makers` | `integration_test.go` | Real gRPC connection tests — context cancellation, concurrent requests |
 | `buyers` | `buyers_test.go` | `buySomeBread` and `buyBreadStream` with mock `pb.BuyBreadClient` — success, error, EOF, multi-response |
-| `buyers` | `integration_test.go` | Real server connection tests — full buy flow, concurrent requests, stream consumption |
 | `data` | `models_test.go` | `PostgresTestRepository` stub methods, `ErrNoRows` propagation, null total cost |
 | `data` | `test_models_test.go` | All 17 `PostgresTestRepository` methods, struct field coverage |
-| `data` | `integration_test.go` | Full PostgreSQL integration — CRUD operations, transactions, query builders |
+| `data` | `integration_test.go` | Full PostgreSQL integration — CRUD operations, transactions, query builders, price adjustments |
 | `frontend` | `main_test.go` | `staticPageHandler` — all routes, missing template, nav/footer links |
 | `frontend` | `integration_test.go` | Real HTTP handler tests — template rendering, auth flow, gRPC integration |
 
