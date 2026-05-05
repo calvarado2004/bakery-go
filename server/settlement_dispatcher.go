@@ -102,11 +102,25 @@ func (sd *SettlementDispatcher) runOnce() error {
 	log.Println("SettlementDispatcher: started consuming bread-bought")
 
 	for delivery := range deliveryChan {
+		// Try to unmarshal as publishResult first (broker direct publish format).
+		// If that fails, fall back to raw BuyOrder (outbox/stale format).
 		var order data.BuyOrder
-		if err := json.Unmarshal(delivery.Body, &order); err != nil {
-			log.Errorf("SettlementDispatcher: failed to unmarshal delivery: %v", err)
-			delivery.Nack(false, false) //nolint:errcheck
-			continue
+
+		var pr struct {
+			Order     data.BuyOrder `json:"order"`
+			Items     []interface{} `json:"items"`
+			TotalCost float32       `json:"total_cost"`
+		}
+		if err := json.Unmarshal(delivery.Body, &pr); err == nil && pr.Order.BuyOrderUUID != "" {
+			// publishResult format — extract the nested order
+			order = pr.Order
+		} else {
+			// Raw BuyOrder format (stale outbox entry or legacy)
+			if err := json.Unmarshal(delivery.Body, &order); err != nil {
+				log.Errorf("SettlementDispatcher: failed to unmarshal delivery: %v", err)
+				delivery.Nack(false, false) //nolint:errcheck
+				continue
+			}
 		}
 
 		log.Printf("SettlementDispatcher: received settlement for order %s", order.BuyOrderUUID)
