@@ -1088,37 +1088,37 @@ These fixes are **bugs** — they cause incorrect data today.
 
 ### Phase 5 — Frontend & gRPC
 
-| # | Task | Files | Effort |
-|---|------|-------|--------|
-| 5.1 | Shared gRPC connection pool in frontend | `frontend/cmd/web/main.go` | 2h |
-| 5.2 | Pre-parse templates at startup | `frontend/cmd/web/main.go` | 1h |
-| 5.3 | Use `c.Request.Context()` instead of `context.Background()` | `frontend/cmd/web/*.go` | 1h |
-| 5.4 | Fix `orderDetailsHandler` to fetch real data | `frontend/cmd/web/main.go` | 1h |
+| # | Task | Files | Effort | Status |
+|---|------|-------|--------|--------|
+| 5.1 | Shared gRPC connection pool in frontend | `frontend/cmd/web/main.go` | 2h | ✅ Done |
+| 5.2 | Pre-parse templates at startup | `frontend/cmd/web/main.go` | 1h | ✅ Done |
+| 5.3 | Use `c.Request.Context()` instead of `context.Background()` | `frontend/cmd/web/*.go` | 1h | ✅ Done |
+| 5.4 | Fix `orderDetailsHandler` to fetch real data | `frontend/cmd/web/main.go` | 1h | ✅ Done |
 
 **Verify with:**
-- [ ] Unit tests pass
-- [ ] Container built: `frontend.dockerfile`
-- [ ] Integration tests: load test the frontend — 100 concurrent requests, verify no connection exhaustion
-- [ ] E2E: `docker compose up -d` → open admin dashboard → verify no slow memory growth over 5 minutes → order details page shows real data
+- [x] Unit tests pass
+- [x] Container built: `frontend.dockerfile`
+- [x] Integration tests: load test the frontend — 100 concurrent requests, verify no connection exhaustion
+- [x] E2E: `docker compose up -d` → open admin dashboard → verify no slow memory growth over 5 minutes → order details page shows real data
 
 ---
 
 ### Phase 6 — Code Cleanup
 
-| # | Task | Files | Effort |
-|---|------|-------|--------|
-| 6.1 | Remove dead `orders` map and `mu` from `RabbitMQBakery` | `broker/main.go` | 0.5h |
-| 6.2 | Implement proper outbox claim pattern (`sent` column) or remove | `data/models.go` | 1h |
-| 6.3 | Add `ctx.Done()` to `buyBreadStream` goroutine | `buyers/main.go` | 0.5h |
-| 6.4 | Add gRPC connection timeout in admin handlers | `frontend/cmd/web/*.go` | 1h |
-| 6.5 | Use `google.protobuf.Timestamp` in proto | `proto/bread.proto`, regenerate | 2h |
-| 6.6 | Extract customer ID from JWT context in `BuyBread` | `server/gRPCBakery.go`, auth middleware | 2h |
+| # | Task | Files | Effort | Status |
+|---|------|-------|--------|--------|
+| 6.1 | Remove dead `orders` map and `mu` from `RabbitMQBakery` | `broker/main.go` | 0.5h | ✅ Done |
+| 6.2 | Implement proper outbox claim pattern (`sent` column) or remove | `data/models.go` | 1h | ✅ Done |
+| 6.3 | Add `ctx.Done()` to `buyBreadStream` goroutine | `buyers/main.go` | 0.5h | ✅ Done |
+| 6.4 | Add gRPC connection timeout in admin handlers | `frontend/cmd/web/*.go` | 1h | ✅ Done |
+| 6.5 | Use `google.protobuf.Timestamp` in proto | `proto/bread.proto`, regenerate | 2h | ✅ Done |
+| 6.6 | Extract customer ID from JWT context in `BuyBread` | `server/gRPCBakery.go`, auth middleware | 2h | ✅ Done |
 
 **Verify with:**
-- [ ] Unit tests pass
-- [ ] Container built: `broker.dockerfile`, `buyers.dockerfile`, `frontend.dockerfile`, `server.dockerfile`
-- [ ] Integration tests: verify context cancellation actually terminates goroutines (no leaks)
-- [ ] E2E: `docker compose up -d` → cancel a buy stream mid-flight → verify no leaked goroutines in server logs → verify customer ID is correctly attached to orders placed by authenticated users
+- [x] Unit tests pass
+- [x] Container built: `broker.dockerfile`, `buyers.dockerfile`, `frontend.dockerfile`, `server.dockerfile`
+- [x] Integration tests: verify context cancellation actually terminates goroutines (no leaks)
+- [x] E2E: `docker compose up -d` → cancel a buy stream mid-flight → verify no leaked goroutines in server logs → verify customer ID is correctly attached to orders placed by authenticated users
 
 ---
 
