@@ -198,6 +198,21 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 
 ## Recent Changes
 
+### Buyer Order Cost Fix (Phase 13)
+
+**Root cause**: Orders showed `$0.00` total cost to buyers. The bug had two causes:
+
+1. **Server (`server/gRPCBakery.go`)**: The `BuyBread` handler used `bread.Price` from the client request instead of looking up the authoritative catalog price from the database. Buyers connecting via gRPC (not just the frontend) could send any price, including 0. Fixed by calling `Repo.GetBreadByID()` to fetch the catalog price for each bread item.
+
+2. **Broker (`broker/main.go`)**: The `dataToProtoBuyOrder` function set `BidPrice = order.BidPrice` (always 0) for all `BuyOrderItem`s. Since `protoToDataBreads` reads `item.BidPrice` as the bread price, this caused `order_details.price` to be stored as 0 in PostgreSQL. Fixed by setting `BidPrice = bread.Price` from the deserialized order's bread items.
+
+3. **Data layer (`data/models.go`)**: Four order query methods (`GetBuyOrderByID`, `GetBuyOrderByUUID`, `GetAllBuyOrders`, `GetCustomerOrders`) did not select the `price` column from `order_details`. They loaded the current bread price from the `bread` table instead of the order-time price stored in `order_details`. Fixed by including `price` in the SELECT and scanning it into the bread struct.
+
+**Changes:**
+- `server/gRPCBakery.go`: `BuyBread` handler now calls `Repo.GetBreadByID()` for catalog price lookup
+- `broker/main.go`: `dataToProtoBuyOrder` sets `BidPrice = bread.Price` instead of `order.BidPrice`
+- `data/models.go`: Fixed 4 queries to select `price` from `order_details` and removed redundant `GetBreadByID` calls
+
 ### Frontend Stream Error Suppression (Phase 12.2)
 
 **Stream error fix**: The frontend `streamHandler` and `orderStreamHandler` were logging `context canceled` and `broken pipe` errors at error level when clients disconnected normally (page refresh, navigate away). Fixed by detecting gRPC `codes.Canceled` and "broken pipe"/"connection reset by peer" errors and logging them at info level instead.
