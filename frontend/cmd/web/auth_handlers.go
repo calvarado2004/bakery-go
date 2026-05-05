@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"strconv"
@@ -48,16 +47,7 @@ type AuthTemplateData struct {
 
 // adminGRPCContext returns a context with the authenticated admin's token
 // attached as gRPC outgoing metadata. Use this context for any gRPC call that
-// requires admin authentication on the server (e.g. CreateAdminUser).
-//
-// Example:
-//
-//	ctx, err := adminGRPCContext(r)
-//	if err != nil {
-//	    http.Error(w, "Unauthorized", http.StatusUnauthorized)
-//	    return
-//	}
-//	authClient.CreateAdminUser(ctx, &pb.CreateAdminUserRequest{...})
+// requires admin authentication on the server.
 func adminGRPCContext(r *http.Request) (context.Context, error) {
 	cookie, err := r.Cookie("admin_token")
 	if err != nil {
@@ -67,12 +57,12 @@ func adminGRPCContext(r *http.Request) (context.Context, error) {
 		return nil, fmt.Errorf("admin_token cookie is empty")
 	}
 	md := metadata.Pairs("authorization", "Bearer "+cookie.Value)
-	return metadata.NewOutgoingContext(context.Background(), md), nil
+	return metadata.NewOutgoingContext(r.Context(), md), nil
 }
 
-// Admin Login Handler
+// ── Admin Login Handlers ──
+
 func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
-	// Check if already logged in
 	cookie, err := r.Cookie("admin_token")
 	if err == nil && cookie.Value != "" {
 		if validateToken(cookie.Value, "admin") {
@@ -87,7 +77,11 @@ func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: csrf.Token(r),
 	}
 
-	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/admin/login.html")))
+	tmpl, ok := templates["admin/login"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.Execute(w, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,15 +98,8 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Redirect(w, r, "/admin/login?error=Server+connection+failed", http.StatusSeeOther)
-		return
-	}
-	defer conn.Close()
-
-	client := pb.NewAuthServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	client := pb.NewAuthServiceClient(sharedGRPCConn)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	response, err := client.AdminLogin(ctx, &pb.LoginRequest{
@@ -130,7 +117,6 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "admin_token",
 		Value:    response.Token,
@@ -154,9 +140,9 @@ func AdminLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 
-// Customer Login Handler
+// ── Customer Login Handlers ──
+
 func CustomerLoginPageHandler(w http.ResponseWriter, r *http.Request) {
-	// Check if already logged in
 	cookie, err := r.Cookie("customer_token")
 	if err == nil && cookie.Value != "" {
 		if validateToken(cookie.Value, "customer") {
@@ -171,7 +157,11 @@ func CustomerLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: csrf.Token(r),
 	}
 
-	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/portal/login.html")))
+	tmpl, ok := templates["portal/login"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.Execute(w, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -188,15 +178,8 @@ func CustomerLoginHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Redirect(w, r, "/portal/login?error=Server+connection+failed", http.StatusSeeOther)
-		return
-	}
-	defer conn.Close()
-
-	client := pb.NewAuthServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	client := pb.NewAuthServiceClient(sharedGRPCConn)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	response, err := client.CustomerLogin(ctx, &pb.CustomerLoginRequest{
@@ -214,7 +197,6 @@ func CustomerLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "customer_token",
 		Value:    response.Token,
@@ -238,7 +220,8 @@ func CustomerLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/portal/login", http.StatusSeeOther)
 }
 
-// Auth Middleware - wraps a handler function to require admin authentication
+// ── Auth Middleware ──
+
 func RequireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("admin_token")
@@ -258,7 +241,6 @@ func RequireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// RequireCustomerAuth - wraps a handler function to require customer authentication
 func RequireCustomerAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("customer_token")
@@ -332,7 +314,20 @@ func getAdminUserFromToken(r *http.Request) (int, string, string) {
 	return claims.UserID, claims.Username, claims.Role
 }
 
-// Customer Portal Handlers
+// customerGRPCContext returns a context with the authenticated customer's
+// ID attached as gRPC outgoing metadata (Phase 6.6). This allows the
+// server to extract the customer identity for order attribution.
+func customerGRPCContext(r *http.Request) context.Context {
+	customerID := getCustomerIDFromToken(r)
+	if customerID == 0 {
+		return r.Context()
+	}
+	md := metadata.Pairs("customer_id", strconv.Itoa(customerID))
+	return metadata.NewOutgoingContext(r.Context(), md)
+}
+
+// ── Customer Portal Handlers ──
+
 type PortalTemplateData struct {
 	Title          string
 	ActivePage     string
@@ -361,15 +356,9 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
-		return
-	}
-	defer conn.Close()
-
-	portalClient := pb.NewCustomerPortalServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	portalClient := pb.NewCustomerPortalServiceClient(sharedGRPCConn)
+	ctx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	ordersResp, err := portalClient.GetMyOrders(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
@@ -395,13 +384,11 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 			data.CustomerName = ordersResp.Customer.Name
 			data.CustomerID = ordersResp.Customer.Id
 		}
-		// Calculate total spent and get recent orders (up to 5)
 		var totalSpent float64
 		for _, order := range ordersResp.Orders {
 			totalSpent += order.TotalCost
 		}
 		data.TotalSpent = totalSpent
-		// Recent orders (up to 5)
 		if len(ordersResp.Orders) > 5 {
 			data.RecentOrders = ordersResp.Orders[:5]
 		} else {
@@ -412,7 +399,6 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	if invoicesResp != nil {
 		data.Invoices = invoicesResp.Invoices
 		data.TotalInvoices = len(invoicesResp.Invoices)
-		// Recent invoices (up to 5)
 		if len(invoicesResp.Invoices) > 5 {
 			data.RecentInvoices = invoicesResp.Invoices[:5]
 		} else {
@@ -420,10 +406,11 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tmpl := template.Must(template.ParseFiles(
-		getTemplatePath("./cmd/web/templates/portal/base.html"),
-		getTemplatePath("./cmd/web/templates/portal/dashboard.html"),
-	))
+	tmpl, ok := templates["portal/base"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -437,15 +424,9 @@ func CustomerOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
-		return
-	}
-	defer conn.Close()
-
-	portalClient := pb.NewCustomerPortalServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	portalClient := pb.NewCustomerPortalServiceClient(sharedGRPCConn)
+	ctx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	ordersResp, err := portalClient.GetMyOrders(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
@@ -465,10 +446,11 @@ func CustomerOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		data.CustomerName = ordersResp.Customer.Name
 	}
 
-	tmpl := template.Must(template.ParseFiles(
-		getTemplatePath("./cmd/web/templates/portal/base.html"),
-		getTemplatePath("./cmd/web/templates/portal/orders.html"),
-	))
+	tmpl, ok := templates["portal/orders"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -482,7 +464,6 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get order ID from URL
 	orderIDStr := r.URL.Path[len("/portal/orders/"):]
 	orderID, err := strconv.Atoi(orderIDStr)
 	if err != nil {
@@ -490,15 +471,9 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
-		return
-	}
-	defer conn.Close()
-
-	portalClient := pb.NewCustomerPortalServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	portalClient := pb.NewCustomerPortalServiceClient(sharedGRPCConn)
+	ctx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	orderResp, err := portalClient.GetOrderDetails(ctx, &pb.BuyOrderIdRequest{Id: int32(orderID)})
@@ -508,13 +483,11 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this order belongs to the customer
 	if orderResp.Order.CustomerId != int32(customerID) {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
-	// Get customer name
 	ordersResp, _ := portalClient.GetMyOrders(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
 	customerName := ""
 	if ordersResp != nil && ordersResp.Customer != nil {
@@ -530,10 +503,11 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		TotalCost:    orderResp.TotalCost,
 	}
 
-	tmpl := template.Must(template.ParseFiles(
-		getTemplatePath("./cmd/web/templates/portal/base.html"),
-		getTemplatePath("./cmd/web/templates/portal/order_detail.html"),
-	))
+	tmpl, ok := templates["portal/order_detail"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -547,15 +521,9 @@ func CustomerInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
-		return
-	}
-	defer conn.Close()
-
-	portalClient := pb.NewCustomerPortalServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	portalClient := pb.NewCustomerPortalServiceClient(sharedGRPCConn)
+	ctx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	invoicesResp, err := portalClient.GetMyInvoices(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
@@ -565,7 +533,6 @@ func CustomerInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get customer name
 	ordersResp, _ := portalClient.GetMyOrders(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
 	customerName := ""
 	if ordersResp != nil && ordersResp.Customer != nil {
@@ -579,10 +546,11 @@ func CustomerInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 		Invoices:     invoicesResp.Invoices,
 	}
 
-	tmpl := template.Must(template.ParseFiles(
-		getTemplatePath("./cmd/web/templates/portal/base.html"),
-		getTemplatePath("./cmd/web/templates/portal/invoices.html"),
-	))
+	tmpl, ok := templates["portal/invoices"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -596,7 +564,6 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get invoice ID from URL
 	invoiceIDStr := r.URL.Path[len("/portal/invoices/"):]
 	invoiceID, err := strconv.Atoi(invoiceIDStr)
 	if err != nil {
@@ -604,15 +571,9 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := getGRPCConnection()
-	if err != nil {
-		http.Error(w, "Failed to connect to server", http.StatusInternalServerError)
-		return
-	}
-	defer conn.Close()
-
-	invoiceClient := pb.NewInvoiceServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	invoiceClient := pb.NewInvoiceServiceClient(sharedGRPCConn)
+	ctx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	invoice, err := invoiceClient.GetInvoice(ctx, &pb.InvoiceIdRequest{Id: int32(invoiceID)})
@@ -622,14 +583,14 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this invoice belongs to the customer
 	if invoice.CustomerId != int32(customerID) {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
-	// Get customer name
-	portalClient := pb.NewCustomerPortalServiceClient(conn)
+	portalClient := pb.NewCustomerPortalServiceClient(sharedGRPCConn)
+	ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	ordersResp, _ := portalClient.GetMyOrders(ctx, &pb.CustomerIdRequest{Id: int32(customerID)})
 	customerName := ""
 	if ordersResp != nil && ordersResp.Customer != nil {
@@ -643,10 +604,11 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		Invoice:      invoice,
 	}
 
-	tmpl := template.Must(template.ParseFiles(
-		getTemplatePath("./cmd/web/templates/portal/base.html"),
-		getTemplatePath("./cmd/web/templates/portal/invoice_detail.html"),
-	))
+	tmpl, ok := templates["portal/invoice_detail"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

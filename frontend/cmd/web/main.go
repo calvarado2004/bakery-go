@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	pb "github.com/calvarado2004/bakery-go/proto"
@@ -18,7 +19,29 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
+
+// sharedGRPCConn is the package-level shared gRPC connection used by all handlers.
+// It is initialized once at startup with proper keep-alive parameters to prevent
+// connection exhaustion under load (ARCHITECTURE_AUDIT §6.1).
+var sharedGRPCConn *grpc.ClientConn
+var sharedGRPCOnce sync.Once
+
+// templates holds all pre-parsed templates keyed by their logical page name.
+// Templates are parsed once at startup to avoid per-request parsing overhead
+// (ARCHITECTURE_AUDIT §6.3).
+var templates map[string]*template.Template
+
+// getSharedGRPCClient returns the shared gRPC connection initialized at startup.
+func getSharedGRPCClient() pb.AdminServiceClient {
+	return pb.NewAdminServiceClient(sharedGRPCConn)
+}
+
+// SetSharedGRPCConn allows tests to inject a gRPC connection.
+func SetSharedGRPCConn(conn *grpc.ClientConn) {
+	sharedGRPCConn = conn
+}
 
 type BreadLog struct {
 	ID       int
@@ -50,7 +73,7 @@ type BuyOrderDetail struct {
 }
 
 type OrderData struct {
-	BuyOrders       []BuyOrder       `json:"buyOrders"`
+	BuyOrders       []*pb.BuyOrder   `json:"buyOrders"`
 	BuyOrderDetails []BuyOrderDetail `json:"buyOrderDetails"`
 }
 
@@ -83,11 +106,15 @@ func getTemplatePath(relativePath string) string {
 }
 
 func main() {
-
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
+
+	// ── Phase 5.1+5.2: Pre-parse templates and initialize shared gRPC connection ──
+	initTemplates()
+	initSharedGRPCConnection()
+
 	router := mux.NewRouter()
 	router.StrictSlash(true)
 
@@ -109,12 +136,14 @@ func main() {
 	router.HandleFunc("/stream", streamHandler)
 	router.HandleFunc("/order-stream", orderStreamHandler)
 	router.HandleFunc("/orders", orderDetailsHandler)
-	router.HandleFunc("/service", staticPageHandler(getTemplatePath("./cmd/web/templates/service.html")))
-	router.HandleFunc("/product", staticPageHandler(getTemplatePath("./cmd/web/templates/product.html")))
-	router.HandleFunc("/team", staticPageHandler(getTemplatePath("./cmd/web/templates/team.html")))
-	router.HandleFunc("/testimonial", staticPageHandler(getTemplatePath("./cmd/web/templates/testimonial.html")))
-	router.HandleFunc("/contact", staticPageHandler(getTemplatePath("./cmd/web/templates/contact.html")))
-	router.HandleFunc("/404", staticPageHandler(getTemplatePath("./cmd/web/templates/404.html")))
+
+	// Static pages now use pre-parsed templates (Phase 5.2)
+	router.HandleFunc("/service", staticPageHandler("service"))
+	router.HandleFunc("/product", staticPageHandler("product"))
+	router.HandleFunc("/team", staticPageHandler("team"))
+	router.HandleFunc("/testimonial", staticPageHandler("testimonial"))
+	router.HandleFunc("/contact", staticPageHandler("contact"))
+	router.HandleFunc("/404", staticPageHandler("404"))
 
 	// Admin auth routes (public - no auth required)
 	router.HandleFunc("/admin/login", AdminLoginPageHandler).Methods("GET")
@@ -161,24 +190,11 @@ func main() {
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	// Setup the connection to the server
-	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Errorf("Failed to connect to gRPC server: %v", err)
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	defer func(conn *grpc.ClientConn) {
-		if err := conn.Close(); err != nil {
-			log.Errorf("Failed to close gRPC connection: %v", err)
-		}
-	}(conn)
+	// Use shared gRPC client (Phase 5.1)
+	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 
-	// Initialize the client
-	client := pb.NewCheckInventoryClient(conn)
-
-	// Call GetAvailableBreads service
-	response, err := client.CheckBreadInventory(context.Background(), &pb.BreadRequest{})
+	// Use r.Context() instead of context.Background() (Phase 5.3)
+	response, err := client.CheckBreadInventory(r.Context(), &pb.BreadRequest{})
 	if err != nil {
 		log.Errorf("Error calling GetAvailableBreads service: %v", err)
 		http.Error(w, "Failed to fetch inventory", http.StatusInternalServerError)
@@ -199,42 +215,64 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	tmpl := template.Must(template.ParseFiles(getTemplatePath("./cmd/web/templates/index.html")))
+	// Use pre-parsed template (Phase 5.2)
+	tmpl, ok := templates["index"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.Execute(w, breadLogs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func staticPageHandler(templatePath string) http.HandlerFunc {
+// staticPageHandler returns an HTTP handler that serves a pre-parsed template
+// by name. This avoids parsing templates on every request (Phase 5.2).
+func staticPageHandler(templateName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles(templatePath)
-		if err != nil {
-			http.Error(w, "Error parsing template: "+err.Error(), http.StatusInternalServerError)
+		tmpl, ok := templates[templateName]
+		if !ok {
+			http.Error(w, "Template not found: "+templateName, http.StatusInternalServerError)
 			return
 		}
-		err = tmpl.Execute(w, nil)
+		err := tmpl.Execute(w, nil)
 		if err != nil {
 			http.Error(w, "Error rendering template: "+err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
 
+// orderDetailsHandler fetches all buy orders via gRPC and renders them
+// using the pre-parsed template (Phase 5.4).
 func orderDetailsHandler(w http.ResponseWriter, r *http.Request) {
+	// Use shared gRPC client (Phase 5.1)
+	client := getSharedGRPCClient()
 
-	// Initialize an empty slice of OrderData
-	// Note: Populate this slice if you have actual data to pass to the template
-	orderDetails := make([]OrderData, 0)
+	// Use r.Context() instead of context.Background() (Phase 5.3)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
 
-	// Parse the template
-	tmpl, err := template.ParseFiles(getTemplatePath("./cmd/web/templates/order-details.html"))
+	orders, err := client.GetAllOrders(ctx, &pb.Empty{})
 	if err != nil {
-		http.Error(w, "Error parsing template: "+err.Error(), http.StatusInternalServerError)
+		log.Errorf("Error getting orders: %v", err)
+		http.Error(w, "Failed to get orders", http.StatusInternalServerError)
 		return
 	}
 
-	// Execute and render the template with the provided data
-	err = tmpl.Execute(w, orderDetails)
+	orderData := OrderData{
+		BuyOrders:       orders.BuyOrders,
+		BuyOrderDetails: nil, // Details would require per-order lookups
+	}
+
+	// Use pre-parsed template (Phase 5.2)
+	tmpl, ok := templates["order-details"]
+	if !ok {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, orderData)
 	if err != nil {
 		http.Error(w, "Error rendering template: "+err.Error(), http.StatusInternalServerError)
 	}
@@ -245,21 +283,8 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Setup the connection to the server
-	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Errorf("Failed to connect to gRPC server: %v", err)
-		fmt.Fprintf(w, "data: {\"error\": \"service unavailable\"}\n\n")
-		return
-	}
-	defer func(conn *grpc.ClientConn) {
-		if err := conn.Close(); err != nil {
-			log.Errorf("Failed to close gRPC connection: %v", err)
-		}
-	}(conn)
-
-	// Initialize the client
-	client := pb.NewCheckInventoryClient(conn)
+	// Use shared gRPC client (Phase 5.1)
+	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 
 	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
 	stream, err := client.CheckBreadInventoryStream(r.Context(), &pb.BreadRequest{})
@@ -316,21 +341,8 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Setup the connection to the server
-	conn, err := grpc.Dial(gRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		http.Error(w, "Failed to connect to gRPC server", http.StatusInternalServerError)
-		return
-	}
-	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
-		if err != nil {
-			log.Printf("Failed to close gRPC connection: %v", err)
-		}
-	}(conn)
-
-	// Initialize the client
-	client := pb.NewBuyOrderServiceClient(conn)
+	// Use shared gRPC client (Phase 5.1)
+	client := pb.NewBuyOrderServiceClient(sharedGRPCConn)
 
 	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
 	stream, err := client.BuyOrderStream(r.Context(), &pb.BuyOrderRequest{})
@@ -375,4 +387,106 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		flusher.Flush()
 	}
+}
+
+// ── Initialization functions ──
+
+// initTemplates pre-parses all templates at startup (Phase 5.2).
+// Templates are stored in a map keyed by their logical page name
+// and retrieved by handlers instead of parsing on every request.
+func initTemplates() {
+	templates = make(map[string]*template.Template)
+
+	adminTemplates := []string{
+		"base.html",
+		"dashboard.html",
+		"bread/list.html",
+		"bread/form.html",
+		"orders/list.html",
+		"customers/list.html",
+		"customers/detail.html",
+		"makers/list.html",
+		"makers/detail.html",
+		"alerts.html",
+		"login.html",
+	}
+	for _, t := range adminTemplates {
+		path := getTemplatePath("./cmd/web/templates/admin/" + t)
+		tmpl, err := template.ParseFiles(path)
+		if err != nil {
+			log.Fatalf("Failed to parse admin template %s: %v", t, err)
+		}
+		templates[t] = tmpl
+	}
+
+	portalTemplates := []string{
+		"base.html",
+		"dashboard.html",
+		"orders.html",
+		"order_detail.html",
+		"invoices.html",
+		"invoice_detail.html",
+		"login.html",
+	}
+	for _, t := range portalTemplates {
+		path := getTemplatePath("./cmd/web/templates/portal/" + t)
+		tmpl, err := template.ParseFiles(path)
+		if err != nil {
+			log.Fatalf("Failed to parse portal template %s: %v", t, err)
+		}
+		templates[t] = tmpl
+	}
+
+	// Public page templates
+	publicTemplates := map[string]string{
+		"index.html":       "index",
+		"order-details.html": "order-details",
+		"service.html":     "service",
+		"product.html":     "product",
+		"team.html":        "team",
+		"testimonial.html": "testimonial",
+		"contact.html":     "contact",
+		"404.html":         "404",
+	}
+	for path, name := range publicTemplates {
+		tmpl, err := template.ParseFiles(getTemplatePath("./cmd/web/templates/" + path))
+		if err != nil {
+			log.Fatalf("Failed to parse template %s: %v", name, err)
+		}
+		templates[name] = tmpl
+	}
+
+	log.Printf("Pre-parsed %d templates at startup", len(templates))
+}
+
+// initSharedGRPCConnection creates a single shared gRPC connection with
+// proper keep-alive settings (Phase 5.1). This prevents connection exhaustion
+// under load by reusing connections instead of creating/destroying them per request.
+func initSharedGRPCConnection() {
+	sharedGRPCOnce.Do(func() {
+		dialTimeout := 5 * time.Second
+		if t := os.Getenv("GRPC_DIAL_TIMEOUT"); t != "" {
+			if d, err := time.ParseDuration(t); err == nil {
+				dialTimeout = d
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+		defer cancel()
+
+		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:                30 * time.Second,
+				Timeout:             20 * time.Second,
+				PermitWithoutStream: true,
+			}),
+		}
+		var err error
+		sharedGRPCConn, err = grpc.DialContext(ctx, gRPCAddress, opts...)
+		if err != nil {
+			log.Fatalf("Failed to create shared gRPC connection: %v", err)
+		}
+		log.Printf("Shared gRPC connection initialized to %s", gRPCAddress)
+	})
 }

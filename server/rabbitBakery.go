@@ -5,8 +5,6 @@ import (
 	"github.com/calvarado2004/bakery-go/data"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"time"
 )
 
@@ -62,31 +60,6 @@ func (rabbit *RabbitMQBakery) init() {
 
 // checkBread checks if there is enough bread left in the bakery, if not, it orders more
 func (rabbit *RabbitMQBakery) checkBread() error {
-
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
-	if err != nil {
-		log.Errorf("Failed to connect to RabbitMQ: %v", err)
-		return err
-	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
-
-	channel, err := connection.Channel()
-	if err != nil {
-		log.Errorf("Failed to open a channel: %v", err)
-		return err
-	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
-
 	breads, err := rabbit.Repo.GetAvailableBread()
 	if err != nil {
 		return err
@@ -94,59 +67,29 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 
 	if len(breads) == 0 {
 		rabbit.initializeBakery()
+		return nil
 	}
 
-	breadMaker := data.BreadMaker{
-		Name:  "Bread Maker",
-		Email: "bread@maker.com",
-		ID:    1,
-	}
-
-	breadMakeOrder := data.MakeOrder{
-		BreadMaker:   breadMaker,
-		BreadMakerID: breadMaker.ID,
-	}
-
-	// Collect low-stock breads to batch them into a single make order
-	var lowStockBreads []data.Bread
-
+	// Write auto-replenishment requests to pending_make_orders table
+	// instead of publishing to make-bread-order (Phase 10.7 boundary).
+	// External makers only consume from make-bread-order; auto-replenishment
+	// is decoupled via this table.
 	for _, bread := range breads {
-		if bread.Quantity > 10 {
-			log.Printf("Enough bread of %s left, there are available %d", bread.Name, bread.Quantity)
+		if bread.Quantity <= 10 {
+			log.Printf("Low stock: %s (%d remaining), creating replenishment request for 50", bread.Name, bread.Quantity)
+
+			_, err := rabbit.Repo.InsertPendingMakeOrder(data.PendingMakeOrder{
+				BreadID:           bread.ID,
+				RequestedQuantity: 50,
+				Status:            "pending",
+				Source:            "auto",
+			})
+			if err != nil {
+				log.Errorf("Failed to create pending make order for bread %d: %v", bread.ID, err)
+			}
 		} else {
-			log.Printf("There are only %d breads left of %s, ordering 50 more", bread.Quantity, bread.Name)
-			bread.Quantity = 50
-			breadData, err := json.Marshal(&bread)
-			if err != nil {
-				return status.Errorf(codes.Internal, "Failed to marshal bread data: %v", err)
-			}
-
-			err = channel.Publish(
-				"",                 // exchange
-				"make-bread-order", // routing key
-				false,              // mandatory
-				false,              // immediate
-				rabbitmq.Publishing{
-					ContentType:  "text/json",
-					Body:         breadData,
-					DeliveryMode: rabbitmq.Persistent,
-				})
-			if err != nil {
-				return status.Errorf(codes.Internal, "Failed to publish a message: %v", err)
-			}
-
-			lowStockBreads = append(lowStockBreads, bread)
+			log.Printf("Enough bread of %s left, there are available %d", bread.Name, bread.Quantity)
 		}
-	}
-
-	// Create a single make order for all low-stock breads (avoids duplicate inserts)
-	if len(lowStockBreads) > 0 {
-		breadMakeOrder.Breads = lowStockBreads
-		order, err := rabbit.Repo.InsertMakeOrder(breadMakeOrder, lowStockBreads)
-		if err != nil {
-			return err
-		}
-		log.Printf("Make Bread Order ID %d created for %d items", order, len(lowStockBreads))
 	}
 
 	return nil

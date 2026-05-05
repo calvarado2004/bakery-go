@@ -99,50 +99,55 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 ## Architecture
 
 ```
-┌──────────┐  gRPC  ┌──────────┐  AMQP  ┌──────────┐
-│  buyers  │───────▶│  server  │───────▶│ RabbitMQ │
-└──────────┘        └──────────┘        └────┬─────┘
-                         │                   │
-                         │ PostgreSQL    buy-bread-order
-                         ▼                   ▼
-                    ┌────────┐         ┌──────────┐
-                    │  data  │         │  broker  │
-                    └────────┘         │ (matching│
-                                        │  engine) │  ← Batch, priority-sort, partial
-                    ┌────────┐         └────┬─────┘     fulfillment, skip items
-                    │ outbox │◀─────────────┘
-                    └───┬────┘
-                        │ PostgreSQL
-                        ▼
-                    ┌────────┐
-                    │ makers │◀── make-bread-order (restock)
+┌──────────┐  gRPC  ┌──────────────────┐  AMQP    ┌──────────┐
+│  buyers  │───────▶│  server          │──────────▶│ RabbitMQ │
+│  (JWT)   │◀───────│  (PostgreSQL     │  bread-   │          │
+└──────────┘ stream │   only service    │  bought   │          │
+                    │  with DB access)  │◀──────────│          │
+                    └──────────────────┘           └────┬─────┘
+                         │                              │
+                         │ PostgreSQL                    │ buy-bread-order
+                         ▼                              ▼
+                    ┌────────┐                ┌────────────────┐
+                    │ outbox │                │   broker       │
+                    │ (pub)  │◀───────────────│  (pure         │
+                    └───┬────┘  BrokerService │   dispatcher)  │
+                        │                     └────────────────┘
+                        ▼                              │
+                    ┌────────┐                         │ make-bread-order
+                    │ makers │◀────────────────────────┘
                     └────────┘
 ```
 
 **Message flow:**
-1. `buyers` sends a `BuyBread` gRPC request to `server` with bid price, fulfillment rules (`allowPartial`, `skipUnavailableItems`), and a server-assigned `sequenceNumber`.
+1. `buyers` sends a `BuyBread` gRPC request to `server` (rate limited, RBAC enforced) with bid price, fulfillment rules (`allowPartial`, `skipUnavailableItems`), and a server-assigned `sequenceNumber`.
 2. `server` authenticates via JWT, publishes the order to the `buy-bread-order` RabbitMQ queue, and returns immediately.
-3. `broker` ingests the order into a batch buffer, ACKs immediately, then processes batches every 500ms:
+3. `broker` (pure dispatcher, **zero DB access**) ingests the order into a batch buffer, calls `BrokerService.ReportOrder` gRPC on the server to persist, ACKs immediately, then processes batches every 500ms:
    - Sorts by priority: bid price DESC, sequence number ASC
    - Fulfills, partially fulfills, skips unavailable items, or rejects orders
-   - Persists results to PostgreSQL via the outbox
+   - Calls `BrokerService.ReserveInventory` gRPC for each item (atomic stock reservation)
+   - Calls `BrokerService.ReportMatchingResults` gRPC to persist all results (order status + outbox)
    - Publishes per-item results to `bread-bought`
 4. `server` streams the result back to `buyers` via `BuyBreadStream` (listens on `bread-bought`).
-5. When stock drops below 10 units, `server` publishes to `make-bread-order`.
-6. `makers` consumes the queue and restocks the database.
+5. When stock drops below 10 units, `server` creates a `pending_make_orders` record (`source=auto`).
+6. `makers` (external providers) consume from `make-bread-order` queue and restock.
 
 **Order book model:** Orders include bid pricing and fulfillment rules. The broker's matching engine batches orders over a 500ms window, sorts by priority (highest bid first), then fulfills orders with partial fulfillment and item-level skip support. This prevents head-of-line blocking and ensures high-value orders are served first.
+
+**Rate limiting:** gRPC requests limited to 10 req/s per customer identity with burst of 20.
+
+**Resilience:** Circuit breakers on broker→server gRPC calls with exponential back-off retry (3 retries, 100ms-2s delay).
 
 ## Services
 
 | Service | Package | Description |
 |---|---|---|
-| `server` | `server/` | gRPC server — all RPC endpoints, auth, admin, invoices |
-| `broker` | `broker/` | Processes buy orders from RabbitMQ; updates DB, publishes results |
-| `makers` | `makers/` | Restocks bread inventory from RabbitMQ make-bread-order queue |
-| `buyers` | `buyers/` | gRPC client that buys bread and streams the order status |
+| `server` | `server/` | gRPC server — all RPC endpoints, auth, admin, invoices, outbox publisher. **Only service with PostgreSQL access.** |
+| `broker` | `broker/` | Pure message dispatcher — consumes `buy-bread-order`, runs matching engine, publishes `bread-bought`. **Zero DB access** — communicates via `BrokerService` gRPC to server. |
+| `makers` | `makers/` | External bread production — consumes `make-bread-order` from RabbitMQ, restocks inventory. **No gRPC, no DB access.** |
+| `buyers` | `buyers/` | External gRPC client — buys bread and streams order status. **No DSN, no DB access.** |
 | `frontend` | `frontend/` | HTTP web frontend with admin panel and customer portal |
-| `data` | `data/` | PostgreSQL repository implementation and data models |
+| `data` | `data/` | PostgreSQL repository implementation and data models (used only by server) |
 
 ## gRPC Endpoints
 
@@ -192,6 +197,23 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 - `GetOrderDetails` — full order breakdown with per-bread details
 
 ## Recent Changes
+
+### Phase 10: External/Internal Boundary Decoupling
+
+**Complete rewrite of service boundaries** — the broker no longer connects to PostgreSQL.
+
+| Change | Description |
+|--------|-------------|
+| **Broker has zero DB access** | All data operations (dedup, insert, stock reservation, order status) go through the server's `BrokerService` gRPC API (`proto/bread.proto:BrokerService`) |
+| **Per-service queue declarations** | Broker declares `buy-bread-order` + `bread-bought`; makers declare `make-bread-order` |
+| **Server auto-replenishment** | Server writes low-stock requests to `pending_make_orders` table (`source=auto`) instead of publishing to `make-bread-order` queue |
+| **Rate limiting** | gRPC rate limiter at 10 req/s per customer identity with burst of 20 |
+| **Circuit breakers** | Per-endpoint circuit breakers on broker→server gRPC calls with exponential back-off retry |
+| **RBAC** | JWT role validation on all gRPC endpoints (customer vs admin roles) |
+| **Connection lifecycle** | Keepalive policies, max message sizes, idle connection timeouts on gRPC server |
+| **Onboarding docs** | `docs/onboarding-buyers.md`, `docs/onboarding-makers.md`, `docs/broker-server-api.md` |
+
+See [ARCHITECTURE.md §8](ARCHITECTURE.md#81-current-state---decoupled-boundary-phase-10-complete) for the full architecture and [ARCHITECTURE_AUDIT.md §10](ARCHITECTURE_AUDIT.md#10-externalinternal-boundary-coupling-issues) for the remediation plan.
 
 ### Goroutine leak fix in `BuyBreadStream` (`server/gRPCBakery.go`)
 The background goroutine that listens on RabbitMQ's `bread-bought` queue was leaking after the stream handler returned. Fixed by:
@@ -306,6 +328,8 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 3. **RabbitMQ Connection**: Ensure `RABBITMQ_SERVICE_ADDR` uses the `amqp://` or `amqps://` scheme.
 4. **PostgreSQL Connection**: Verify `DSN` is set and the database is reachable. The server retries up to 10 times with 5 s intervals.
 5. **JWT errors**: Set `JWT_SECRET` to a stable value — tokens signed with a different secret will fail validation.
+6. **Broker "unavailable" errors**: The broker uses circuit breakers for broker→server gRPC calls. If the server is down, the circuit breaker opens and calls fail fast. The broker will retry after the reset timeout (30s). Monitor circuit breaker states in broker logs.
+7. **Rate limit exceeded**: If you see `codes.ResourceExhausted` errors, you've hit the 10 req/s limit. Implement exponential back-off with jitter in your client.
 
 ## License
 [GPLv3](https://www.gnu.org/licenses/gpl-3.0.en.html)

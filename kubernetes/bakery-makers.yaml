@@ -1,7 +1,16 @@
+# Makers — external bread production providers
+# Phase 10: Makers communicate via RabbitMQ only (consume make-bread-order,
+# publish bread-made confirmations). No gRPC, no DB access.
+# Server's auto-replenishment writes to pending_make_orders table instead
+# of publishing to make-bread-order queue.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bakery-makers
+  labels:
+    app: bakery-makers
+    phase: "10"
 spec:
   replicas: 1
   selector:
@@ -14,11 +23,27 @@ spec:
     spec:
       containers:
         - name: bakery-makers
-          image: docker.io/calvarado2004/bakery-go-makers
+          image: docker.io/calvarado2004/bakery-go-makers:latest
+          imagePullPolicy: Always
           env:
-            - name: BAKERY_SERVICE_ADDR
-              value: "bakery-server-service:50051"
             - name: RABBITMQ_SERVICE_ADDR
               value: "amqp://guest:guest@rabbitmq-service:5672/"
-            - name: DSN
-              value: "host=postgres-service port=5432 user=postgres password=postgres dbname=bakery sslmode=disable timezone=UTC connect_timeout=5"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bakery-makers-service
+  labels:
+    app: bakery-makers
+spec:
+  clusterIP: None  # headless — makers don't need external access
+  ports: []
+  selector:
+    app: bakery-makers

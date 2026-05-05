@@ -263,9 +263,12 @@ func (config *Config) buyBreadStream(ctx context.Context, breadBoughtChan <-chan
 
 				// Process the response
 				log.Printf("Order %s CONFIRMED & FULFILLED: %s (order_id=%d)", buyOrderUuid, response.Message, response.BuyOrderId)
-
 			}
 
+		case <-ctx.Done():
+			// Context cancelled — stop consuming to avoid goroutine leak (Phase 6.3)
+			log.Printf("buyBreadStream: context cancelled for order %s, stopping", buyOrderUuid)
+			return
 		}
 	}
 }

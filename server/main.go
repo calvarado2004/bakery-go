@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"github.com/calvarado2004/bakery-go/data"
 	pb "github.com/calvarado2004/bakery-go/proto"
@@ -154,9 +155,16 @@ func main() {
 	rabbitMQBakery.settlementDispatcher = NewSettlementDispatcher(rabbitMQBakery, rabbitMQAddress)
 	rabbitMQBakery.settlementDispatcher.Start()
 
-	// Apply gRPC interceptors:
+	// Apply gRPC interceptors (Phase 10.10):
+	// - rateLimitInterceptor: rejects requests exceeding rate limits
+	// - rbacInterceptor: validates JWT, enforces role-based access control
 	// - customerIDInterceptor: extracts customer_id from metadata → context (Phase 6.6)
-	server := grpc.NewServer(grpc.UnaryInterceptor(customerIDInterceptor))
+	server := grpc.NewServer(
+		append(
+			BuildGRPCKeepaliveOptions(),
+			BuildInterceptorChain(),
+		)...,
+	)
 
 	checkInventoryServer := &CheckInventoryServer{
 		RabbitMQBakery: rabbitMQBakery,
@@ -194,6 +202,10 @@ func main() {
 		RabbitMQBakery: rabbitMQBakery,
 	}
 
+	brokerServiceServer := &BrokerServiceServer{
+		RabbitMQBakery: rabbitMQBakery,
+	}
+
 	pb.RegisterCheckInventoryServer(server, checkInventoryServer)
 	pb.RegisterMakeBreadServer(server, makeBreadServer)
 	pb.RegisterBuyBreadServer(server, buyBreadServer)
@@ -203,6 +215,7 @@ func main() {
 	pb.RegisterAuthServiceServer(server, authServiceServer)
 	pb.RegisterInvoiceServiceServer(server, invoiceServiceServer)
 	pb.RegisterCustomerPortalServiceServer(server, customerPortalServiceServer)
+	pb.RegisterBrokerServiceServer(server, brokerServiceServer)
 
 	// Register reflection service on gRPC server.
 	reflection.Register(server)
@@ -232,6 +245,9 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 	// They process make-bread-order messages via RabbitMQ and publish bread-made
 	// confirmations. The server consumes these and adjusts inventory.
 	go rabbit.listenForBreadMade()
+
+	// Log circuit breaker states (Phase 10.10).
+	go LogCircuitStates(context.Background())
 
 	// Start gRPC Server in the background
 	go func() {

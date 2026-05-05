@@ -2,147 +2,266 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
+	pb "github.com/calvarado2004/bakery-go/proto"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
-
-	_ "github.com/jackc/pgconn"
-	_ "github.com/jackc/pgx/v4"
-	_ "github.com/jackc/pgx/v4/stdlib"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/calvarado2004/bakery-go/pkg/resilience"
 )
 
-// contextWithTimeout is a local alias to avoid import conflict.
-func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), d)
+// brokerClient wraps the gRPC BrokerService client with circuit-breaker
+// and exponential-backoff retry.
+type brokerClient struct {
+	client pb.BrokerServiceClient
+	// Circuit breakers for each endpoint (Phase 10.10).
+	reportOrderCB      *resilience.CircuitBreaker
+	reserveInventoryCB *resilience.CircuitBreaker
+	reportMatchingCB   *resilience.CircuitBreaker
 }
 
+func newBrokerClient(conn *grpc.ClientConn) *brokerClient {
+	return &brokerClient{
+		client:             pb.NewBrokerServiceClient(conn),
+		reportOrderCB:      resilience.NewCircuitBreaker(resilience.Options{FailureThreshold: 5, ResetTimeout: 30 * time.Second}),
+		reserveInventoryCB: resilience.NewCircuitBreaker(resilience.Options{FailureThreshold: 5, ResetTimeout: 30 * time.Second}),
+		reportMatchingCB:   resilience.NewCircuitBreaker(resilience.Options{FailureThreshold: 3, ResetTimeout: 60 * time.Second}),
+	}
+}
+
+// brokerClienter is the interface for gRPC broker operations.
+// Used to allow mocking in tests.
+type brokerClienter interface {
+	ReportOrder(order pb.BuyOrder) (*pb.BrokerOrderResult, error)
+	ReserveInventory(req *pb.ReserveInventoryRequest) (*pb.ReserveInventoryResult, error)
+	ReportMatchingResults(req *pb.MatchingBatch) (*pb.BatchConfirmation, error)
+}
+
+func (c *brokerClient) ReportOrder(order pb.BuyOrder) (*pb.BrokerOrderResult, error) {
+	var result *pb.BrokerOrderResult
+	cfg := resilience.RetryConfig{
+		MaxRetries:       3,
+		BaseDelay:        100 * time.Millisecond,
+		MaxDelay:         2 * time.Second,
+		Multiplier:       2.0,
+		CircuitBreaker:   c.reportOrderCB,
+	}
+	err := resilience.Retry(context.Background(), cfg, func(ctx context.Context) error {
+		resp, err := c.client.ReportOrder(ctx, &order)
+		if err != nil {
+			return err
+		}
+		result = resp
+		return nil
+	})
+	return result, err
+}
+
+func (c *brokerClient) ReserveInventory(req *pb.ReserveInventoryRequest) (*pb.ReserveInventoryResult, error) {
+	var result *pb.ReserveInventoryResult
+	cfg := resilience.RetryConfig{
+		MaxRetries:       3,
+		BaseDelay:        100 * time.Millisecond,
+		MaxDelay:         2 * time.Second,
+		Multiplier:       2.0,
+		CircuitBreaker:   c.reserveInventoryCB,
+	}
+	err := resilience.Retry(context.Background(), cfg, func(ctx context.Context) error {
+		resp, err := c.client.ReserveInventory(ctx, req)
+		if err != nil {
+			return err
+		}
+		result = resp
+		return nil
+	})
+	return result, err
+}
+
+func (c *brokerClient) ReportMatchingResults(req *pb.MatchingBatch) (*pb.BatchConfirmation, error) {
+	var result *pb.BatchConfirmation
+	cfg := resilience.RetryConfig{
+		MaxRetries:       3,
+		BaseDelay:        100 * time.Millisecond,
+		MaxDelay:         2 * time.Second,
+		Multiplier:       2.0,
+		CircuitBreaker:   c.reportMatchingCB,
+	}
+	err := resilience.Retry(context.Background(), cfg, func(ctx context.Context) error {
+		resp, err := c.client.ReportMatchingResults(ctx, req)
+		if err != nil {
+			return err
+		}
+		result = resp
+		return nil
+	})
+	return result, err
+}
+
+// breakers returns all circuit breakers for logging/inspection.
+func (c *brokerClient) breakers() map[string]*resilience.CircuitBreaker {
+	return map[string]*resilience.CircuitBreaker{
+		"report_order":      c.reportOrderCB,
+		"reserve_inventory": c.reserveInventoryCB,
+		"report_matching":   c.reportMatchingCB,
+	}
+}
+
+// brokerConfig holds the configuration for the broker service.
+type brokerConfig struct {
+	Client *http.Client
+}
+
+// RabbitMQBakery is the broker service. It has NO database access —
+// all data operations go through the server's gRPC BrokerService.
 type RabbitMQBakery struct {
-	Config
-	orders      map[int]*OrderStatus
-	mu          sync.Mutex
+	brokerConfig
 	rabbitmqURL string
 	buffer      orderBuffer // incoming orders waiting for matching
 }
 
-type OrderStatus struct {
-	Status  string
-	OrderId int
-}
-
-// publisher is the subset of rabbitmq.Channel used by processOneOrder.
-// Defined as an interface so tests can stub out the network call.
-type publisher interface {
-	Publish(exchange, key string, mandatory, immediate bool, msg rabbitmq.Publishing) error
-}
-
-type Config struct {
-	Repo   data.Repository
-	Client *http.Client
+// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
+func NewRabbitMQBakery(config brokerConfig, rabbitmqURL string) *RabbitMQBakery {
+	return &RabbitMQBakery{
+		brokerConfig: config,
+		rabbitmqURL:  rabbitmqURL,
+	}
 }
 
 var rabbitMQAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
-
-var counts int64
-
-func openDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		log.Errorf("Failed to open database: %v", err)
-		return nil, err
-	}
-
-	if err = db.Ping(); err != nil {
-		log.Errorf("Failed to ping database: %v", err)
-		return nil, err
-	}
-
-	return db, nil
-
-}
-
-func connectToDB() *sql.DB {
-	dsn := os.Getenv("DSN")
-
-	for {
-		connection, err := openDB(dsn)
-		if err != nil {
-			log.Warningf("Error opening database: %s", err)
-			counts++
-		} else {
-			log.Println("Connected to database")
-			return connection
-		}
-
-		if counts > 10 {
-			log.Errorf("Could not connect to database after 10 attempts: %v", err)
-			return nil
-		}
-
-		log.Println("Retrying in 5 seconds")
-		time.Sleep(5 * time.Second)
-		continue
-
-	}
-}
-
-func (app *Config) setupRepo(conn *sql.DB) {
-	db := data.NewPostgresRepository(conn)
-	db.SetDSN(os.Getenv("DSN"))
-	app.Repo = db
-}
-
-// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
-func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
-	return &RabbitMQBakery{
-		Config:      config,
-		orders:      make(map[int]*OrderStatus),
-		rabbitmqURL: rabbitmqURL,
-	}
-}
+var serverGRPCAddr = os.Getenv("BAKERY_SERVICE_ADDR")
 
 func main() {
 	startBroker(rabbitMQAddress)
 }
 
 // startBroker initializes the broker service with the given RabbitMQ URL.
-// It sets up the database connection, configures the repository, and starts
-// the background goroutines for processing orders and publishing outbox messages.
+// The broker NO LONGER connects to PostgreSQL — all data operations go
+// through the server's gRPC BrokerService.
+//
+// The broker now:
+//   - Connects ONLY to RabbitMQ (consume/publish)
+//   - Connects to the server's gRPC port for data operations
+//   - Declares its own queues (buy-bread-order, bread-bought)
+//   - Buffers orders and runs the matching engine
 func startBroker(rabbitmqURL string) {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
 
-	pgConn := connectToDB()
-	if pgConn == nil {
-		log.Panic("Could not connect to database")
+	// Connect to the server's gRPC service.
+	log.Infof("Connecting to server gRPC at %s", serverGRPCAddr)
+	conn, err := grpc.Dial(serverGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to server gRPC: %v", err)
+	}
+	defer conn.Close()
+
+	bc := newBrokerClient(conn)
+
+	// Create a new RabbitMQBakery instance (no DB connection needed).
+	rabbitMQBakery := NewRabbitMQBakery(brokerConfig{}, rabbitmqURL)
+
+	// Start the order-matching goroutine (buffered, batched).
+	go startMatchingEngine(rabbitMQBakery, bc)
+
+	// Start the outbox publisher — REMOVED. The server now handles
+	// outbox publishing via its own settlement dispatcher.
+	// The broker no longer writes to or reads from the outbox.
+
+	// Declare broker-owned queues (buy-bread-order, bread-bought).
+	if err := rabbitMQBakery.declareQueues(conn); err != nil {
+		log.Fatalf("Failed to declare broker queues: %v", err)
 	}
 
-	// Create a new RabbitMQBakery instance
-	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitmqURL)
-
-	// Set up Postgres Repository for RabbitMQ Bakery
-	rabbitMQBakery.setupRepo(pgConn)
-
-	// Start the order-matching goroutine (buffered, batched)
-	go startMatchingEngine(rabbitMQBakery)
-
-	// Start the outbox publisher goroutine
-	go startOutboxPublisher(rabbitMQBakery)
+	// Start circuit breaker state logger (Phase 10.10).
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go logCircuitStates(ctx, bc)
 
 	select {}
 }
 
+// logCircuitStates logs all circuit breaker states at a fixed interval.
+func logCircuitStates(ctx context.Context, bc *brokerClient) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for name, cb := range bc.breakers() {
+				if state := cb.State(); state != resilience.StateClosed {
+					log.WithField("breaker", name).
+						WithField("state", state).
+						Warn("circuit-breaker non-closed state")
+				}
+			}
+		}
+	}
+}
+
+// declareQueues declares the RabbitMQ queues owned by the broker.
+// In the external/internal boundary design (ARCHITECTURE_AUDIT §10.1),
+// each service declares the queues it owns:
+//   - Broker owns: buy-bread-order, bread-bought
+//   - Server owns: bread-made (for maker confirmations)
+//   - Makers own: make-bread-order
+func (app *RabbitMQBakery) declareQueues(grpcConn *grpc.ClientConn) error {
+	// We need a RabbitMQ connection, not the gRPC connection.
+	rabbitConn, err := rabbitmq.Dial(app.rabbitmqURL)
+	if err != nil {
+		return err
+	}
+	defer rabbitConn.Close()
+
+	channel, err := rabbitConn.Channel()
+	if err != nil {
+		return err
+	}
+	defer channel.Close()
+
+	// buy-bread-order: where the server publishes incoming buy orders.
+	if _, err := channel.QueueDeclare(
+		"buy-bread-order", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // args
+	); err != nil {
+		return err
+	}
+
+	// bread-bought: where matching results are published.
+	if _, err := channel.QueueDeclare(
+		"bread-bought", // name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // args
+	); err != nil {
+		return err
+	}
+
+	log.Println("Broker queues declared: buy-bread-order, bread-bought")
+	return nil
+}
+
 // startMatchingEngine runs the order ingestion and matching pipeline.
-// It consumes orders from RabbitMQ, buffers them, and processes them in batches.
-func startMatchingEngine(rabbitMQBakery *RabbitMQBakery) {
+// It connects to the server's gRPC service for all data operations,
+// and consumes from RabbitMQ for order ingestion.
+func startMatchingEngine(rabbitMQBakery *RabbitMQBakery, bc brokerClienter) {
 	// Connect to RabbitMQ once for the matchLoop (batch timer).
 	conn, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
 	if err != nil {
@@ -155,16 +274,16 @@ func startMatchingEngine(rabbitMQBakery *RabbitMQBakery) {
 		conn.Close()
 		return
 	}
-	go rabbitMQBakery.matchLoop(conn, channel)
+	go rabbitMQBakery.matchLoop(conn, channel, bc)
 
 	for {
-		err := rabbitMQBakery.performBuyBread()
+		err := rabbitMQBakery.performBuyBread(bc)
 		if err != nil {
 			log.Errorf("Failed to perform buy bread (main), sleeping 20 seconds...: %v", err)
 			time.Sleep(20 * time.Second)
 			continue
 		}
-		log.Printf("Ouch! Something went wrong with buy bread, we got disconnected from RabbitMQ, reconnecting in 20 seconds...")
+		log.Printf("Disconnected from RabbitMQ, reconnecting in 20 seconds...")
 		time.Sleep(20 * time.Second)
 	}
 }
@@ -172,7 +291,7 @@ func startMatchingEngine(rabbitMQBakery *RabbitMQBakery) {
 // matchLoop buffers incoming orders and processes them in batches.
 // Each order is ACKed immediately upon ingestion. Matching happens
 // in batches collected over matchBatchWindow or when matchBatchSize is reached.
-func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitmq.Channel) {
+func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitmq.Channel, bc brokerClienter) {
 	ticker := time.NewTicker(matchBatchWindow)
 	defer ticker.Stop()
 
@@ -182,96 +301,23 @@ func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitm
 			batch := app.buffer.drain()
 			if len(batch) > 0 {
 				log.Infof("matchLoop: batch timer fired, processing %d orders", len(batch))
-				app.processMatchingBatch(batch, channel)
+				app.processMatchingBatch(batch, channel, bc)
 			}
 		default:
 			if app.buffer.len() >= matchBatchSize {
 				batch := app.buffer.drain()
 				log.Infof("matchLoop: batch size reached (%d), processing", len(batch))
-				app.processMatchingBatch(batch, channel)
+				app.processMatchingBatch(batch, channel, bc)
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
 }
 
-// startOutboxPublisher runs the outbox message publishing loop in the background.
-// It checks for unprocessed outbox messages every 45 seconds and publishes them to RabbitMQ.
-func startOutboxPublisher(rabbitMQBakery *RabbitMQBakery) {
-	connection, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
-	if err != nil {
-		log.Errorf("Failed to connect to RabbitMQ: %v", err)
-		return
-	}
-	defer func(conn *rabbitmq.Connection) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
-
-	channel, err := connection.Channel()
-	if err != nil {
-		log.Errorf("Failed to open a channel: %v", err)
-		return
-	}
-	defer func(ch *rabbitmq.Channel) {
-		err := ch.Close()
-		if err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
-
-	ticker := time.NewTicker(time.Second * 45)
-	for range ticker.C {
-		messages, err := rabbitMQBakery.Repo.GetUnprocessedOutboxMessages()
-		if err != nil {
-			log.Errorf("Failed to get unprocessed outbox messages: %v", err)
-			continue
-		}
-
-		for _, message := range messages {
-			processOutboxMessage(rabbitMQBakery.Repo, channel, message)
-		}
-	}
-}
-
-// processOutboxMessage publishes one outbox entry to the bread-bought queue and,
-// on success, removes it from the outbox so it is not retried. On publish failure
-// the record is left in place for the next tick.
-func processOutboxMessage(repo data.Repository, pub publisher, msg data.OutboxMessage) {
-	err := pub.Publish(
-		"",             // exchange
-		"bread-bought", // routing key
-		false,          // mandatory
-		false,          // immediate
-		rabbitmq.Publishing{
-			ContentType:  "text/json",
-			Body:         msg.Payload,
-			DeliveryMode: rabbitmq.Persistent,
-		})
-	if err != nil {
-		log.Errorf("Failed to publish outbox message %d: %v", msg.ID, err)
-		return
-	}
-	// Message successfully published — remove it so it is not re-sent.
-	if err := repo.DeleteOutboxMessage(msg.ID); err != nil {
-		log.Errorf("Failed to delete outbox message %d after publish: %v", msg.ID, err)
-	}
-}
-
-// performBuyBread listens for buy bread orders and buffers them for batch matching.
-//
-// Key invariants:
-//   - Every message is acknowledged exactly once, whether the order is valid or not.
-//   - Orders are inserted into the database immediately, then buffered for matching.
-//   - Duplicate messages (RabbitMQ redelivery after a broker crash) are detected
-//     by checking the database for an existing record with the same UUID before
-//     inserting a new one.
-//   - Stock deduction happens asynchronously in the matching engine via
-//     SELECT FOR UPDATE, which prevents two concurrent broker instances from
-//     both deducting the same inventory.
-func (rabbit *RabbitMQBakery) performBuyBread() error {
+// performBuyBread listens for buy bread orders from RabbitMQ and buffers
+// them for batch matching. Orders are persisted via the server's gRPC
+// BrokerService.ReportOrder instead of direct database access.
+func (rabbit *RabbitMQBakery) performBuyBread(bc brokerClienter) error {
 
 	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
 	if err != nil {
@@ -296,8 +342,6 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 	}(channel)
 
 	// Limit prefetch to 1 — RabbitMQ delivers one message at a time.
-	// Without this, all queued messages are pre-fetched and held unacked in memory,
-	// causing a massive backlog whenever the broker restarts.
 	if err := channel.Qos(1, 0, false); err != nil {
 		log.Fatalf("Failed to set QoS: %v", err)
 	}
@@ -318,16 +362,17 @@ func (rabbit *RabbitMQBakery) performBuyBread() error {
 	log.Printf("Listening for buy bread orders on RabbitMQ queue...")
 
 	for delivery := range buyOrderMessages {
-		rabbit.processOneOrder(delivery)
+		rabbit.processOneOrder(delivery, bc)
 	}
 
 	return nil
 }
 
 // processOneOrder receives a buy-bread-order delivery, validates it,
-// inserts the order into the database, and buffers it for batch matching.
+// reports the order to the server via gRPC (for dedup + persistence),
+// and buffers it for batch matching.
 // The delivery is ACKed immediately upon successful buffering.
-func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery) {
+func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery, bc brokerClienter) {
 	var order data.BuyOrder
 	if err := json.Unmarshal(delivery.Body, &order); err != nil {
 		log.Errorf("Failed to unmarshal buy order: %v", err)
@@ -337,44 +382,63 @@ func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery) {
 
 	log.WithField("order_uuid", order.BuyOrderUUID).Info("Received buy order")
 
-	// --- Deduplication ---
-	// If a record with this UUID already exists in the database, this is a
-	// RabbitMQ redelivery after a previous broker run crashed after inserting
-	// but before acking. Ack and skip to avoid double-processing.
-	if _, err := rabbit.Repo.GetBuyOrderByUUID(order.BuyOrderUUID); err == nil {
-		log.WithField("order_uuid", order.BuyOrderUUID).
-			Warn("Duplicate message detected (UUID already in DB), skipping")
-		delivery.Ack(false) //nolint:errcheck
-		return
-	}
+	// --- Report to server (dedup + insert) ---
+	// Convert data.BuyOrder → proto.BuyOrder for gRPC call.
+	protoOrder := dataToProtoBuyOrder(order)
 
-	// --- Insert order record ---
-	order.Status = "Pending"
-	buyOrderID, err := rabbit.Repo.InsertBuyOrder(order, order.Breads)
+	result, err := bc.ReportOrder(*protoOrder)
 	if err != nil {
-		log.Errorf("Failed to insert buy order: %v", err)
-		// Nack so RabbitMQ redelivers; do not ack a message we couldn't record.
+		log.Errorf("Failed to report order to server: %v", err)
 		delivery.Nack(false, true) //nolint:errcheck
 		return
 	}
 
-	if order.ID <= 0 {
-		order.ID = buyOrderID
+	if !result.Accepted {
+		log.WithField("order_uuid", order.BuyOrderUUID).
+			Warn("Duplicate order detected (server returned duplicate), skipping")
+		delivery.Ack(false) //nolint:errcheck
+		return
+	}
+
+	if int32(order.ID) <= 0 {
+		order.ID = int(result.OrderId)
 	}
 
 	// --- Buffer for matching engine ---
-	// The matching engine will process this order asynchronously,
-	// checking stock and fulfilling/partially fulfilling as appropriate.
 	rabbit.buffer.add(order)
 
 	delivery.Ack(false) //nolint:errcheck
 	log.WithField("order_uuid", order.BuyOrderUUID).Info("Order buffered for matching")
 }
 
-// failOrder marks an order as Failed in the database.
-// Called by the matching engine when fulfillment cannot proceed.
+// failOrder marks an order as Failed via the server's gRPC BrokerService.
 func (rabbit *RabbitMQBakery) failOrder(uuid string, status string) {
-	if err := rabbit.Repo.UpdateOrderStatus(uuid, status); err != nil {
-		log.Errorf("Failed to update order status to %s: %v", status, err)
+	log.Warnf("failOrder: no longer needed — broker reports matching results via gRPC")
+}
+
+// --- Data → Proto conversion helpers ---
+
+// dataToProtoBuyOrder converts a data.BuyOrder to a proto.BuyOrder.
+func dataToProtoBuyOrder(order data.BuyOrder) *pb.BuyOrder {
+	items := make([]*pb.BuyOrderItem, len(order.Breads))
+	for i, bread := range order.Breads {
+		items[i] = &pb.BuyOrderItem{
+			BreadId:           int32(bread.ID),
+			QuantityRequested: int32(bread.Quantity),
+			BidPrice:          order.BidPrice,
+			Status:            "pending",
+		}
+	}
+
+	return &pb.BuyOrder{
+		Id:                   int32(order.ID),
+		CustomerId:           int32(order.CustomerID),
+		BuyOrderUuid:         order.BuyOrderUUID,
+		Status:               order.Status,
+		SequenceNumber:       order.SequenceNumber,
+		BidPrice:             order.BidPrice,
+		AllowPartial:         order.AllowPartial,
+		SkipUnavailableItems: order.SkipUnavailableItems,
+		Items:                items,
 	}
 }

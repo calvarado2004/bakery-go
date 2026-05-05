@@ -82,6 +82,9 @@ type Repository interface {
 	DeleteOutboxMessage(id int) error
 	InsertOutboxMessage(message OutboxMessage) error
 	GetUnprocessedOutboxMessages() ([]OutboxMessage, error)
+	// ClaimOutboxMessage atomically claims one unprocessed message for delivery.
+	// Returns nil if no messages are available. (ARCHITECTURE_AUDIT §6.2)
+	ClaimOutboxMessage() (*OutboxMessage, error)
 	// Admin methods
 	GetAllCustomers() ([]Customer, error)
 	GetAllBreadMakers() ([]BreadMaker, error)
@@ -109,4 +112,14 @@ type Repository interface {
 	// 'bakery_orders' channel with a payload matching uuid, or until ctx is
 	// cancelled / deadline is exceeded. Returns ctx.Err() on cancellation.
 	WaitForOrderNotification(ctx context.Context, uuid string) error
+
+	// Pending make order methods (Phase 10.7: decouple auto-replenishment from maker queue)
+	InsertPendingMakeOrder(order PendingMakeOrder) (int, error)
+	ClaimPendingMakeOrders(count int) ([]PendingMakeOrder, error)
+	UpdatePendingMakeOrderStatus(id int, status string) error
+
+	// Unwrap returns the underlying *sql.DB for raw operations (used by
+	// BrokerService for outbox transactions). Returns nil if the repository
+	// was not created with a *sql.DB (e.g., a mock repository).
+	Unwrap() interface{}
 }

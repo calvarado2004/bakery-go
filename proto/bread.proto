@@ -428,3 +428,96 @@ message BuyOrderDetailsResponse {
   repeated BuyOrderDetails details = 2;
   double totalCost = 3;
 }
+
+// ──────────────────────────────────────────────────────────────────
+// BrokerService — the ONLY way the broker communicates data operations
+// to the server. The broker has ZERO direct database access.
+// ──────────────────────────────────────────────────────────────────
+
+// BrokerOrderResult is returned by ReportOrder when the server accepts
+// a new order from the broker (after dedup check and DB insert).
+message BrokerOrderResult {
+  bool accepted = 1;          // false if UUID already exists (duplicate)
+  int32 orderId = 2;          // the order ID assigned by the server
+  string message = 3;         // "accepted" or "duplicate"
+}
+
+// ReserveInventoryRequest is used by the broker to reserve stock for
+// a single item within a batch match. The server atomically checks
+// stock and deducts in one SELECT FOR UPDATE transaction.
+message ReserveInventoryRequest {
+  int32 breadId = 1;
+  int32 quantityRequested = 2;
+  string buyOrderUuid = 3;    // for logging/tracking
+}
+
+// ReserveInventoryResult reports whether stock was reserved and how
+// much was actually fulfilled (for partial fulfillment support).
+message ReserveInventoryResult {
+  bool reserved = 1;          // true if stock was available
+  int32 quantityFulfilled = 2; // actual quantity deducted (may be less)
+  string message = 3;         // "reserved" or "insufficient_stock"
+}
+
+// MatchingItemResult is one item within a batch of matching results.
+message MatchingItemResult {
+  int32 breadId = 1;
+  int32 quantityRequested = 2;
+  int32 quantityFulfilled = 3;
+  string status = 4;          // "fulfilled" | "partially_fulfilled" | "skipped" | "rejected"
+}
+
+// MatchingBatchResult is the complete result of a matching batch,
+// reported by the broker to the server so the server can update
+// the database and the outbox atomically.
+message MatchingBatchResult {
+  string buyOrderUuid = 1;
+  string orderStatus = 2;     // "processed" | "partially_processed" | "rejected" | "failed"
+  repeated MatchingItemResult items = 3;
+  double totalCost = 4;
+}
+
+// MatchingBatch is a batch of results from the broker's matching engine.
+// The broker reports ALL matched orders in one call to avoid per-order
+// gRPC overhead during high-throughput matching.
+message MatchingBatch {
+  repeated MatchingBatchResult results = 1;
+}
+
+// BatchConfirmation confirms the server has persisted the matching
+// results to the database and the outbox.
+message BatchConfirmation {
+  bool accepted = 1;
+  int32 ordersProcessed = 2;
+  string message = 3;
+}
+
+// BrokerService is the server-side interface the broker uses for ALL
+// data operations. The broker connects to the server's gRPC port and
+// calls these methods instead of accessing PostgreSQL directly.
+//
+// Flow:
+//   1. Broker consumes order from RabbitMQ → calls ReportOrder
+//      Server: checks UUID dedup → inserts into DB → returns order ID
+//   2. Broker buffers orders for batch matching
+//   3. For each item in batch: calls ReserveInventory
+//      Server: atomic SELECT FOR UPDATE + deduct stock → returns result
+//   4. After batch complete: calls ReportMatchingResults
+//      Server: updates order status + writes to outbox (DB tx)
+//   5. Server's outbox publisher → publishes to bread-bought queue
+//   6. Server's settlement dispatcher → streams to buyers
+service BrokerService {
+  // ReportOrder notifies the server of a new order consumed from
+  // RabbitMQ. The server handles deduplication and persistence.
+  rpc ReportOrder(BuyOrder) returns (BrokerOrderResult);
+
+  // ReserveInventory atomically checks and deducts stock for one
+  // item in a matching batch. This is the broker's replacement for
+  // direct FulfillOrderItem DB calls.
+  rpc ReserveInventory(ReserveInventoryRequest) returns (ReserveInventoryResult);
+
+  // ReportMatchingResults sends the complete batch matching results
+  // to the server. The server updates order statuses and writes
+  // results to the outbox in a single transaction.
+  rpc ReportMatchingResults(MatchingBatch) returns (BatchConfirmation);
+}

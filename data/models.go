@@ -36,6 +36,12 @@ func (m *PostgresRepository) SetDSN(dsn string) {
 	m.dsn = dsn
 }
 
+// Unwrap returns the underlying *sql.DB for raw operations (used by
+// BrokerService for outbox transactions).
+func (m *PostgresRepository) Unwrap() interface{} {
+	return m.Conn
+}
+
 type Customer struct {
 	ID        int        `json:"id"`
 	Name      string     `json:"name"`
@@ -118,6 +124,19 @@ type OutboxMessage struct {
 	Payload   []byte    `json:"payload"`
 	Sent      bool      `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// PendingMakeOrder represents a bread replenishment request.
+// Auto-replenishment from checkBread writes here instead of
+// publishing directly to make-bread-order (Phase 10.7).
+type PendingMakeOrder struct {
+	ID               int       `json:"id"`
+	BreadID          int       `json:"bread_id"`
+	RequestedQuantity int      `json:"requested_quantity"`
+	Status           string    `json:"status"`
+	Source           string    `json:"source"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // UpdateOrderStatus updates the status of the order with the given Buy Order UUID
@@ -1845,4 +1864,77 @@ func (m *PostgresRepository) WaitForOrderNotification(ctx context.Context, uuid 
 			}
 		}
 	}
+}
+
+// InsertPendingMakeOrder inserts a bread replenishment request into the pending_make_orders table.
+// Used by checkBread for auto-replenishment instead of publishing to make-bread-order.
+func (u *PostgresRepository) InsertPendingMakeOrder(order PendingMakeOrder) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var newID int
+	stmt := `INSERT INTO pending_make_orders (bread_id, requested_quantity, source, status, created_at)
+		VALUES ($1, $2, $3, $4, NOW()) RETURNING id`
+
+	err := db.QueryRowContext(ctx, stmt, order.BreadID, order.RequestedQuantity, order.Source, order.Status).Scan(&newID)
+	if err != nil {
+		log.Errorf("Error inserting pending make order: %v", err)
+		return 0, err
+	}
+
+	log.Infof("Pending make order %d created: bread %d, qty %d", newID, order.BreadID, order.RequestedQuantity)
+	return newID, nil
+}
+
+// ClaimPendingMakeOrders claims the N oldest pending make orders for processing.
+// Returns a slice of pending orders that can be fulfilled (stock available).
+func (u *PostgresRepository) ClaimPendingMakeOrders(count int) ([]PendingMakeOrder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `SELECT id, bread_id, requested_quantity, status, source, created_at, updated_at
+		FROM pending_make_orders
+		WHERE status = 'pending'
+		ORDER BY created_at ASC
+		LIMIT $1`
+
+	rows, err := db.QueryContext(ctx, stmt, count)
+	if err != nil {
+		log.Errorf("Error querying pending make orders: %v", err)
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("Error closing rows: %v", err)
+		}
+	}(rows)
+
+	var orders []PendingMakeOrder
+	for rows.Next() {
+		var o PendingMakeOrder
+		err := rows.Scan(&o.ID, &o.BreadID, &o.RequestedQuantity, &o.Status, &o.Source, &o.CreatedAt, &o.UpdatedAt)
+		if err != nil {
+			log.Errorf("Error scanning pending make order: %v", err)
+			return nil, err
+		}
+		orders = append(orders, o)
+	}
+
+	return orders, nil
+}
+
+// UpdatePendingMakeOrderStatus updates the status of a pending make order.
+func (u *PostgresRepository) UpdatePendingMakeOrderStatus(id int, status string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	stmt := `UPDATE pending_make_orders SET status = $1, updated_at = NOW() WHERE id = $2`
+	_, err := db.ExecContext(ctx, stmt, status, id)
+	if err != nil {
+		log.Errorf("Error updating pending make order %d status to %s: %v", id, status, err)
+		return err
+	}
+
+	return nil
 }

@@ -59,6 +59,7 @@ func (r *makersStubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)         
 func (r *makersStubRepo) FulfillOrderTx(data.BuyOrder) error                          { return nil }
 func (r *makersStubRepo) FulfillOrderItem(int, int) (int, error)                      { return 0, nil }
 func (r *makersStubRepo) WaitForOrderNotification(context.Context, string) error      { return nil }
+func (r *makersStubRepo) ClaimOutboxMessage() (*data.OutboxMessage, error)            { return nil, nil }
 
 // --- adjustCapturingRepo records the call arguments ---
 

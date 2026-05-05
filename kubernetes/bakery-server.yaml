@@ -1,7 +1,14 @@
+# Server — foundation of the platform (Phase 10)
+# Only service with PostgreSQL access. All other services communicate via gRPC.
+# Includes: gRPC rate limiting, circuit breaker, RBAC (Phase 10.10).
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bakery-server
+  labels:
+    app: bakery-server
+    phase: "10"
 spec:
   replicas: 1
   selector:
@@ -14,9 +21,12 @@ spec:
     spec:
       containers:
         - name: bakery-server
-          image: docker.io/calvarado2004/bakery-go-server
+          image: docker.io/calvarado2004/bakery-go-server:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 50051
+              protocol: TCP
+              name: grpc
           env:
             - name: BAKERY_SERVICE_ADDR
               value: "0.0.0.0:50051"
@@ -29,6 +39,13 @@ spec:
                 secretKeyRef:
                   name: bakery-secrets
                   key: JWT_SECRET
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service

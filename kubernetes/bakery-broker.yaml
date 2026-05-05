@@ -1,7 +1,14 @@
+# Broker — pure message dispatcher (Phase 10.1: ZERO DB access)
+# Connects to RabbitMQ for message consume/publish,
+# and to the Server gRPC for all data operations via BrokerService.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bakery-broker
+  labels:
+    app: bakery-broker
+    phase: "10"
 spec:
   replicas: 1
   selector:
@@ -14,11 +21,29 @@ spec:
     spec:
       containers:
         - name: bakery-broker
-          image: docker.io/calvarado2004/bakery-go-broker
+          image: docker.io/calvarado2004/bakery-go-broker:latest
+          imagePullPolicy: Always
           env:
             - name: RABBITMQ_SERVICE_ADDR
               value: "amqp://guest:guest@rabbitmq-service:5672/"
-            - name: DSN
-              value: "host=postgres-service port=5432 user=postgres password=postgres dbname=bakery sslmode=disable timezone=UTC connect_timeout=5"
-
-
+            - name: BAKERY_SERVICE_ADDR
+              value: "bakery-server-service:50051"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bakery-broker-service
+  labels:
+    app: bakery-broker
+spec:
+  clusterIP: None  # headless — broker doesn't need external access
+  ports: []
+  selector:
+    app: bakery-broker

@@ -263,3 +263,93 @@
 │  JWT_SECRET            — JWT signing secret                      │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+## 8. Service Boundary Analysis
+
+### 8.1 Current State — Decoupled Boundary (Phase 10 Complete)
+
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  Buyer #1    │  │  Buyer #2    │  │  Buyer #N    │  ← External, independent
+│  (gRPC + JWT)│  │  (gRPC + JWT)│  │  (gRPC + JWT)│
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │ gRPC (typed)     │ gRPC (typed)     │ gRPC (typed)
+       │ Rate limited     │ Rate limited     │ Rate limited
+       │ RBAC enforced    │ RBAC enforced    │ RBAC enforced
+       └────────┬─────────┴────────┬─────────┘
+                │                  │
+                ▼                  ▼
+        ┌─────────────────────────────────┐
+        │         SERVER (gRPC)           │  ← Foundation: API gateway + DB
+        │  - Auth + RBAC                  │     (only service with PostgreSQL)
+        │  - Writes to PostgreSQL only    │
+        │  - No AMQP knowledge            │
+        │  - Async: returns immediately   │
+        └────────────┬────────────────────┘
+                     │ PostgreSQL INSERT
+                     │ (status = pending)
+                     ▼
+        ┌─────────────────────────────────┐
+        │     PostgreSQL                  │  ← Source of truth
+        │     (no DSN for buyers)         │
+        └────────┬───────────────────────┘
+                 │ PG NOTIFY / LISTEN
+                 │ or: polling buy_order
+                 ▼
+        ┌─────────────────────────────────┐
+        │         BROKER                  │  ← Internal: pure dispatcher
+        │  - Declares buy-bread-order     │     (zero DB access)
+        │  - Declares bread-bought        │     (via gRPC BrokerService)
+        │  - Batch matching engine        │
+        │  - Circuit breaker + retry      │
+        └────────────┬────────────────────┘
+                     │ AMQP: MatchingResult
+                     ▼
+        ┌─────────────────────────────────┐
+        │     bread-bought queue          │
+        │  Consumed by:                   │
+        │  - Server (stream dispatch)     │
+        │  - External services (loyalty,  │
+        │    analytics, notifications)     │
+        └─────────────────────────────────┘
+
+        ┌─────────────────────────────────┐
+        │  make-bread-order (external)    │  ← Declared by makers
+        │  Consumed by:                   │
+        │  - External makers (AMQP only)  │
+        │  - Separate: pending_make_orders│
+        │    (server auto-replenish)      │
+        └─────────────────────────────────┘
+
+        ┌──────────────┐  ┌──────────────┐
+        │  Maker #1    │  │  Maker #N    │  ← External, independent
+        │  (AMQP only) │  │  (AMQP only) │
+        └──────────────┘  └──────────────┘
+```
+
+**Key boundary principles (enforced):**
+
+| Principle | Enforcement |
+|-----------|-------------|
+| **Ownership** | Broker declares `buy-bread-order` + `bread-bought`; makers declare `make-bread-order` |
+| **Broker has zero DB** | Broker communicates via `BrokerService` gRPC (Phase 10.1) |
+| **Server is foundation** | Only service with PostgreSQL access |
+| **Separation** | Auto-replenishment writes to `pending_make_orders` table with `source=auto` (Phase 10.7) |
+| **Independent contracts** | AMQP uses `MatchingResult` proto type, not internal `data.BuyOrder` (Phase 10.5) |
+| **Typed external API** | Buyers use gRPC + JWT (no raw AMQP); makers use AMQP |
+| **No direct DB** | Buyers have no DSN (Phase 10.9) |
+| **Resilience** | Rate limiter (10 req/s), circuit breakers, RBAC (Phase 10.10) |
+
+### 8.2 Phase 10 Architecture Summary
+
+Phase 10 decoupled the external/internal boundary of the bakery platform:
+
+| Component | Role | External Access |
+|-----------|------|----------------|
+| **Server** | Foundation: gRPC API + PostgreSQL owner | Buyers (gRPC + JWT), Frontend (HTTP) |
+| **Broker** | Pure dispatcher: RabbitMQ consume/publish | Server (gRPC BrokerService only) |
+| **Makers** | External providers: consume `make-bread-order` | RabbitMQ only |
+| **Buyers** | External clients: gRPC + JWT | gRPC only (no DB) |
+| **Frontend** | HTTP interface for admin + customers | HTTP + gRPC |
+
+See [ARCHITECTURE_AUDIT.md §10](ARCHITECTURE_AUDIT.md#10-externalinternal-boundary-coupling-issues) for the full audit and remediation plan.

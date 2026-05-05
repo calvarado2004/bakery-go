@@ -1,7 +1,14 @@
+# Buyers — external gRPC clients for purchasing bread
+# Phase 10: No direct DB access (DSN removed). Communicate via gRPC only.
+# Rate limited to 10 req/s per customer identity.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bakery-buyers
+  labels:
+    app: bakery-buyers
+    phase: "10"
 spec:
   replicas: 1
   selector:
@@ -14,9 +21,27 @@ spec:
     spec:
       containers:
         - name: bakery-buyers
-          image: docker.io/calvarado2004/bakery-go-buyers
+          image: docker.io/calvarado2004/bakery-go-buyers:latest
+          imagePullPolicy: Always
           env:
             - name: BAKERY_SERVICE_ADDR
               value: "bakery-server-service:50051"
-            - name: ACTIVEMQ_SERVICE_ADDR
-              value: "amqp://guest:guest@rabbitmq-service:5672/"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bakery-buyers-service
+  labels:
+    app: bakery-buyers
+spec:
+  clusterIP: None  # headless — buyers don't need external access
+  ports: []
+  selector:
+    app: bakery-buyers

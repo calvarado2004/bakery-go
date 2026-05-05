@@ -215,6 +215,10 @@ func (u *PostgresTestRepository) DeleteOutboxMessage(id int) error {
 	return nil
 }
 
+func (u *PostgresTestRepository) ClaimOutboxMessage() (*OutboxMessage, error) {
+	return nil, nil
+}
+
 func (u *PostgresTestRepository) InsertOutboxMessage(message OutboxMessage) (int, error) {
 	return 1, nil
 }
@@ -240,4 +244,12 @@ func (u *PostgresTestRepository) FulfillOrderTx(order BuyOrder) error {
 // FulfillOrderItem always succeeds in the test repository.
 func (u *PostgresTestRepository) FulfillOrderItem(breadID int, qty int) (int, error) {
 	return qty, nil
+}
+
+func (u *PostgresTestRepository) GetUnprocessedOutboxMessages() ([]OutboxMessage, error) {
+	return nil, nil
+}
+
+func (u *PostgresTestRepository) Unwrap() interface{} {
+	return u.Conn
 }

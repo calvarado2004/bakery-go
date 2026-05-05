@@ -1,7 +1,13 @@
+# Frontend — HTTP web interface (Phase 10)
+# Communicates with server via gRPC. Uses shared connection pool.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bakery-frontend
+  labels:
+    app: bakery-frontend
+    phase: "10"
 spec:
   replicas: 1
   selector:
@@ -14,9 +20,12 @@ spec:
     spec:
       containers:
         - name: bakery-frontend
-          image: docker.io/calvarado2004/bakery-go-frontend
+          image: docker.io/calvarado2004/bakery-go-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
+              protocol: TCP
+              name: http
           env:
             - name: BAKERY_SERVICE_ADDR
               value: "bakery-server-service:50051"
@@ -30,6 +39,13 @@ spec:
                 secretKeyRef:
                   name: bakery-secrets
                   key: CSRF_KEY
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service

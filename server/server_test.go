@@ -58,7 +58,12 @@ func (r *stubRepo) GetAllInvoices() ([]data.Invoice, error)                     
 func (r *stubRepo) GetInvoiceByOrderID(int) (data.Invoice, error)                   { return data.Invoice{}, nil }
 func (r *stubRepo) FulfillOrderTx(data.BuyOrder) error                              { return nil }
 func (r *stubRepo) FulfillOrderItem(int, int) (int, error)                          { return 0, nil }
-func (r *stubRepo) WaitForOrderNotification(context.Context, string) error           { return nil }
+func (r *stubRepo) WaitForOrderNotification(context.Context, string) error          { return nil }
+func (r *stubRepo) ClaimOutboxMessage() (*data.OutboxMessage, error)                { return nil, nil }
+func (r *stubRepo) InsertPendingMakeOrder(data.PendingMakeOrder) (int, error)       { return 0, nil }
+func (r *stubRepo) ClaimPendingMakeOrders(int) ([]data.PendingMakeOrder, error)     { return nil, nil }
+func (r *stubRepo) UpdatePendingMakeOrderStatus(int, string) error                  { return nil }
+func (r *stubRepo) Unwrap() interface{}                                             { return nil }
 
 // --- notFoundRepo: returns sql.ErrNoRows for GetBuyOrderByUUID ---
 

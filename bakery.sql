@@ -41,6 +41,13 @@ CREATE SEQUENCE public.make_order_id_seq
     NO MAXVALUE
     CACHE 1;
 
+CREATE SEQUENCE public.pending_make_order_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
 -- ========================================================================
 -- Bread table
 -- ========================================================================
@@ -107,6 +114,25 @@ CREATE TABLE public.make_order_details (
     FOREIGN KEY (make_order_id) REFERENCES public.make_order(id),
     FOREIGN KEY (bread_id) REFERENCES public.bread(id)
 );
+
+-- ========================================================================
+-- Pending Make Orders (server auto-replenishment requests)
+-- External makers only consume from make-bread-order queue.
+-- Auto-replenishment goes through this table instead.
+-- ========================================================================
+CREATE TABLE public.pending_make_orders (
+    id integer DEFAULT nextval('public.pending_make_order_id_seq'::regclass) NOT NULL,
+    bread_id integer NOT NULL,
+    requested_quantity integer NOT NULL,
+    status character varying(20) DEFAULT 'pending' CHECK (status IN ('pending', 'fulfilled', 'rejected')),
+    source character varying(50) DEFAULT 'auto' CHECK (source IN ('auto', 'admin')),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    PRIMARY KEY (id),
+    FOREIGN KEY (bread_id) REFERENCES public.bread(id)
+);
+
+CREATE INDEX idx_pending_make_orders_status ON pending_make_orders(status) WHERE status = 'pending';
 
 -- ========================================================================
 -- Customer

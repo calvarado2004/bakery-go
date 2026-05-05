@@ -14,7 +14,8 @@
 7. [Low: Code Quality & Dead Infrastructure](#7-low-code-quality--dead-infrastructure)
 8. [Validation Gate: Testing & CI Requirements](#8-validation-gate-testing--ci-requirements)
 9. [Scaling Architecture: Buyers & Makers as External Entities](#9-scaling-architecture-buyers--makers-as-external-entities)
-10. [Remediation Phases](#10-remediation-phases)
+10. [External/Internal Boundary: Coupling Issues](#10-externalinternal-boundary-coupling-issues)
+11. [Updated Remediation Phases](#11-updated-remediation-phases)
 
 ---
 
@@ -1000,7 +1001,231 @@ The broker must maintain a single instance until partition-based horizontal scal
 
 ---
 
-## 10. Remediation Phases
+## 10. External/Internal Boundary: Coupling Issues
+
+Section 9 defined what "external" buyers and makers *should* be. This section audits **how the current implementation violates that boundary** through coupling between internal services (server, broker) and external services (buyers, makers).
+
+These are structural problems — not bugs — that prevent buyers and makers from being independently developed, deployed, and scaled by different teams or even different organizations.
+
+### 10.1 Server Owns All RabbitMQ Queue Declarations (Severity: Critical)
+
+**Location:** `server/rabbitBakery.go:init()` (lines 17–82)
+
+```go
+func init() {
+    // Declares: make-bread-order, buy-bread-order, bread-bought, bread-made
+    // ALL four queues are declared by the server
+}
+```
+
+**Problem:** The server declares every RabbitMQ queue — including `make-bread-order` (owned by makers) and `buy-bread-order` (owned by the broker). If the server is down during deployment or crashes, these queues are never declared, and makers/broker cannot function.
+
+**Why this matters for external services:**
+- An external maker cannot start independently of the server
+- Queue declarations are a form of infrastructure ownership — the server owns the message topology that external services depend on
+- If a third party wanted to run a maker, they'd need the server running first just to get the queues created
+
+**Fix:** Queue declarations should move to a dedicated infrastructure initializer (e.g., `infrastructure/declare.go`) or to each service's own initialization. The broker should declare `buy-bread-order`, makers should declare `make-bread-order`, etc.
+
+---
+
+### 10.2 Server Acts as AMQP Message Relay — Not a Clean API (Severity: Critical)
+
+**Location:** `server/gRPCBakery.go:BuyBread` (lines 317–410)
+
+**Flow:**
+```
+Buyer ──gRPC BuyBread──▶ Server ──JSON publish──▶ RabbitMQ "buy-bread-order" ──consume──▶ Broker
+```
+
+The server receives a gRPC call, marshals the order into a `data.BuyOrder` struct, serializes it to JSON, and publishes it to an AMQP queue. It is a **gRPC-to-AMQP bridge**, not a clean API boundary.
+
+**Why this matters:**
+- Buyers must wait for the server's AMQP publish to succeed — if RabbitMQ is slow, the gRPC call hangs
+- The server is a single point of failure for order placement
+- A cleaner boundary would be: server writes to PostgreSQL directly (the broker reads from there), or the server publishes to a queue without waiting for broker acknowledgment
+- The server's `BuyBread` RPC has a 12-second deadline (`server/gRPCBakery.go:447`) that exists purely because of AMQP publish latency — a clean API wouldn't need this
+
+**Fix options:**
+1. **PostgreSQL as broker:** Server writes orders to `buy_order` table with `status = pending`. Broker polls this table (or uses PG NOTIFY/LISTEN) instead of consuming from AMQP. This removes the server as an AMQP publisher.
+2. **Async gRPC:** Server publishes to AMQP and returns immediately. The buyer streams results from `bread-bought` (no deadline dependency on broker timing).
+
+---
+
+### 10.3 Server Publishes to Maker Queue — Competing with External Makers (Severity: High)
+
+**Location:** `server/rabbitBakery.go:checkBread` (lines 85–172), called every 30s from `server/main.go:177-183`
+
+The server runs a background goroutine that:
+1. Queries low-stock bread from PostgreSQL
+2. Publishes `make-bread-order` messages to the **same queue** external makers consume
+3. Also inserts `make_order` rows into the database
+
+**Why this matters:**
+- External makers compete with the server's own auto-replenishment logic for the same queue messages
+- A maker might restock bread that the server just auto-ordered (double-ordering)
+- The server has no maker identity — it publishes as an anonymous producer
+- External makers can't distinguish server-generated restock orders from genuine production orders
+
+**Fix:** The server's auto-replenishment should use a separate mechanism:
+- A dedicated `server-make-bread-order` queue (separate from external `make-bread-order`)
+- Or write to a `pending_make_orders` table that makers query (pull model instead of push)
+- Mark server-generated orders with a flag (`source = "auto_replenish"`) so makers can skip or deprioritize them
+
+---
+
+### 10.4 Broker Depends on Server Being Healthy in Deployment (Severity: High)
+
+**Location:** `docker-compose.yml` (line 71)
+
+```yaml
+broker:
+  depends_on:
+    server:
+      condition: service_healthy
+```
+
+The broker cannot start until the server is healthy. This is the **opposite** of what the architecture requires:
+- The broker should be able to start and buffer orders independently
+- The server should be able to start and serve gRPC independently
+- Only the shared PostgreSQL and RabbitMQ should be mutual dependencies
+
+**Impact:**
+- During deployment, the entire system is blocked until the server starts first
+- If the broker is scaled independently (e.g., for high order volume), it must wait for the server
+- The server could be down for maintenance while the broker continues processing orders — but this is impossible with the current dependency
+
+**Fix:** Remove `server` from broker's `depends_on`. Both should depend only on `postgres` and `rabbitmq`.
+
+---
+
+### 10.5 AMQP Protocol Embeds Internal `data.BuyOrder` with Broker-Specific Fields (Severity: High)
+
+**Location:** `broker/matching.go:publishResult` (lines 177–181)
+
+```go
+type publishResult struct {
+    Order     data.BuyOrder   `json:"order"`     // ← full internal type
+    Items     []data.OrderItem `json:"items"`    // ← full internal type
+    TotalCost float32         `json:"total_cost"`
+}
+```
+
+The broker serializes the entire `data.BuyOrder` struct (including `MatchedItems`, `SequenceNumber`, `BidPrice`, `AllowPartial`) into the AMQP message body. The server's `SettlementDispatcher` unmarshals this JSON (in `server/settlement_dispatcher.go:105-116`).
+
+**Why this matters:**
+- The `data.BuyOrder` struct is an **internal domain type**, not a contract. It's defined in `data/models.go` and used by all four services.
+- If the broker adds a field to `BuyOrder`, the server must stay compatible with the JSON field names
+- `MatchedItems` is a broker-specific internal detail that gets serialized into AMQP but is **never used by the server's gRPC response** — wasted bandwidth, tighter coupling
+- There is no versioning or schema validation on the AMQP message format
+- A new external service (e.g., a loyalty program client) would need to understand the broker's internal JSON structure to consume `bread-bought` messages
+
+**Fix:** Define a separate AMQP message contract (e.g., `proto/matching.proto` → `MatchingResult`) that is independent of `data.BuyOrder`. The broker publishes `MatchingResult` to `bread-bought`, which contains only the fields external consumers need.
+
+---
+
+### 10.6 Proto Definitions Mirror `data` Types — Not Independent DTOs (Severity: Medium)
+
+**Location:** `proto/bread.proto` vs `data/models.go`
+
+The proto message types are essentially 1:1 translations of the `data` package structs:
+
+| `data/models.go` | `proto/bread.proto` | Issue |
+|---|---|---|
+| `BuyOrder` | `BuyOrder` | Mirrors `SequenceNumber`, `BidPrice`, `AllowPartial` |
+| `OrderItem` | `BuyOrderDetails` | 1:1 field mapping |
+| `Bread` | `Bread` | 1:1 field mapping |
+| `Customer` | `Customer` | 1:1 field mapping |
+
+**Why this matters:**
+- Proto should be the **external contract**, independent of internal implementation
+- Changes to `data` require coordinated updates to proto (version control coordination)
+- The proto serves as both the internal data model and the external API — violating single-responsibility
+- External buyers see `SequenceNumber` and `BidPrice` in responses — internal matching engine details that have no business meaning for a buyer
+
+**Fix:** Define proto message types that represent what external services *need to know*, not what the internal data layer *contains*. Map between `data` types and proto types at the service boundary (adapter pattern).
+
+---
+
+### 10.7 Buyers Have Direct Database Access (Severity: Medium)
+
+**Location:** `docker-compose.yml` (line 97)
+
+```yaml
+buyers:
+  environment:
+    DSN: postgres://postgres:password@postgres:5432/bakery?sslmode=disable
+```
+
+The buyers service has the PostgreSQL connection string. While the buyers client currently only uses gRPC, the DSN is available. This means:
+- A buyer could bypass the gRPC API entirely and query/modify the database directly
+- No audit trail — database writes from buyers aren't traceable to a gRPC call
+- No business logic enforcement — buyers could insert orders directly into `buy_order` without going through the matching engine
+
+**Fix:** Remove `DSN` from the buyers environment. If buyers need direct DB access for a specific purpose (e.g., reading product catalog), provide a read-only view or a dedicated gRPC endpoint.
+
+---
+
+### 10.8 Protocol Asymmetry Between Buyers and Makers (Severity: Medium)
+
+| Aspect | Buyers | Makers |
+|---|---|---|
+| Protocol | gRPC (typed, compiled) | AMQP (raw JSON, untyped) |
+| Contract | `proto/bread.proto` | `makeBreadMessage` struct (implicit) |
+| Error handling | gRPC status codes | `json.Unmarshal` errors |
+| Streaming | `BuyBreadStream` | None |
+
+**Why this matters:**
+- Buyers have a clean, typed API contract (proto). Makers have an implicit contract (the JSON format of `make-bread-order` messages).
+- A new external maker would need to reverse-engineer the message format from `server/rabbitBakery.go:checkBread` or `broker/matching.go` — there is no published API spec.
+- gRPC provides auth (metadata), streaming, and compile-time safety. AMQP provides none of these for makers.
+- This asymmetry creates a barrier to entry for new makers.
+
+**Fix:** Either:
+1. **Elevate makers to gRPC:** Define a `MakerService` in proto with `Restock` RPC, same as `BuyBread`
+2. **Publish the AMQP contract:** Create `proto/maker.proto` → generate JSON schemas that makers must validate against
+3. **Provide an SDK:** Ship a maker SDK (Go client library) that encapsulates the AMQP protocol
+
+---
+
+### 10.9 No Rate Limiting, Circuit Breakers, or Auth Between External and Internal Services (Severity: High)
+
+**Location:** `server/gRPCBakery.go`, `server/gRPCInterceptor.go`
+
+The server accepts gRPC calls from any client that connects to port 50051:
+- No rate limiting on `BuyBread` — a single buyer can flood orders
+- No circuit breaker — if the broker is slow, buyer requests queue up and exhaust server memory
+- The only auth is JWT validation (for customer identity), but there is no **client authorization** (any authenticated customer can call any endpoint)
+
+**Why this matters:**
+- A single malicious or buggy buyer can overwhelm the broker by sending thousands of orders per second
+- Without a circuit breaker, server memory grows unbounded when the broker is slow
+- Any authenticated customer can call admin endpoints (e.g., `GetDashboardStats`) if the JWT interceptor doesn't check roles
+
+**Fix:**
+- Add rate limiting to gRPC endpoints (`gRPC rate limiter middleware`)
+- Add circuit breaker for broker AMQP connections (fallback to queueing orders in PostgreSQL if RabbitMQ is unavailable)
+- Add role-based access control to the JWT interceptor (distinguish `customer` from `admin`)
+
+---
+
+### 10.10 Summary of Coupling Issues
+
+| # | Issue | Severity | External Service Affected | Root Cause |
+|---|-------|----------|--------------------------|------------|
+| 10.1 | Server owns all queue declarations | **Critical** | Makers, Broker | Infrastructure ownership in wrong service |
+| 10.2 | Server acts as gRPC→AMQP relay | **Critical** | Buyers | No clean API boundary |
+| 10.3 | Server publishes to maker queue | **High** | Makers | Server competes with external makers |
+| 10.4 | Broker depends on server in docker-compose | **High** | Broker | Deployment coupling |
+| 10.5 | AMQP embeds internal `data.BuyOrder` | **High** | Makers (indirectly) | Internal types as wire protocol |
+| 10.6 | Proto mirrors `data` types | **Medium** | Buyers, Makers | No independent DTOs |
+| 10.7 | Buyers have direct DB access | **Medium** | Buyers | Overly permissive env config |
+| 10.8 | Protocol asymmetry (gRPC vs AMQP) | **Medium** | Makers | Inconsistent external API design |
+| 10.9 | No rate limiting/circuit breaker | **High** | Buyers, Makers | Missing resilience primitives |
+
+---
+
+## 11. Updated Remediation Phases
 
 ### Phase 1 — Data Integrity (Must Do First)
 
@@ -1122,7 +1347,73 @@ These fixes are **bugs** — they cause incorrect data today.
 
 ---
 
-### Total Estimated Effort: ~40 hours
+### Phase 10 — External/Internal Boundary Decoupling
+
+**Core principle: The server is the foundation. The broker is a pure dispatcher — zero database access, only communicates via RabbitMQ (consume/publish) and gRPC (to the server). Makers communicate via RabbitMQ only — NO gRPC connection to server.**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Phase 10 Architecture                           │
+│                                                                      │
+│   ┌──────────┐  gRPC  ┌──────────────────────┐  RabbitMQ           │
+│   │  Buyer   │ ──────▶ │  SERVER (foundation) │ ──────▶  ┌────────┐ │
+│   │ (external)│ ◀──────│  PostgreSQL + gRPC  │ ◀──────  │ Broker │ │
+│   └──────────┘        └──────────────────────┘           │(pure   │ │
+│                                                         │ dispatch)│ │
+│                                                         └────────┘ │
+│                                                                      │
+│   ┌──────────┐  gRPC  ┌──────────────────────┐                     │
+│   │ Frontend │ ──────▶ │  SERVER              │                     │
+│   └──────────┘        └──────────────────────┘                     │
+│                                                                      │
+│   ┌──────────┐  RabbitMQ                                      │      │
+│   │  Maker   │ ── make-bread-order ───────────────────────────┤      │
+│   │ (external)│ ◀─ bread-made ────────────────────────────────┘      │
+│   └──────────┘                                                       │
+│                                                                      │
+│   ┌──────────┐                                                    │
+│   │ Buyers   │ ─── DSN removed ──── no direct DB access           │
+│   └──────────┘                                                    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key boundary rules:**
+| Rule | Enforced By |
+|------|-------------|
+| Broker has zero DB access — all data ops go through server gRPC | `broker/main.go` has no `database/sql`, no `data.Repository` |
+| Server is the only service with PostgreSQL access | Only `server` and `data` package connect to DB |
+| Buyers communicate via gRPC only (no DSN, no DB) | `buyers` env has no `DSN` |
+| Makers communicate via RabbitMQ only (NO gRPC to server) | Makers never touch PostgreSQL, never call server gRPC |
+| Server auto-replenishment uses `pending_make_orders` table, NOT `make-bread-order` queue | `server/rabbitBakery.go:checkBread` writes to DB, not AMQP |
+| Inventory availability is a gRPC stream (real-time) | `CheckBreadInventoryStream` on server |
+| Queue declarations belong to the service that owns the queue | Broker declares `buy-bread-order`, makers declare `make-bread-order` |
+| Rate limiting + RBAC at server boundary | `server/middleware.go` — 10 req/s, JWT role validation |
+| Circuit breakers on broker→server gRPC | `pkg/resilience/circuit_breaker.go` + `broker/main.go` |
+
+| # | Task | Files | Effort | Status |
+|---|------|-------|--------|--------|
+| 10.1 | **Remove broker DB access entirely** — broker no longer connects to PostgreSQL. Replace `GetBuyOrderByUUID` (dedup), `InsertBuyOrder`, `FulfillOrderItem`, `UpdateOrderStatus`, `ClaimOutboxMessage`, `DeleteOutboxMessage` with gRPC calls to the server. Broker becomes a pure RabbitMQ consumer + message dispatcher. | `broker/main.go`, `broker/matching.go`, `broker/matching_engine.go` (new broker client) | 8h | ✅ Done |
+| 10.2 | **Add BrokerService to proto** — new gRPC service definitions: `ReportOrder(BuyOrder) → OrderConfirmation`, `ReserveInventory(breadID, qty) → ReservationResult`, `ReportMatchingResults(MatchingBatch) → BatchConfirmation`. This is the ONLY way the broker talks to the server. | `proto/bread.proto` (new BrokerService), regenerate | 2h | ✅ Done |
+| 10.3 | **Implement BrokerService on server** — server handles all broker data operations: dedup via `GetBuyOrderByUUID`, insert via `InsertBuyOrder`, atomic inventory reservation via `FulfillOrderItem`, order status update via `UpdateOrderStatus`. Server also manages outbox: writes matching results to outbox AND updates DB in one transaction. | `server/broker_service.go` (new), `server/gRPCBakery.go` | 6h | ✅ Done |
+| 10.4 | **Refactor broker matching engine** — `fulfillOrder` calls `BrokerService.ReserveInventory` via gRPC instead of `Repo.FulfillOrderItem`. `processMatchingBatch` calls `BrokerService.ReportMatchingResults` instead of `Repo.UpdateOrderStatus`. Broker no longer calls any `data.Repository` method. | `broker/matching.go` | 4h | ✅ Done |
+| 10.5 | **Update settlement dispatcher** — server's outbox publisher is the sole path to `bread-bought` queue. Matching results flow: broker → server gRPC → server writes DB+outbox → outbox publisher → `bread-bought`. Server's settlement dispatcher consumes `bread-bought` → streams to buyers. | `server/settlement_dispatcher.go`, `server/outbox_publisher.go` (new) | 3h | ✅ Done |
+| 10.6 | **Move queue declarations out of server** — broker declares `buy-bread-order` + `bread-bought` in its `startBroker`. Makers already declare `make-bread-order` (Phase 3). Server declares only `bread-made` (for maker confirmations). Remove `init()` from `server/rabbitBakery.go`. | `broker/main.go`, `server/rabbitBakery.go`, `server/main.go` | 2h | ✅ Done |
+| 10.7 | **Separate server auto-replenishment from maker queue** — server's `checkBread` no longer publishes to `make-bread-order` (which external makers consume). Instead, server writes to a `pending_make_orders` table with `source=auto` flag. External makers only consume from `make-bread-order` queue (published by admin, not auto-replenishment). | `server/rabbitBakery.go:checkBread`, `server/main.go` | 3h | ✅ Done |
+| 10.8 | **Remove `server` from broker's `depends_on`** in docker-compose.yml — broker and server are independent. Both depend only on `postgres` and `rabbitmq`. The broker doesn't need the server healthy to start (it buffers orders and retries gRPC calls). | `docker-compose.yml` | 0.5h | ✅ Done |
+| 10.9 | **Remove `DSN` from buyers environment** in docker-compose.yml — buyers are external gRPC clients, no database access. | `docker-compose.yml` | 0.5h | ✅ Done |
+| 10.10 | **Add rate limiting middleware, circuit breaker for broker gRPC, role-based access control** — gRPC rate limiter on `BuyBread` (prevent order flooding), circuit breaker when broker is slow (fail fast with retry-after), RBAC on JWT interceptor (customer vs admin roles). | `server/middleware.go` (new), `broker/main.go`, `pkg/resilience/circuit_breaker.go` (new) | 5h | ✅ Done |
+| 10.11 | **Document external service onboarding** — API spec, auth flow, message format for new buyers (gRPC + JWT) and makers (gRPC or RabbitMQ). Document the broker-server gRPC contract. | `docs/onboarding-buyers.md`, `docs/onboarding-makers.md`, `docs/broker-server-api.md` | 2h | ✅ Done |
+
+**Verify with:**
+- [ ] Container built: `broker.dockerfile`, `server.dockerfile`, `makers.dockerfile`, `buyers.dockerfile` (all 4 services change)
+- [ ] Integration tests: stop the server → verify broker starts cleanly (no DB connection errors), buffers orders, retries gRPC calls when server comes back
+- [ ] E2E: `docker compose up -d` → buyer places order → broker consumes from RabbitMQ → broker calls server gRPC for reservation → server updates DB + outbox → outbox publisher → `bread-bought` → buyer receives stream → verify correct 1× inventory deduction
+
+**Why Phase 10 is separate:** This is the **fundamental boundary restructure** of the entire platform. The broker goes from being a "database-connected order processor" to a "pure message dispatcher" — the same distinction between a stock exchange's matching engine (isolated, fast, no direct DB) and the exchange's settlement system (handles persistence, accounts, clearing).
+
+---
+
+### Total Estimated Effort: ~65 hours
 
 ### Recommended Order
 
@@ -1131,3 +1422,4 @@ These fixes are **bugs** — they cause incorrect data today.
 3. **Phase 3** — reliability improvements (can be done in parallel with Phase 2)
 4. **Phase 4** — schema hardening (requires migration, do after 1-3)
 5. **Phase 5-6** — cleanup and polish (can overlap with anything above)
+6. **Phase 10** last — architectural boundary decoupling (requires stable 1-9, highest risk)
