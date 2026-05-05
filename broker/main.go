@@ -425,7 +425,7 @@ func dataToProtoBuyOrder(order data.BuyOrder) *pb.BuyOrder {
 		items[i] = &pb.BuyOrderItem{
 			BreadId:           int32(bread.ID),
 			QuantityRequested: int32(bread.Quantity),
-			BidPrice:          order.BidPrice,
+			BidPrice:          bread.Price,
 			Status:            "pending",
 		}
 	}
