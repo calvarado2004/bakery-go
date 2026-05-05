@@ -10,7 +10,12 @@ import (
 	"time"
 )
 
-// init is called before the application starts, and sets up the RabbitMQ connection as well as the necessary queues
+// init is called before the application starts and declares queues owned by the server.
+// In the external/internal boundary design (ARCHITECTURE_AUDIT §10.6), each service
+// declares the queues it owns:
+//   - Server owns: bread-made (for maker confirmations)
+//   - Broker owns: buy-bread-order, bread-bought
+//   - Makers own: make-bread-order
 func (rabbit *RabbitMQBakery) init() {
 
 	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
@@ -37,46 +42,8 @@ func (rabbit *RabbitMQBakery) init() {
 		}
 	}(channel)
 
-	// Declare the RabbitMQ make-bread-order queue as durable
-	_, err = channel.QueueDeclare(
-		"make-bread-order", // name
-		true,               // durable
-		false,              // delete when unused
-		false,              // exclusive
-		false,              // no-wait
-		nil,                // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	// Declare the RabbitMQ buy-bread-order as durable
-	_, err = channel.QueueDeclare(
-		"buy-bread-order", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	// Declare the RabbitMQ bread-bought as durable
-	_, err = channel.QueueDeclare(
-		"bread-bought", // name
-		true,           // durable
-		false,          // delete when unused
-		false,          // exclusive
-		false,          // no-wait
-		nil,            // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
-
-	// Declare the RabbitMQ bread-made queue (consumed by makers to confirm restocking)
+	// Declare the RabbitMQ bread-made queue (consumed by maker confirmations).
+	// Server is the sole owner; external makers publish to this queue.
 	_, err = channel.QueueDeclare(
 		"bread-made", // name
 		true,         // durable
@@ -88,6 +55,8 @@ func (rabbit *RabbitMQBakery) init() {
 	if err != nil {
 		log.Fatalf("Failed to declare bread-made queue: %v", err)
 	}
+
+	log.Println("Server declared queue: bread-made")
 
 }
 
