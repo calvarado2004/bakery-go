@@ -336,10 +336,10 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 
 	// Extract customer ID from context metadata (Phase 6.6).
 	// The frontend attaches customer_id as gRPC metadata when the customer is authenticated.
-	// Falls back to customer ID 1 if not present (unauthenticated/legacy clients).
+	// Falls back to customer ID 1 (John Doe) if not present (unauthenticated/legacy clients).
 	customerID := GetCustomerIDFromContext(ctx)
 	if customerID == 0 {
-		customerID = 1 // default fallback
+		customerID = 1 // default fallback — customer 1 is created by initializeBakery
 	}
 
 	buyerCustomer := data.Customer{

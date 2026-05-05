@@ -52,50 +52,55 @@ const (
 // methodRoles maps gRPC method names to their required minimum role.
 var methodRoles = map[string]minRole{
 	// ---- Admin-only endpoints ----
-	"/bakery.AdminService/GetDashboardStats":     RoleAdmin,
-	"/bakery.AdminService/GetAllCustomers":       RoleAdmin,
-	"/bakery.AdminService/GetAllBreadMakers":     RoleAdmin,
-	"/bakery.AdminService/GetAllBread":           RoleAdmin,
-	"/bakery.AdminService/GetBreadById":          RoleAdmin,
-	"/bakery.AdminService/CreateBread":           RoleAdmin,
-	"/bakery.AdminService/UpdateBread":           RoleAdmin,
-	"/bakery.AdminService/DeleteBread":           RoleAdmin,
-	"/bakery.AdminService/GetLowStockAlerts":     RoleAdmin,
-	"/bakery.AdminService/UpdateOrderStatus":     RoleAdmin,
-	"/bakery.AdminService/GetCustomerOrders":     RoleAdmin,
-	"/bakery.AdminService/GetMakerOrders":        RoleAdmin,
-	"/bakery.AdminService/GetAllOrders":          RoleAdmin,
-	"/bakery.AdminService/GetAllMakeOrders":      RoleAdmin,
-	"/bakery.AdminService/GetAllInvoices":        RoleAdmin,
+	"/bread.AdminService/GetDashboardStats":     RoleAdmin,
+	"/bread.AdminService/GetAllCustomers":       RoleAdmin,
+	"/bread.AdminService/GetAllBreadMakers":     RoleAdmin,
+	"/bread.AdminService/GetAllBread":           RoleAdmin,
+	"/bread.AdminService/GetBreadById":          RoleAdmin,
+	"/bread.AdminService/CreateBread":           RoleAdmin,
+	"/bread.AdminService/UpdateBread":           RoleAdmin,
+	"/bread.AdminService/DeleteBread":           RoleAdmin,
+	"/bread.AdminService/GetLowStockAlerts":     RoleAdmin,
+	"/bread.AdminService/UpdateOrderStatus":     RoleAdmin,
+	"/bread.AdminService/GetCustomerOrders":     RoleAdmin,
+	"/bread.AdminService/GetMakerOrders":        RoleAdmin,
+	"/bread.AdminService/GetAllOrders":          RoleAdmin,
+	"/bread.AdminService/GetAllMakeOrders":      RoleAdmin,
 
-	// ---- BrokerService (internal, requires customer auth) ----
-	"/bakery.BrokerService/ReportOrder":         RoleCustomer,
-	"/bakery.BrokerService/ReserveInventory":    RoleCustomer,
-	"/bakery.BrokerService/ReportMatchingResults": RoleCustomer,
+	// ---- BrokerService (internal, no auth — broker is trusted) ----
+	"/bread.BrokerService/ReportOrder":           "",
+	"/bread.BrokerService/ReserveInventory":      "",
+	"/bread.BrokerService/ReportMatchingResults": "",
 
-	// ---- BuyBread & related (authenticated customer) ----
-	"/bakery.BuyBreadServer/BuyBread":     RoleCustomer,
-	"/bakery.BuyBreadServer/BuyOrder":     RoleCustomer,
-	"/bakery.BuyBreadServer/BuyOrderStream": RoleCustomer,
+	// ---- BuyBread (authenticated customer) ----
+	"/bread.BuyBread/BuyBread":       "",
+	"/bread.BuyBread/BuyBreadStream": "",
+
+	// ---- BuyOrderService (authenticated customer) ----
+	"/bread.BuyOrderService/BuyOrder":       RoleCustomer,
+	"/bread.BuyOrderService/BuyOrderStream": RoleCustomer,
 
 	// ---- CustomerPortal (authenticated customer) ----
-	"/bakery.CustomerPortalService/GetMyOrders":       RoleCustomer,
-	"/bakery.CustomerPortalService/GetMyInvoices":     RoleCustomer,
-	"/bakery.CustomerPortalService/GetMyBreadHistory": RoleCustomer,
+	"/bread.CustomerPortalService/GetMyOrders":     RoleCustomer,
+	"/bread.CustomerPortalService/GetMyInvoices":   RoleCustomer,
+	"/bread.CustomerPortalService/GetOrderDetails": RoleCustomer,
 
 	// ---- Open endpoints (no auth required) ----
-	"/bakery.CheckInventoryServer/CheckInventory":         "",
-	"/bakery.CheckInventoryServer/CheckInventoryStream":   "",
-	"/bakery.MakeBreadServer/BakeBread":                   "",
-	"/bakery.MakeBreadServer/SendBreadToBakery":           "",
-	"/bakery.MakeBreadServer/RemoveOldBread":              "",
-	"/bakery.AuthService/AdminLogin":                      "",
-	"/bakery.AuthService/CustomerLogin":                   "",
-	"/bakery.AuthService/ValidateToken":                   "",
+	"/bread.CheckInventory/CheckBreadInventory":       "",
+	"/bread.CheckInventory/CheckBreadInventoryStream": "",
+	"/bread.MakeBread/BakeBread":                      "",
+	"/bread.MakeBread/SendBreadToBakery":              "",
+	"/bread.RemoveOldBread/RemoveBread":               "",
+	"/bread.RemoveOldBread/RemoveBreadStream":         "",
+	"/bread.AuthService/AdminLogin":                   "",
+	"/bread.AuthService/CustomerLogin":                "",
+	"/bread.AuthService/ValidateToken":                "",
 
 	// ---- InvoiceService ----
-	"/bakery.InvoiceService/GetInvoice":          "",
-	"/bakery.InvoiceService/GetInvoicesByCustomer": RoleCustomer,
+	"/bread.InvoiceService/GetInvoice":             "",
+	"/bread.InvoiceService/GetCustomerInvoices":    RoleCustomer,
+	"/bread.InvoiceService/GetAllInvoices":         RoleAdmin,
+	"/bread.InvoiceService/CreateInvoice":          RoleAdmin,
 }
 
 // getMethodRole looks up the required role for a gRPC method.

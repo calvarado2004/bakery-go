@@ -18,8 +18,10 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 // sharedGRPCConn is the package-level shared gRPC connection used by all handlers.
@@ -183,7 +185,7 @@ func main() {
 	router.HandleFunc("/portal/invoices", RequireCustomerAuth(CustomerInvoicesHandler)).Methods("GET")
 	router.HandleFunc("/portal/invoices/{id}", RequireCustomerAuth(CustomerInvoiceDetailHandler)).Methods("GET")
 
-	fs := http.FileServer(http.Dir("/cmd/web/templates/static"))
+	fs := http.FileServer(http.Dir("/app/cmd/web/templates/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 
 	log.Fatal(http.ListenAndServe(":8080", router))
@@ -224,7 +226,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	// Use pre-parsed template (Phase 5.2)
 	tmpl, ok := templates["index"]
 	if !ok {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
+		http.Error(w, "Template not found: index", http.StatusInternalServerError)
 		return
 	}
 	err = tmpl.Execute(w, breadLogs)
@@ -279,7 +281,7 @@ func orderDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	// Use pre-parsed template (Phase 5.2)
 	tmpl, ok := templates["order-details"]
 	if !ok {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
+		http.Error(w, "Template not found: order-details", http.StatusInternalServerError)
 		return
 	}
 
@@ -317,6 +319,10 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
+			if statusErr, ok := status.FromError(err); ok && statusErr.Code() == codes.Canceled {
+				log.Info("Stream canceled by client (normal disconnect)")
+				break
+			}
 			log.Errorf("Error receiving from stream: %v", err)
 			break
 		}
@@ -340,6 +346,10 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 			if err != nil {
+				if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "connection reset by peer") {
+					log.Info("Stream client disconnected (normal)")
+					return
+				}
 				log.Errorf("Error writing to stream: %v", err)
 				return
 			}
@@ -382,6 +392,10 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
+			if statusErr, ok := status.FromError(err); ok && statusErr.Code() == codes.Canceled {
+				log.Info("Order stream canceled by client (normal disconnect)")
+				return
+			}
 			log.Printf("Failed to receive from stream: %v", err)
 			http.Error(w, fmt.Sprintf("Error reading from the stream: %v", err), http.StatusInternalServerError)
 			return
@@ -397,10 +411,12 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 		// Write the response in Server-Sent Events (SSE) format
 		_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 		if err != nil {
+			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "connection reset by peer") {
+				log.Info("Order stream client disconnected (normal)")
+				return
+			}
 			return
 		}
-
-		log.Println("Response from server: ", buyOrderResponse.GetBuyOrders())
 
 		// Flush the response writer to send the data immediately
 		flusher, ok := w.(http.Flusher)
@@ -463,23 +479,22 @@ func initTemplates() {
 	}
 
 	// Public page templates
-	publicTemplates := []string{
-		"index.html",
-		"order-details.html",
-		"service.html",
-		"product.html",
-		"team.html",
-		"testimonial.html",
-		"contact.html",
-		"404.html",
+	publicTemplates := map[string]string{
+		"index":            "index.html",
+		"order-details":    "order-details.html",
+		"service":          "service.html",
+		"product":          "product.html",
+		"team":             "team.html",
+		"testimonial":      "testimonial.html",
+		"contact":          "contact.html",
+		"404":              "404.html",
 	}
-	for _, path := range publicTemplates {
+	for key, path := range publicTemplates {
 		tmpl, err := template.ParseFiles(getTemplatePath("./cmd/web/templates/" + path))
 		if err != nil {
 			log.Fatalf("Failed to parse template %s: %v", path, err)
 		}
-		// Use the relative path as key to match staticPageHandler usage
-		templates["./templates/"+path] = tmpl
+		templates[key] = tmpl
 	}
 
 	log.Printf("Pre-parsed %d templates at startup", len(templates))

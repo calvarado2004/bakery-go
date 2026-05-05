@@ -71,9 +71,7 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 	}
 
 	// Write auto-replenishment requests to pending_make_orders table
-	// instead of publishing to make-bread-order (Phase 10.7 boundary).
-	// External makers only consume from make-bread-order; auto-replenishment
-	// is decoupled via this table.
+	// AND publish to make-bread-order RabbitMQ queue so makers can process them.
 	for _, bread := range breads {
 		if bread.Quantity <= 10 {
 			log.Printf("Low stock: %s (%d remaining), creating replenishment request for 50", bread.Name, bread.Quantity)
@@ -86,7 +84,54 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 			})
 			if err != nil {
 				log.Errorf("Failed to create pending make order for bread %d: %v", bread.ID, err)
+				continue
 			}
+
+			// Publish make-bread-order to RabbitMQ so makers can consume and bake
+			makeMsg := map[string]interface{}{
+				"id":          bread.ID,
+				"name":        bread.Name,
+				"quantity":    50,
+				"description": bread.Description,
+				"type":        bread.Type,
+				"price":       bread.Price,
+				"image":       bread.Image,
+				"status":      "pending",
+			}
+			msgData, err := json.Marshal(makeMsg)
+			if err != nil {
+				log.Errorf("Failed to marshal make-bread message for %s: %v", bread.Name, err)
+				continue
+			}
+
+			conn, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+			if err != nil {
+				log.Errorf("Failed to connect to RabbitMQ for make-bread publish: %v", err)
+				continue
+			}
+			ch, err := conn.Channel()
+			if err != nil {
+				log.Errorf("Failed to open channel for make-bread publish: %v", err)
+				conn.Close()
+				continue
+			}
+
+			err = ch.Publish(
+				"",
+				"make-bread-order",
+				false,
+				false,
+				rabbitmq.Publishing{
+					ContentType: "application/json",
+					Body:        msgData,
+				})
+			if err != nil {
+				log.Errorf("Failed to publish make-bread-order for %s: %v", bread.Name, err)
+			} else {
+				log.Printf("Published make-bread-order for %s to RabbitMQ", bread.Name)
+			}
+			ch.Close()
+			conn.Close()
 		} else {
 			log.Printf("Enough bread of %s left, there are available %d", bread.Name, bread.Quantity)
 		}

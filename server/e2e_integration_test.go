@@ -10,6 +10,7 @@ import (
 	"github.com/calvarado2004/bakery-go/testutils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // E2EFixture holds all resources for end-to-end tests
@@ -22,6 +23,7 @@ type E2EFixture struct {
 	AdminClient     pb.AdminServiceClient
 	AuthClient      pb.AuthServiceClient
 	InvoiceClient   pb.InvoiceServiceClient
+	AdminToken      string
 	Cleanup         func()
 }
 
@@ -57,6 +59,17 @@ func NewE2EFixture(t *testing.T) *E2EFixture {
 	fixture.AuthClient = pb.NewAuthServiceClient(conn)
 	fixture.InvoiceClient = pb.NewInvoiceServiceClient(conn)
 
+	// Authenticate as admin so that admin gRPC calls include proper auth token
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	loginResp, err := fixture.AuthClient.AdminLogin(ctx, &pb.LoginRequest{
+		Username: "admin",
+		Password: "admin123",
+	})
+	if err == nil && loginResp != nil && loginResp.Success {
+		fixture.AdminToken = loginResp.Token
+	}
+
 	// Set up cleanup
 	fixture.Cleanup = func() {
 		if err := conn.Close(); err != nil {
@@ -68,6 +81,15 @@ func NewE2EFixture(t *testing.T) *E2EFixture {
 	}
 
 	return fixture
+}
+
+// adminContext returns a context with the admin auth token attached as metadata.
+// Use this for all AdminService gRPC calls in tests.
+func (f *E2EFixture) adminContext(ctx context.Context) context.Context {
+	if f.AdminToken != "" {
+		return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+f.AdminToken)
+	}
+	return ctx
 }
 
 // TestFullBuyOrderFlow tests the complete buy order flow through RabbitMQ
@@ -260,7 +282,7 @@ func TestLowStockRestockFlow(t *testing.T) {
 
 	t.Run("FindLowStockBread", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetLowStockAlerts(ctx, req)
+		resp, err := fixture.AdminClient.GetLowStockAlerts(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Skipf("Could not get low stock alerts: %v", err)
 		}
@@ -328,7 +350,7 @@ func TestAdminDashboardFlow(t *testing.T) {
 
 	t.Run("GetDashboardStats", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetDashboardStats(ctx, req)
+		resp, err := fixture.AdminClient.GetDashboardStats(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetDashboardStats failed: %v", err)
 		}
@@ -345,7 +367,7 @@ func TestAdminDashboardFlow(t *testing.T) {
 	t.Run("VerifyStatsConsistency", func(t *testing.T) {
 		// Get dashboard stats
 		dashReq := &pb.Empty{}
-		dashResp, _ := fixture.AdminClient.GetDashboardStats(ctx, dashReq)
+		dashResp, _ := fixture.AdminClient.GetDashboardStats(fixture.adminContext(ctx), dashReq)
 
 		// Verify against direct database counts
 		var dbOrderCount, dbCustomerCount, dbBreadCount, dbMakerCount int
@@ -574,7 +596,7 @@ func TestGetAllEndpoints(t *testing.T) {
 
 	t.Run("GetAllBuyOrders", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetAllOrders(ctx, req)
+		resp, err := fixture.AdminClient.GetAllOrders(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetAllOrders failed: %v", err)
 		}
@@ -583,7 +605,7 @@ func TestGetAllEndpoints(t *testing.T) {
 
 	t.Run("GetAllCustomers", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetAllCustomers(ctx, req)
+		resp, err := fixture.AdminClient.GetAllCustomers(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetAllCustomers failed: %v", err)
 		}
@@ -592,7 +614,7 @@ func TestGetAllEndpoints(t *testing.T) {
 
 	t.Run("GetAllBreadMakers", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetAllBreadMakers(ctx, req)
+		resp, err := fixture.AdminClient.GetAllBreadMakers(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetAllBreadMakers failed: %v", err)
 		}
@@ -601,7 +623,7 @@ func TestGetAllEndpoints(t *testing.T) {
 
 	t.Run("GetAllBread", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetAllBread(ctx, req)
+		resp, err := fixture.AdminClient.GetAllBread(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetAllBread failed: %v", err)
 		}
@@ -610,7 +632,7 @@ func TestGetAllEndpoints(t *testing.T) {
 
 	t.Run("GetAllMakeOrders", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := fixture.AdminClient.GetAllMakeOrders(ctx, req)
+		resp, err := fixture.AdminClient.GetAllMakeOrders(fixture.adminContext(ctx), req)
 		if err != nil {
 			t.Fatalf("GetAllMakeOrders failed: %v", err)
 		}

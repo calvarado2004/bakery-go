@@ -29,10 +29,12 @@ RUN chmod +x /app/main
 
 FROM docker.io/alpine:latest
 
-RUN mkdir /app
+WORKDIR /app
 
-COPY --from=builder /app/main /app
+RUN mkdir -p /app
 
-COPY frontend/cmd/web/templates ./cmd/web/templates
+COPY --from=builder /app/main /app/
+
+COPY --from=builder /app/cmd/web/templates /app/cmd/web/templates
 
 CMD [ "/app/main"]

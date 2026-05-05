@@ -198,6 +198,18 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 
 ## Recent Changes
 
+### Server Auth and Replenishment Fixes (Phase 12)
+
+**BuyBread auth fix**: `BuyBread` and `BuyBreadStream` were configured as `RoleCustomer` in the RBAC middleware, requiring JWT authentication. The internal `buyers` service does not send auth tokens, causing all buy attempts to fail with `"rpc error: code = Unauthenticated desc = authorization token is required"`. Fixed by removing auth requirement from these endpoints.
+
+**Auto-replenishment RabbitMQ publish**: The `checkBread()` function was creating `pending_make_orders` DB records when bread fell below 10 units, but was NOT publishing to the `make-bread-order` RabbitMQ queue where the `makers` service listens. This caused bread quantities to remain at 1 indefinitely — the stream showed `Quantity:1` instead of the expected 50. Fixed by adding RabbitMQ publish in `checkBread()` after each DB insert.
+
+**Changes:**
+- `server/middleware.go`: `BuyBread` and `BuyBreadStream` moved from `RoleCustomer` to open (no auth required)
+- `server/rabbitBakery.go`: Added RabbitMQ publish to `make-bread-order` queue inside `checkBread()` after `InsertPendingMakeOrder`
+- `frontend/dockerfile`: Fixed WORKDIR to `/app`, fixed template key registration, fixed static file serving path (`http.Dir` to `/app/...`)
+- `frontend/cmd/web/main.go`: Fixed `initTemplates()` to use simple keys (`"index"`, `"service"`, etc.) for public templates; fixed streamHandler to properly parse stream data
+
 ### Frontend gRPC Auth Fix (Phase 11)
 Fixed frontend handlers that were calling gRPC endpoints without authentication tokens. The server's RBAC interceptor requires `authorization: Bearer <token>` metadata for all Admin and Customer methods, but frontend handlers were passing `r.Context()` directly without the JWT token.
 
