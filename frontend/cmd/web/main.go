@@ -193,8 +193,14 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 
-	// Use r.Context() instead of context.Background() (Phase 5.3)
-	response, err := client.CheckBreadInventory(r.Context(), &pb.BreadRequest{})
+	// Best-effort auth context: include Bearer token if admin is logged in
+	// CheckBreadInventory is open by default, but some server configs require auth.
+	var ctx context.Context = r.Context()
+	if authCtx, err := adminGRPCContext(r); err == nil {
+		ctx = authCtx
+	}
+
+	response, err := client.CheckBreadInventory(ctx, &pb.BreadRequest{})
 	if err != nil {
 		log.Errorf("Error calling GetAvailableBreads service: %v", err)
 		http.Error(w, "Failed to fetch inventory", http.StatusInternalServerError)
@@ -249,8 +255,13 @@ func orderDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	// Use shared gRPC client (Phase 5.1)
 	client := getSharedGRPCClient()
 
-	// Use r.Context() instead of context.Background() (Phase 5.3)
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	// Admin auth context — GetAllOrders requires RoleAdmin
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	orders, err := client.GetAllOrders(ctx, &pb.Empty{})
@@ -286,8 +297,14 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 
+	// Best-effort auth context: include Bearer token if available
+	var ctx context.Context = r.Context()
+	if authCtx, err := adminGRPCContext(r); err == nil {
+		ctx = authCtx
+	}
+
 	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
-	stream, err := client.CheckBreadInventoryStream(r.Context(), &pb.BreadRequest{})
+	stream, err := client.CheckBreadInventoryStream(ctx, &pb.BreadRequest{})
 	if err != nil {
 		log.Errorf("Error calling BreadUpdates service: %v", err)
 		fmt.Fprintf(w, "data: {\"error\": \"failed to start stream\"}\n\n")
@@ -344,8 +361,14 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewBuyOrderServiceClient(sharedGRPCConn)
 
+	// Best-effort auth context: include customer token if available
+	var ctx context.Context = r.Context()
+	if authCtx := customerGRPCContext(r); authCtx != r.Context() {
+		ctx = authCtx
+	}
+
 	// Call gRPC stream — use r.Context() so the stream stops when the client disconnects
-	stream, err := client.BuyOrderStream(r.Context(), &pb.BuyOrderRequest{})
+	stream, err := client.BuyOrderStream(ctx, &pb.BuyOrderRequest{})
 	if err != nil {
 		http.Error(w, "Error calling BreadUpdates service", http.StatusInternalServerError)
 		return
@@ -416,7 +439,8 @@ func initTemplates() {
 		if err != nil {
 			log.Fatalf("Failed to parse admin template %s: %v", t, err)
 		}
-		templates[t] = tmpl
+		// Use "admin/" prefix to avoid collision with portal templates
+		templates["admin/"+t] = tmpl
 	}
 
 	portalTemplates := []string{
@@ -434,26 +458,28 @@ func initTemplates() {
 		if err != nil {
 			log.Fatalf("Failed to parse portal template %s: %v", t, err)
 		}
-		templates[t] = tmpl
+		// Use "portal/" prefix to avoid collision with admin templates
+		templates["portal/"+t] = tmpl
 	}
 
 	// Public page templates
-	publicTemplates := map[string]string{
-		"index.html":       "index",
-		"order-details.html": "order-details",
-		"service.html":     "service",
-		"product.html":     "product",
-		"team.html":        "team",
-		"testimonial.html": "testimonial",
-		"contact.html":     "contact",
-		"404.html":         "404",
+	publicTemplates := []string{
+		"index.html",
+		"order-details.html",
+		"service.html",
+		"product.html",
+		"team.html",
+		"testimonial.html",
+		"contact.html",
+		"404.html",
 	}
-	for path, name := range publicTemplates {
+	for _, path := range publicTemplates {
 		tmpl, err := template.ParseFiles(getTemplatePath("./cmd/web/templates/" + path))
 		if err != nil {
-			log.Fatalf("Failed to parse template %s: %v", name, err)
+			log.Fatalf("Failed to parse template %s: %v", path, err)
 		}
-		templates[name] = tmpl
+		// Use the relative path as key to match staticPageHandler usage
+		templates["./templates/"+path] = tmpl
 	}
 
 	log.Printf("Pre-parsed %d templates at startup", len(templates))

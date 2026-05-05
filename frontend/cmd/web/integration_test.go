@@ -22,6 +22,12 @@ func init() {
 	os.Setenv("CSRF_KEY", "test-csrf-key-for-unit-tests-only")
 }
 
+func TestMain(m *testing.M) {
+	// Initialize templates so handlers don't panic on nil map
+	initTemplates()
+	os.Exit(m.Run())
+}
+
 // TestFrontend_HomeHandler_Integration tests the home handler with real gRPC
 func TestFrontend_HomeHandler_Integration(t *testing.T) {
 	// Skip if gRPC server is not running
@@ -90,6 +96,9 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 		}
 		defer conn.Close()
 
+		// Set shared connection so handlers can use it
+		SetSharedGRPCConn(conn)
+
 		authClient := pb.NewAuthServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -103,10 +112,10 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 			t.Skipf("Could not get admin token: %v", err)
 		}
 
-		// Set cookie
+		// Set cookie with correct name (admin_token, not admin_jwt)
 		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "admin_jwt",
+			Name:  "admin_token",
 			Value: loginResp.Token,
 		})
 		rr := httptest.NewRecorder()
@@ -128,6 +137,9 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 		}
 		defer conn.Close()
 
+		// Set shared connection so handlers can use it
+		SetSharedGRPCConn(conn)
+
 		authClient := pb.NewAuthServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -136,11 +148,14 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 			Username: "admin",
 			Password: "admin123",
 		}
-		loginResp, _ := authClient.AdminLogin(ctx, loginReq)
+		loginResp, err := authClient.AdminLogin(ctx, loginReq)
+		if err != nil {
+			t.Skipf("Could not login: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/bread", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "admin_jwt",
+			Name:  "admin_token",
 			Value: loginResp.Token,
 		})
 		rr := httptest.NewRecorder()
@@ -220,6 +235,9 @@ func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
 		}
 		defer conn.Close()
 
+		// Set shared connection so handlers can use it
+		SetSharedGRPCConn(conn)
+
 		authClient := pb.NewAuthServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -228,11 +246,14 @@ func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
 			Email:    "john@doe.com",
 			Password: "password123",
 		}
-		loginResp, _ := authClient.CustomerLogin(ctx, loginReq)
+		loginResp, err := authClient.CustomerLogin(ctx, loginReq)
+		if err != nil {
+			t.Skipf("Could not login: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/portal", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "customer_jwt",
+			Name:  "customer_token",
 			Value: loginResp.Token,
 		})
 		rr := httptest.NewRecorder()
@@ -348,6 +369,9 @@ func TestFrontend_JSONResponse_Integration(t *testing.T) {
 		}
 		defer conn.Close()
 
+		// Set shared connection so handlers can use it
+		SetSharedGRPCConn(conn)
+
 		authClient := pb.NewAuthServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -356,11 +380,14 @@ func TestFrontend_JSONResponse_Integration(t *testing.T) {
 			Username: "admin",
 			Password: "admin123",
 		}
-		loginResp, _ := authClient.AdminLogin(ctx, loginReq)
+		loginResp, err := authClient.AdminLogin(ctx, loginReq)
+		if err != nil {
+			t.Skipf("Could not login: %v", err)
+		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/alerts", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "admin_jwt",
+			Name:  "admin_token",
 			Value: loginResp.Token,
 		})
 		rr := httptest.NewRecorder()

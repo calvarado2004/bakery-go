@@ -60,6 +60,17 @@ func adminGRPCContext(r *http.Request) (context.Context, error) {
 	return metadata.NewOutgoingContext(r.Context(), md), nil
 }
 
+// adminGRPCContextWithTimeout is a convenience that wraps adminGRPCContext
+// with a timeout. Returns (context, cancel, error) ready for immediate use.
+func adminGRPCContextWithTimeout(r *http.Request, timeout time.Duration) (context.Context, context.CancelFunc, error) {
+	grpcCtx, err := adminGRPCContext(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(grpcCtx, timeout)
+	return ctx, cancel, nil
+}
+
 // ── Admin Login Handlers ──
 
 func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +88,7 @@ func AdminLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: csrf.Token(r),
 	}
 
-	tmpl, ok := templates["admin/login"]
+	tmpl, ok := templates["admin/login.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -157,7 +168,7 @@ func CustomerLoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: csrf.Token(r),
 	}
 
-	tmpl, ok := templates["portal/login"]
+	tmpl, ok := templates["portal/login.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -315,15 +326,38 @@ func getAdminUserFromToken(r *http.Request) (int, string, string) {
 }
 
 // customerGRPCContext returns a context with the authenticated customer's
-// ID attached as gRPC outgoing metadata (Phase 6.6). This allows the
-// server to extract the customer identity for order attribution.
+// ID and Bearer token attached as gRPC outgoing metadata. This allows the
+// server to validate the JWT (authorization) and extract the customer identity
+// (customer_id) for order attribution.
 func customerGRPCContext(r *http.Request) context.Context {
 	customerID := getCustomerIDFromToken(r)
-	if customerID == 0 {
+	cookie, err := r.Cookie("customer_token")
+	hasCookie := err == nil && cookie.Value != ""
+
+	if customerID == 0 && !hasCookie {
 		return r.Context()
 	}
-	md := metadata.Pairs("customer_id", strconv.Itoa(customerID))
+
+	var md metadata.MD
+	if hasCookie {
+		md = metadata.Pairs("authorization", "Bearer "+cookie.Value)
+	}
+	if customerID > 0 {
+		if md == nil {
+			md = metadata.Pairs("customer_id", strconv.Itoa(customerID))
+		} else {
+			md = metadata.Pairs("authorization", "Bearer "+cookie.Value, "customer_id", strconv.Itoa(customerID))
+		}
+	}
 	return metadata.NewOutgoingContext(r.Context(), md)
+}
+
+// customerGRPCContextWithTimeout is a convenience that wraps customerGRPCContext
+// with a timeout. Returns (context, cancel, error) ready for immediate use.
+func customerGRPCContextWithTimeout(r *http.Request, timeout time.Duration) (context.Context, context.CancelFunc, error) {
+	grpcCtx := customerGRPCContext(r)
+	ctx, cancel := context.WithTimeout(grpcCtx, timeout)
+	return ctx, cancel, nil
 }
 
 // ── Customer Portal Handlers ──
@@ -406,7 +440,7 @@ func CustomerPortalDashboardHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tmpl, ok := templates["portal/base"]
+	tmpl, ok := templates["portal/base.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -446,7 +480,7 @@ func CustomerOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		data.CustomerName = ordersResp.Customer.Name
 	}
 
-	tmpl, ok := templates["portal/orders"]
+	tmpl, ok := templates["portal/orders.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -503,7 +537,7 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		TotalCost:    orderResp.TotalCost,
 	}
 
-	tmpl, ok := templates["portal/order_detail"]
+	tmpl, ok := templates["portal/order_detail.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -546,7 +580,7 @@ func CustomerInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 		Invoices:     invoicesResp.Invoices,
 	}
 
-	tmpl, ok := templates["portal/invoices"]
+	tmpl, ok := templates["portal/invoices.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -604,7 +638,7 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		Invoice:      invoice,
 	}
 
-	tmpl, ok := templates["portal/invoice_detail"]
+	tmpl, ok := templates["portal/invoice_detail.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -49,8 +48,13 @@ func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	// Phase 5.1: Use shared gRPC client
 	client := getSharedGRPCClient()
 
-	// Phase 5.3 + 6.4: Use r.Context() with timeout (request cancels on disconnect)
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	// Auth context with timeout (includes Bearer token for gRPC RBAC)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	stats, err := client.GetDashboardStats(ctx, &pb.Empty{})
@@ -81,7 +85,7 @@ func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Phase 5.2: Use pre-parsed template
-	tmpl, ok := templates["base"]
+	tmpl, ok := templates["admin/base.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -95,7 +99,12 @@ func AdminDashboardHandler(w http.ResponseWriter, r *http.Request) {
 func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 	client := getSharedGRPCClient()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	breads, err := client.GetAllBread(ctx, &pb.Empty{})
@@ -110,7 +119,7 @@ func AdminBreadListHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 	data.CSRFToken = csrf.Token(r)
 
-	tmpl, ok := templates["bread/list"]
+	tmpl, ok := templates["admin/bread/list.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -125,7 +134,7 @@ func AdminBreadNewHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "New Bread", "bread")
 	data.CSRFToken = csrf.Token(r)
 
-	tmpl, ok := templates["bread/form"]
+	tmpl, ok := templates["admin/bread/form.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -147,7 +156,12 @@ func AdminBreadCreateHandler(w http.ResponseWriter, r *http.Request) {
 	quantity, _ := strconv.Atoi(r.FormValue("quantity"))
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	_, err = client.CreateBread(ctx, &pb.CreateBreadRequest{
@@ -172,7 +186,12 @@ func AdminBreadEditHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(vars["id"])
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	bread, err := client.GetBreadById(ctx, &pb.BreadIdRequest{Id: int32(id)})
@@ -186,7 +205,7 @@ func AdminBreadEditHandler(w http.ResponseWriter, r *http.Request) {
 	data.Bread = bread
 	data.CSRFToken = csrf.Token(r)
 
-	tmpl, ok := templates["bread/form"]
+	tmpl, ok := templates["admin/bread/form.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -211,7 +230,12 @@ func AdminBreadUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	quantity, _ := strconv.Atoi(r.FormValue("quantity"))
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	_, err = client.UpdateBread(ctx, &pb.UpdateBreadRequest{
@@ -237,10 +261,15 @@ func AdminBreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(vars["id"])
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
-	_, err := client.DeleteBread(ctx, &pb.DeleteBreadRequest{Id: int32(id)})
+	_, err = client.DeleteBread(ctx, &pb.DeleteBreadRequest{Id: int32(id)})
 	if err != nil {
 		log.Errorf("Error deleting bread: %v", err)
 		http.Error(w, "Failed to delete bread", http.StatusInternalServerError)
@@ -252,7 +281,12 @@ func AdminBreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	orders, err := client.GetAllOrders(ctx, &pb.Empty{})
@@ -272,7 +306,7 @@ func AdminOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 	data.CSRFToken = csrf.Token(r)
 
-	tmpl, ok := templates["orders/list"]
+	tmpl, ok := templates["admin/orders/list.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -297,7 +331,12 @@ func AdminOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	log.Infof("AdminOrderStatusHandler: Received request to update order %s to status '%s'", uuid, newStatus)
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	result, err := client.UpdateOrderStatus(ctx, &pb.UpdateOrderStatusRequest{
@@ -316,7 +355,12 @@ func AdminOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func AdminCustomersHandler(w http.ResponseWriter, r *http.Request) {
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	customers, err := client.GetAllCustomers(ctx, &pb.Empty{})
@@ -329,7 +373,7 @@ func AdminCustomersHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "Customer Management", "customers")
 	data.Customers = customers.Customers
 
-	tmpl, ok := templates["customers/list"]
+	tmpl, ok := templates["admin/customers/list.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -345,7 +389,12 @@ func AdminCustomerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(vars["id"])
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	response, err := client.GetCustomerOrders(ctx, &pb.CustomerIdRequest{Id: int32(id)})
@@ -359,7 +408,7 @@ func AdminCustomerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	data.Customer = response.Customer
 	data.Orders = response.Orders
 
-	tmpl, ok := templates["customers/detail"]
+	tmpl, ok := templates["admin/customers/detail.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -372,7 +421,12 @@ func AdminCustomerDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 func AdminMakersHandler(w http.ResponseWriter, r *http.Request) {
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	makers, err := client.GetAllBreadMakers(ctx, &pb.Empty{})
@@ -385,7 +439,7 @@ func AdminMakersHandler(w http.ResponseWriter, r *http.Request) {
 	data := newAdminTemplateData(r, "Bread Maker Management", "makers")
 	data.Makers = makers.BreadMakers
 
-	tmpl, ok := templates["makers/list"]
+	tmpl, ok := templates["admin/makers/list.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -401,7 +455,12 @@ func AdminMakerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(vars["id"])
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	response, err := client.GetMakerOrders(ctx, &pb.BreadMakerIdRequest{Id: int32(id)})
@@ -415,7 +474,7 @@ func AdminMakerDetailHandler(w http.ResponseWriter, r *http.Request) {
 	data.Maker = response.Maker
 	data.MakeOrders = response.Orders
 
-	tmpl, ok := templates["makers/detail"]
+	tmpl, ok := templates["admin/makers/detail.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -428,7 +487,12 @@ func AdminMakerDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 func AdminAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	alerts, err := client.GetLowStockAlerts(ctx, &pb.Empty{})
@@ -443,7 +507,7 @@ func AdminAlertsHandler(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("message")
 	data.CSRFToken = csrf.Token(r)
 
-	tmpl, ok := templates["alerts"]
+	tmpl, ok := templates["admin/alerts.html"]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -459,7 +523,6 @@ func AdminDashboardStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Phase 5.1: Use shared gRPC connection for SSE streams
 	client := getSharedGRPCClient()
 
 	flusher, ok := w.(http.Flusher)
@@ -473,7 +536,11 @@ func AdminDashboardStreamHandler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+			if err != nil {
+				log.Errorf("Error getting admin auth context: %v", err)
+				return
+			}
 			stats, err := client.GetDashboardStats(ctx, &pb.Empty{})
 			cancel()
 			if err != nil {
@@ -500,7 +567,6 @@ func AdminAlertsStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Phase 5.1: Use shared gRPC connection for SSE streams
 	client := getSharedGRPCClient()
 
 	flusher, ok := w.(http.Flusher)
@@ -514,7 +580,11 @@ func AdminAlertsStreamHandler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+			if err != nil {
+				log.Errorf("Error getting admin auth context: %v", err)
+				return
+			}
 			alerts, err := client.GetLowStockAlerts(ctx, &pb.Empty{})
 			cancel()
 			if err != nil {
@@ -549,7 +619,12 @@ func AdminAdjustQuantityHandler(w http.ResponseWriter, r *http.Request) {
 	quantity, _ := strconv.Atoi(r.FormValue("quantity"))
 
 	client := getSharedGRPCClient()
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel, err := adminGRPCContextWithTimeout(r, 10*time.Second)
+	if err != nil {
+		log.Errorf("Error getting admin auth context: %v", err)
+		http.Redirect(w, r, "/admin/login?error=Session+expired", http.StatusSeeOther)
+		return
+	}
 	defer cancel()
 
 	// Get current bread

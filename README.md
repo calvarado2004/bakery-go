@@ -198,6 +198,20 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 
 ## Recent Changes
 
+### Frontend gRPC Auth Fix (Phase 11)
+Fixed frontend handlers that were calling gRPC endpoints without authentication tokens. The server's RBAC interceptor requires `authorization: Bearer <token>` metadata for all Admin and Customer methods, but frontend handlers were passing `r.Context()` directly without the JWT token.
+
+**Changes:**
+- Added `adminGRPCContext()` and `adminGRPCContextWithTimeout()` helpers in `auth_handlers.go` to attach the admin JWT as gRPC metadata
+- Enhanced `customerGRPCContext()` to include both `authorization` and `customer_id` metadata
+- Updated all admin handlers in `admin_handlers.go` to use `adminGRPCContextWithTimeout()` instead of `r.Context()`
+- Updated customer portal handlers to include auth metadata
+- Updated public handlers (`homeHandler`, `streamHandler`) to use best-effort auth (include token if available, graceful fallback)
+- Updated `orderDetailsHandler` and `orderStreamHandler` to pass auth context
+- Fixed template key collisions: admin and portal templates now use `"admin/"` and `"portal/"` prefixes
+- Added dedicated auth test file (`auth_test.go`) to catch missing auth issues
+- Fixed integration test cookie names (`admin_token`/`customer_token`) and error handling
+
 ### Phase 10: External/Internal Boundary Decoupling
 
 **Complete rewrite of service boundaries** — the broker no longer connects to PostgreSQL.

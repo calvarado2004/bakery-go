@@ -45,6 +45,9 @@ func main() {
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
 
+	log.Println("=== Makers Service Starting ===")
+	log.Printf("RabbitMQ address: %s", rabbitmqAddress)
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -57,16 +60,20 @@ func main() {
 		runMakersConsumer(&wg)
 	}()
 
+	log.Println("Makers service is now listening for make-bread-order messages")
+
 	// Wait for shutdown signal
 	<-sigCh
 	log.Println("Shutdown signal received, draining...")
 	wg.Wait()
+	log.Println("=== Makers Service Stopped ===")
 }
 
 func runMakersConsumer(wg *sync.WaitGroup) {
 	reconnectDelay := 5 * time.Second
 
-	for {
+	for attempt := 1; ; attempt++ {
+		log.Printf("Consumer loop attempt #%d", attempt)
 		if err := runConsumerLoop(); err != nil {
 			log.Errorf("Consumer loop error: %v, reconnecting in %v", err, reconnectDelay)
 			time.Sleep(reconnectDelay)
@@ -80,14 +87,19 @@ func runMakersConsumer(wg *sync.WaitGroup) {
 }
 
 func runConsumerLoop() error {
+	log.Println("[consumers] Initializing RabbitMQ connection...")
+
 	// Lazy-init RabbitMQ connection so it's fresh on each reconnect
 	if err := initializeRabbitMQ(rabbitmqAddress); err != nil {
 		return fmt.Errorf("RabbitMQ initialization: %w", err)
 	}
+	log.Println("[consumers] RabbitMQ connection established, channel open")
 
+	log.Println("[consumers] Setting up consumer channel with QoS(5)...")
 	if err := setupConsumerChannel(); err != nil {
 		return fmt.Errorf("consumer channel setup: %w", err)
 	}
+	log.Println("[consumers] Queue 'make-bread-order' declared, starting consumer...")
 
 	breadsBought, err := rabbitmqChannel.Consume(
 		"make-bread-order", // queue
@@ -101,6 +113,7 @@ func runConsumerLoop() error {
 	if err != nil {
 		return fmt.Errorf("Failed to consume from make bread order queue: %v", err)
 	}
+	log.Println("[consumers] Successfully consuming from 'make-bread-order' — waiting for messages...")
 
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,16 +178,19 @@ func initializeRabbitMQ(rabbitmqAddr string) error {
 		return fmt.Errorf("RABBITMQ_SERVICE_ADDR not set")
 	}
 
+	log.Printf("[connect] Dialing RabbitMQ at %s...", rabbitmqAddr)
 	var err error
 	rabbitmqConnection, err = rabbitmq.Dial(rabbitmqAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to connect to RabbitMQ: %w", err)
 	}
+	log.Printf("[connect] RabbitMQ connection established (remote: %s, local: %s)", rabbitmqConnection.RemoteAddr(), rabbitmqConnection.LocalAddr())
 
 	rabbitmqChannel, err = rabbitmqConnection.Channel()
 	if err != nil {
 		return fmt.Errorf("Failed to open a channel: %w", err)
 	}
+	log.Println("[connect] Channel opened successfully")
 
 	return nil
 }
@@ -191,10 +207,11 @@ func processMakeBreadMessage(body []byte) error {
 		return fmt.Errorf("unmarshal make-bread message: %w", err)
 	}
 
-	log.Printf("Making bread: %s (ID=%d, qty=%d)", msg.Name, msg.ID, msg.Quantity)
+	log.Printf("[process] Received make request: %s (ID=%d, qty=%d, type=%s)", msg.Name, msg.ID, msg.Quantity, msg.Type)
 
 	// Simulate bread baking (no DB access)
 	// In production, this would call the actual bakery production system
+	// No sleep here — process immediately
 
 	// Publish confirmation to bread-made queue for the server to pick up
 	confirmation := breadMadeMessage{
@@ -219,7 +236,7 @@ func processMakeBreadMessage(body []byte) error {
 		return fmt.Errorf("publish bread-made confirmation: %w", err)
 	}
 
-	log.Printf("Made bread %s (ID=%d), quantity %d — confirmed to server", msg.Name, msg.ID, msg.Quantity)
+	log.Printf("[process] Made bread %s (ID=%d), qty %d — published confirmation to 'bread-made' queue", msg.Name, msg.ID, msg.Quantity)
 	return nil
 }
 
