@@ -198,16 +198,29 @@ docker buildx build --platform linux/amd64 -t docker.io/calvarado2004/bakery-go-
 
 ## Recent Changes
 
-### Server Auth and Replenishment Fixes (Phase 12)
+### Frontend Stream Error Suppression (Phase 12.2)
+
+**Stream error fix**: The frontend `streamHandler` and `orderStreamHandler` were logging `context canceled` and `broken pipe` errors at error level when clients disconnected normally (page refresh, navigate away). Fixed by detecting gRPC `codes.Canceled` and "broken pipe"/"connection reset by peer" errors and logging them at info level instead.
+
+**Auto-replenishment seed data**: Default users (John Doe, Admin User, Bread Maker) are now managed via `seed-default-users.sql` instead of hardcoded in production code. Apply with `psql -d bakery -f seed-default-users.sql`.
+
+**Changes:**
+- `frontend/cmd/web/main.go`: Stream handlers now suppress `codes.Canceled` and `broken pipe` errors at error level
+- `frontend/cmd/web/main.go`: Added `grpc/status` and `grpc/codes` imports for proper gRPC error detection
+- `seed-default-users.sql`: SQL seed file for default users (no hardcoded users in production code)
+- `kubernetes/seed-default-users.sql`: Copy for OCP deployment
+
+### Server Auth and Replenishment Fixes (Phase 12.1)
 
 **BuyBread auth fix**: `BuyBread` and `BuyBreadStream` were configured as `RoleCustomer` in the RBAC middleware, requiring JWT authentication. The internal `buyers` service does not send auth tokens, causing all buy attempts to fail with `"rpc error: code = Unauthenticated desc = authorization token is required"`. Fixed by removing auth requirement from these endpoints.
 
 **Auto-replenishment RabbitMQ publish**: The `checkBread()` function was creating `pending_make_orders` DB records when bread fell below 10 units, but was NOT publishing to the `make-bread-order` RabbitMQ queue where the `makers` service listens. This caused bread quantities to remain at 1 indefinitely — the stream showed `Quantity:1` instead of the expected 50. Fixed by adding RabbitMQ publish in `checkBread()` after each DB insert.
 
 **Changes:**
-- `server/middleware.go`: `BuyBread` and `BuyBreadStream` moved from `RoleCustomer` to open (no auth required)
+- `server/middleware.go`: `BuyBread`, `BuyBreadStream`, and all `BrokerService` endpoints moved from `RoleCustomer` to open (no auth required)
+- `server/gRPCBakery.go`: BuyBread customer ID defaults to 1 (John Doe) when no auth context; comment references `seed-default-users.sql`
 - `server/rabbitBakery.go`: Added RabbitMQ publish to `make-bread-order` queue inside `checkBread()` after `InsertPendingMakeOrder`
-- `frontend/dockerfile`: Fixed WORKDIR to `/app`, fixed template key registration, fixed static file serving path (`http.Dir` to `/app/...`)
+- `frontend.dockerfile`: Fixed WORKDIR to `/app`, fixed template key registration, fixed static file serving path (`http.Dir` to `/app/...`)
 - `frontend/cmd/web/main.go`: Fixed `initTemplates()` to use simple keys (`"index"`, `"service"`, etc.) for public templates; fixed streamHandler to properly parse stream data
 
 ### Frontend gRPC Auth Fix (Phase 11)
