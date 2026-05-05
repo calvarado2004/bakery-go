@@ -334,14 +334,20 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 
 	breadsToBuy := in.Breads.GetBreads()
 
+	// Extract customer ID from context metadata (Phase 6.6).
+	// The frontend attaches customer_id as gRPC metadata when the customer is authenticated.
+	// Falls back to customer ID 1 if not present (unauthenticated/legacy clients).
+	customerID := GetCustomerIDFromContext(ctx)
+	if customerID == 0 {
+		customerID = 1 // default fallback
+	}
+
 	buyerCustomer := data.Customer{
-		ID:        1,
-		Name:      "John Doe",
-		Email:     "john@doe.com",
+		ID:        customerID,
 		CreatedAt: time.Now(),
 	}
 
-	buyOrder.CustomerID = 1
+	buyOrder.CustomerID = customerID
 	buyOrder.Customer = buyerCustomer
 
 	for _, bread := range breadsToBuy {

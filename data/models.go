@@ -926,14 +926,16 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 	return orders, nil
 }
 
-// InsertOutboxMessage inserts a message into the outbox table for later processing
+// InsertOutboxMessage inserts a message into the outbox table for later processing.
+// The sent field is always set to false — the claim pattern (ClaimOutboxMessage)
+// atomically flips it to true during processing, preventing duplicate handling.
+// (ARCHITECTURE_AUDIT §6.2)
 func (u *PostgresRepository) InsertOutboxMessage(message OutboxMessage) error {
-
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	stmt := `INSERT INTO outbox (id, payload, sent, created_at) VALUES ($1, $2, $3, $4)`
-	_, err := db.ExecContext(ctx, stmt, message.ID, message.Payload, message.Sent, message.CreatedAt)
+	stmt := `INSERT INTO outbox (id, payload, sent, created_at) VALUES ($1, $2, false, $3)`
+	_, err := u.Conn.ExecContext(ctx, stmt, message.ID, message.Payload, message.CreatedAt)
 	if err != nil {
 		log.Errorf("Error inserting outbox message: %v", err)
 		return err
@@ -979,6 +981,45 @@ func (u *PostgresRepository) GetUnprocessedOutboxMessages() ([]OutboxMessage, er
 	}
 
 	return messages, nil
+}
+
+// ClaimOutboxMessage atomically claims the oldest unprocessed outbox message
+// for delivery. It uses SELECT ... FOR UPDATE SKIP LOCKED to safely claim
+// a message even under concurrent pollers. Returns the claimed message or nil
+// if no messages are available.
+//
+// This is the "claim" part of the outbox claim pattern (ARCHITECTURE_AUDIT §6.2):
+//   1. Claim: atomically lock and mark a message as being processed
+//   2. Publish: deliver the message to the external system
+//   3. Delete: remove the message after successful delivery
+func (u *PostgresRepository) ClaimOutboxMessage() (*OutboxMessage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	// Atomically select one unprocessed message and mark it as "being processed"
+	// by flipping sent=true in the same query. Other pollers skip this row
+	// via SKIP LOCKED.
+	stmt := `UPDATE outbox SET sent = true
+		WHERE id = (
+			SELECT id FROM outbox
+			WHERE sent = false
+			ORDER BY created_at ASC
+			LIMIT 1
+			FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, payload, sent, created_at`
+
+	var msg OutboxMessage
+	err := u.Conn.QueryRowContext(ctx, stmt).Scan(&msg.ID, &msg.Payload, &msg.Sent, &msg.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // no messages to claim
+		}
+		log.Errorf("Error claiming outbox message: %v", err)
+		return nil, err
+	}
+
+	return &msg, nil
 }
 
 // DeleteOutboxMessage removes an outbox message from the database (as is no longer needed)

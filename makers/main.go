@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/calvarado2004/bakery-go/data"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
 
 	log "github.com/sirupsen/logrus"
@@ -19,71 +17,33 @@ import (
 
 var rabbitmqAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
 
-// Config is kept for backwards compatibility with tests.
-// The Client field is unused by the makers service.
-type Config struct {
-	Repo   data.Repository
-	Client *http.Client
+// makeBreadMessage represents the bread order received from the server.
+type makeBreadMessage struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	Quantity    int     `json:"quantity"`
+	Description string  `json:"description"`
+	Type        string  `json:"type"`
+	Price       float64 `json:"price"`
+	Status      string  `json:"status"`
+	Image       string  `json:"image"`
 }
 
-// setupRepo initializes the repository on the Config. Kept for test compatibility.
-func (c *Config) setupRepo(_ *sql.DB) {
-	// No-op in tests; in production this would be called with a real DB connection
+// breadMadeMessage is published back to RabbitMQ after a maker finishes baking.
+// The server consumes this and updates the database inventory.
+type breadMadeMessage struct {
+	BreadID  int `json:"breadId"`
+	Quantity int `json:"quantity"`
 }
 
 var rabbitmqConnection *rabbitmq.Connection
 var rabbitmqChannel *rabbitmq.Channel
-
-// counts tracks DB connection retry attempts (used by tests for backwards compatibility).
-var counts int64
-
-// connectToDB connects to the database using the DSN from the environment variable.
-// Kept for backwards compatibility with tests.
-func connectToDB() *sql.DB {
-	return connectToDSN(os.Getenv("DSN"))
-}
-
-// connectToDSN connects to the database with the given DSN.
-func connectToDSN(dsn string) *sql.DB {
-	for i := 0; i < 10; i++ {
-		connection, err := openDB(dsn)
-		if err != nil {
-			log.Errorf("Error opening database: %v (attempt %d/10)", err, i+1)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		log.Println("Connected to database")
-		return connection
-	}
-
-	log.Error("Max DB connection attempts reached")
-	return nil
-}
-
-func openDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		log.Errorf("Failed to open database: %v", err)
-		return nil, err
-	}
-
-	if err = db.Ping(); err != nil {
-		return nil, err
-	}
-
-	return db, nil
-}
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	})
-
-	dsn := os.Getenv("DSN")
-	if dsn == "" {
-		log.Fatal("DSN environment variable not set")
-	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -94,40 +54,32 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runMakersConsumer(dsn, &wg)
+		runMakersConsumer(&wg)
 	}()
 
 	// Wait for shutdown signal
 	<-sigCh
 	log.Println("Shutdown signal received, draining...")
+	wg.Wait()
 }
 
-func runMakersConsumer(dsn string, wg *sync.WaitGroup) {
+func runMakersConsumer(wg *sync.WaitGroup) {
 	reconnectDelay := 5 * time.Second
 
 	for {
-		pgConn := connectToDSN(dsn)
-		if pgConn == nil {
-			log.Errorf("Could not connect to database, retrying in %v", reconnectDelay)
-			time.Sleep(reconnectDelay)
-			continue
-		}
-
-		if err := runConsumerLoop(pgConn); err != nil {
+		if err := runConsumerLoop(); err != nil {
 			log.Errorf("Consumer loop error: %v, reconnecting in %v", err, reconnectDelay)
-			pgConn.Close()
 			time.Sleep(reconnectDelay)
 			continue
 		}
 
 		// Consumer loop exited cleanly
 		log.Println("Consumer loop exited cleanly, reconnecting in", reconnectDelay)
-		pgConn.Close()
 		time.Sleep(reconnectDelay)
 	}
 }
 
-func runConsumerLoop(pgConn *sql.DB) error {
+func runConsumerLoop() error {
 	// Lazy-init RabbitMQ connection so it's fresh on each reconnect
 	if err := initializeRabbitMQ(rabbitmqAddress); err != nil {
 		return fmt.Errorf("RabbitMQ initialization: %w", err)
@@ -144,7 +96,7 @@ func runConsumerLoop(pgConn *sql.DB) error {
 		false,              // exclusive
 		false,              // no-local
 		false,              // no-wait
-		nil,                // args
+		nil,                // arguments
 	)
 	if err != nil {
 		return fmt.Errorf("Failed to consume from make bread order queue: %v", err)
@@ -158,7 +110,7 @@ func runConsumerLoop(pgConn *sql.DB) error {
 		wg.Add(1)
 		go func(delivery rabbitmq.Delivery) {
 			defer wg.Done()
-			if err := processMakeBreadMessage(data.NewPostgresRepository(pgConn), delivery.Body); err != nil {
+			if err := processMakeBreadMessage(delivery.Body); err != nil {
 				log.Errorf("process error: %v", err)
 				// Nack and requeue for retry on transient errors
 				if nackErr := delivery.Nack(false, true); nackErr != nil {
@@ -227,8 +179,51 @@ func initializeRabbitMQ(rabbitmqAddr string) error {
 	return nil
 }
 
+// processMakeBreadMessage processes a make-bread-order by publishing a
+// bread-made confirmation back to RabbitMQ. The server consumes this
+// confirmation and updates the database inventory.
+//
+// This is the external-makers design: makers never touch the database
+// directly. They only communicate via RabbitMQ.
+func processMakeBreadMessage(body []byte) error {
+	msg := &makeBreadMessage{}
+	if err := json.Unmarshal(body, msg); err != nil {
+		return fmt.Errorf("unmarshal make-bread message: %w", err)
+	}
+
+	log.Printf("Making bread: %s (ID=%d, qty=%d)", msg.Name, msg.ID, msg.Quantity)
+
+	// Simulate bread baking (no DB access)
+	// In production, this would call the actual bakery production system
+
+	// Publish confirmation to bread-made queue for the server to pick up
+	confirmation := breadMadeMessage{
+		BreadID:  msg.ID,
+		Quantity: msg.Quantity,
+	}
+	data, err := json.Marshal(confirmation)
+	if err != nil {
+		return fmt.Errorf("marshal confirmation: %w", err)
+	}
+
+	if err := rabbitmqChannel.Publish(
+		"",                // exchange
+		"bread-made",      // routing key
+		false,             // mandatory
+		false,             // immediate
+		rabbitmq.Publishing{
+			ContentType:  "text/json",
+			Body:         data,
+			DeliveryMode: rabbitmq.Persistent,
+		}); err != nil {
+		return fmt.Errorf("publish bread-made confirmation: %w", err)
+	}
+
+	log.Printf("Made bread %s (ID=%d), quantity %d — confirmed to server", msg.Name, msg.ID, msg.Quantity)
+	return nil
+}
+
 // listenForMakeBread is the original entry point kept for test compatibility.
-// It wraps runConsumerLoop for backwards compatibility with existing tests.
-func listenForMakeBread(pgConn *sql.DB) error {
-	return runConsumerLoop(pgConn)
+func listenForMakeBread() error {
+	return runConsumerLoop()
 }

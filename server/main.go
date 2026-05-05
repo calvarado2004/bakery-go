@@ -154,7 +154,9 @@ func main() {
 	rabbitMQBakery.settlementDispatcher = NewSettlementDispatcher(rabbitMQBakery, rabbitMQAddress)
 	rabbitMQBakery.settlementDispatcher.Start()
 
-	server := grpc.NewServer()
+	// Apply gRPC interceptors:
+	// - customerIDInterceptor: extracts customer_id from metadata → context (Phase 6.6)
+	server := grpc.NewServer(grpc.UnaryInterceptor(customerIDInterceptor))
 
 	checkInventoryServer := &CheckInventoryServer{
 		RabbitMQBakery: rabbitMQBakery,
@@ -224,6 +226,12 @@ func (rabbit *RabbitMQBakery) BakeryServer(listen net.Listener, server *grpc.Ser
 			time.Sleep(30 * time.Second)
 		}
 	}()
+
+	// Listen for bread-made confirmations from external makers and update inventory.
+	// In the external-makers design, makers never touch the database directly.
+	// They process make-bread-order messages via RabbitMQ and publish bread-made
+	// confirmations. The server consumes these and adjusts inventory.
+	go rabbit.listenForBreadMade()
 
 	// Start gRPC Server in the background
 	go func() {

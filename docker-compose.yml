@@ -94,7 +94,10 @@ services:
     networks:
       - bakery-network
 
-  # Makers - restocks bread inventory from RabbitMQ
+  # Makers - external bread production service
+  # In the external-makers design, makers only use RabbitMQ for communication.
+  # They consume make-bread-order messages and publish bread-made confirmations.
+  # The server handles all database operations.
   makers:
     build:
       context: .
@@ -102,13 +105,8 @@ services:
     container_name: bakery-makers
     environment:
       RABBITMQ_SERVICE_ADDR: amqp://guest:guest@rabbitmq:5672/
-      DSN: postgres://postgres:password@postgres:5432/bakery?sslmode=disable
     depends_on:
-      postgres:
-        condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      server:
         condition: service_healthy
     restart: unless-stopped
     networks:

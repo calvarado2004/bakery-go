@@ -76,6 +76,19 @@ func (rabbit *RabbitMQBakery) init() {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
 
+	// Declare the RabbitMQ bread-made queue (consumed by makers to confirm restocking)
+	_, err = channel.QueueDeclare(
+		"bread-made", // name
+		true,         // durable
+		false,        // delete when unused
+		false,        // exclusive
+		false,        // no-wait
+		nil,          // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare bread-made queue: %v", err)
+	}
+
 }
 
 // checkBread checks if there is enough bread left in the bakery, if not, it orders more
@@ -263,5 +276,89 @@ func (rabbit *RabbitMQBakery) initializeBakery() {
 
 	log.Printf("Bread Maker ID %d created", breadMakerID)
 
+}
+
+// breadMadeMessage is received from external makers confirming they've baked bread.
+type breadMadeMessage struct {
+	BreadID  int `json:"breadId"`
+	Quantity int `json:"quantity"`
+}
+
+// listenForBreadMade listens for confirmation messages from external makers
+// and updates the database inventory. In the external-makers design, makers
+// never access the database directly — they only communicate via RabbitMQ.
+// The server consumes bread-made confirmations and applies the inventory change.
+func (rabbit *RabbitMQBakery) listenForBreadMade() {
+	reconnectDelay := 10 * time.Second
+
+	for {
+		connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+		if err != nil {
+			log.Errorf("Failed to connect to RabbitMQ for bread-made listener: %v", err)
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		channel, err := connection.Channel()
+		if err != nil {
+			log.Errorf("Failed to open channel for bread-made listener: %v", err)
+			connection.Close()
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		// Set QoS for fair dispatch
+		if err := channel.Qos(5, 0, false); err != nil {
+			log.Errorf("Failed to set QoS for bread-made listener: %v", err)
+			channel.Close()
+			connection.Close()
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		messages, err := channel.Consume(
+			"bread-made", // queue
+			"",           // consumer
+			false,        // auto-ack
+			false,        // exclusive
+			false,        // no-local
+			false,        // no-wait
+			nil,          // args
+		)
+		if err != nil {
+			log.Errorf("Failed to consume bread-made queue: %v", err)
+			channel.Close()
+			connection.Close()
+			time.Sleep(reconnectDelay)
+			continue
+		}
+
+		for d := range messages {
+			var msg breadMadeMessage
+			if err := json.Unmarshal(d.Body, &msg); err != nil {
+				log.Errorf("Failed to unmarshal bread-made message: %v", err)
+				d.Nack(false, false) // discard bad messages
+				continue
+			}
+
+			log.Printf("Maker confirmed bread %d (ID=%d, qty=%d) — adjusting inventory", msg.BreadID, msg.BreadID, msg.Quantity)
+
+			// Adjust inventory atomically on the database
+			if _, err := rabbit.Repo.AdjustBreadQuantity(msg.BreadID, msg.Quantity); err != nil {
+				log.Errorf("Failed to adjust bread quantity for ID %d: %v", msg.BreadID, err)
+				d.Nack(false, true) // requeue for retry
+				continue
+			}
+
+			d.Ack(false)
+			log.Printf("Inventory updated: bread %d +%d units", msg.BreadID, msg.Quantity)
+		}
+
+		// Consumer channel closed — reconnect
+		log.Println("bread-made listener: connection lost, reconnecting in", reconnectDelay)
+		channel.Close()
+		connection.Close()
+		time.Sleep(reconnectDelay)
+	}
 }
 
