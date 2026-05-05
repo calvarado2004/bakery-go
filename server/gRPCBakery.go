@@ -352,16 +352,27 @@ func (s *BuyBreadServer) BuyBread(ctx context.Context, in *pb.BreadRequest) (*pb
 
 	for _, bread := range breadsToBuy {
 		log.Println("Buying bread", bread.Name)
-		breadDB := data.Bread{}
-		breadDB.Name = bread.Name
-		breadDB.Quantity = int(bread.Quantity)
-		breadDB.Description = bread.Description
-		breadDB.Price = bread.Price
-		breadDB.Image = bread.Image
-		breadDB.Type = bread.Type
-		breadDB.UpdatedAt = time.Now()
-		breadDB.ID = int(bread.Id)
-		breadDB.Status = "Bought"
+
+		// Look up the authoritative bread price from the database.
+		// This ensures we use the catalog price, not whatever the client sent.
+		breadDB, err := s.RabbitMQBakery.Repo.GetBreadByID(int(bread.Id))
+		if err != nil {
+			log.Warnf("Failed to look up bread %d for order: %v — using client price", bread.Id, err)
+			breadDB = data.Bread{
+				ID:        int(bread.Id),
+				Name:      bread.Name,
+				Price:     bread.Price,
+				Quantity:  int(bread.Quantity),
+				Image:     bread.Image,
+				Type:      bread.Type,
+				Status:    "Bought",
+				UpdatedAt: time.Now(),
+			}
+		} else {
+			breadDB.Quantity = int(bread.Quantity)
+			breadDB.Status = "Bought"
+			breadDB.UpdatedAt = time.Now()
+		}
 		buyOrder.Breads = append(buyOrder.Breads, breadDB)
 	}
 

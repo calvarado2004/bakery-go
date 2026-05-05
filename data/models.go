@@ -773,7 +773,7 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 		return order, err
 	}
 
-	stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+	stmt = `SELECT bread_id, quantity, price, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 	rows, err := db.QueryContext(ctx, stmt, orderID)
 	if err != nil {
@@ -792,20 +792,18 @@ func (u *PostgresRepository) GetBuyOrderByID(orderID int) (order BuyOrder, err e
 
 	for rows.Next() {
 		var breadID, quantity int
-		err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+		var price float64
+		err := rows.Scan(&breadID, &quantity, &price, &order.CreatedAt, &order.UpdatedAt)
 		if err != nil {
 			log.Errorf("Error scanning order details: %v", err)
 			return order, err
 		}
 
-		bread, err := u.GetBreadByID(breadID)
-		if err != nil {
-			log.Errorf("Error fetching bread by ID: %v", err)
-			return order, err
-		}
-
-		bread.Quantity = quantity
-		breads = append(breads, bread)
+		breads = append(breads, Bread{
+			ID:       breadID,
+			Quantity: quantity,
+			Price:    price,
+		})
 	}
 
 	order.Breads = breads
@@ -836,7 +834,7 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 	}
 	log.Infof("GetBuyOrderByUUID: UUID=%s, scanned Status='%s'", orderUUID, order.Status)
 
-	stmt = `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+	stmt = `SELECT bread_id, quantity, price, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 	rows, err := db.QueryContext(ctx, stmt, order.ID)
 	if err != nil {
@@ -855,20 +853,18 @@ func (u *PostgresRepository) GetBuyOrderByUUID(orderUUID string) (order BuyOrder
 
 	for rows.Next() {
 		var breadID, quantity int
-		err := rows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+		var price float64
+		err := rows.Scan(&breadID, &quantity, &price, &order.CreatedAt, &order.UpdatedAt)
 		if err != nil {
 			log.Errorf("Error scanning order details: %v", err)
 			return order, err
 		}
 
-		bread, err := u.GetBreadByID(breadID)
-		if err != nil {
-			log.Errorf("Error fetching bread by ID: %v", err)
-			return order, err
-		}
-
-		bread.Quantity = quantity
-		breads = append(breads, bread)
+		breads = append(breads, Bread{
+			ID:       breadID,
+			Quantity: quantity,
+			Price:    price,
+		})
 	}
 
 	order.Breads = breads
@@ -907,7 +903,7 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 		}
 		log.Infof("GetAllBuyOrders: Scanned order ID=%d, Status='%s'", order.ID, order.Status)
 
-		detailStmt := `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+		detailStmt := `SELECT bread_id, quantity, price, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 
 		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
 		if err != nil {
@@ -919,22 +915,19 @@ func (u *PostgresRepository) GetAllBuyOrders() (orders []BuyOrder, err error) {
 
 		for detailRows.Next() {
 			var breadID, quantity int
-			err := detailRows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+			var price float64
+			err := detailRows.Scan(&breadID, &quantity, &price, &order.CreatedAt, &order.UpdatedAt)
 			if err != nil {
 				log.Errorf("Error scanning order details: %v", err)
 				detailRows.Close()
 				return nil, err
 			}
 
-			bread, err := u.GetBreadByID(breadID)
-			if err != nil {
-				log.Errorf("Error fetching bread by ID: %v", err)
-				detailRows.Close()
-				return nil, err
-			}
-
-			bread.Quantity = quantity
-			breads = append(breads, bread)
+			breads = append(breads, Bread{
+				ID:       breadID,
+				Quantity: quantity,
+				Price:    price,
+			})
 		}
 		detailRows.Close()
 
@@ -1274,7 +1267,7 @@ func (u *PostgresRepository) GetCustomerOrders(customerID int) ([]BuyOrder, erro
 		}
 
 		// Get order details
-		detailStmt := `SELECT bread_id, quantity, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
+		detailStmt := `SELECT bread_id, quantity, price, created_at, updated_at FROM order_details WHERE buy_order_id = $1`
 		detailRows, err := db.QueryContext(ctx, detailStmt, order.ID)
 		if err != nil {
 			log.Errorf("Error querying order details: %v", err)
@@ -1283,18 +1276,18 @@ func (u *PostgresRepository) GetCustomerOrders(customerID int) ([]BuyOrder, erro
 
 		for detailRows.Next() {
 			var breadID, quantity int
-			err := detailRows.Scan(&breadID, &quantity, &order.CreatedAt, &order.UpdatedAt)
+			var price float64
+			err := detailRows.Scan(&breadID, &quantity, &price, &order.CreatedAt, &order.UpdatedAt)
 			if err != nil {
 				log.Errorf("Error scanning order details: %v", err)
 				continue
 			}
 
-			bread, err := u.GetBreadByID(breadID)
-			if err != nil {
-				continue
-			}
-			bread.Quantity = quantity
-			order.Breads = append(order.Breads, bread)
+			order.Breads = append(order.Breads, Bread{
+				ID:       breadID,
+				Quantity: quantity,
+				Price:    price,
+			})
 		}
 		detailRows.Close()
 

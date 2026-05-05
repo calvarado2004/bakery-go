@@ -44,7 +44,14 @@
       "Bash(podman *)",
       "Bash(do *)",
       "Bash(done)",
-      "Bash(docker logs *)"
+      "Bash(docker logs *)",
+      "Bash(kubectl *)",
+      "Bash(curl *)",
+      "Bash(docker volume *)",
+      "Bash(timeout *)",
+      "Bash(oc *)",
+      "Bash(cp *)",
+      "Bash(docker push *)"
     ]
   },
   "$version": 3
