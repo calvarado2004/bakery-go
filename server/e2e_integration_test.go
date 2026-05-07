@@ -27,7 +27,8 @@ type E2EFixture struct {
 	Cleanup         func()
 }
 
-// NewE2EFixture sets up the full end-to-end test environment
+// NewE2EFixture sets up the full end-to-end test environment.
+// If the gRPC server is not available, it logs a skip message and returns nil.
 func NewE2EFixture(t *testing.T) *E2EFixture {
 	fixture := &E2EFixture{T: t}
 
@@ -48,9 +49,14 @@ func NewE2EFixture(t *testing.T) *E2EFixture {
 	)
 	if err != nil {
 		db.Close()
-		t.Fatalf("Failed to dial gRPC server at %s: %v", grpcAddr, err)
+		t.Skipf("gRPC server not available at %s: %v (run docker-compose up -d server broker first)", grpcAddr, err)
+		return nil
 	}
 	fixture.GRPCConn = conn
+
+	// Wait for the rate limiter to refill (burst=20, rate=10/s).
+	// This prevents "rate limit exceeded" errors when tests run after other packages.
+	time.Sleep(2 * time.Second)
 
 	// Create clients
 	fixture.BuyClient = pb.NewBuyBreadClient(conn)
@@ -95,6 +101,10 @@ func (f *E2EFixture) adminContext(ctx context.Context) context.Context {
 // TestFullBuyOrderFlow tests the complete buy order flow through RabbitMQ
 func TestFullBuyOrderFlow(t *testing.T) {
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -272,6 +282,10 @@ func TestFullBuyOrderFlow(t *testing.T) {
 // TestLowStockRestockFlow tests the automatic restock when inventory is low
 func TestLowStockRestockFlow(t *testing.T) {
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -342,7 +356,14 @@ func TestLowStockRestockFlow(t *testing.T) {
 
 // TestAdminDashboardFlow tests the admin dashboard statistics
 func TestAdminDashboardFlow(t *testing.T) {
+	// Seed accounts first so AdminLogin in NewE2EFixture succeeds.
+	seedIntegrationAccounts(t)
+
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -365,9 +386,12 @@ func TestAdminDashboardFlow(t *testing.T) {
 	})
 
 	t.Run("VerifyStatsConsistency", func(t *testing.T) {
-		// Get dashboard stats
+		// Get dashboard stats — check error properly this time.
 		dashReq := &pb.Empty{}
-		dashResp, _ := fixture.AdminClient.GetDashboardStats(fixture.adminContext(ctx), dashReq)
+		dashResp, err := fixture.AdminClient.GetDashboardStats(fixture.adminContext(ctx), dashReq)
+		if err != nil {
+			t.Fatalf("GetDashboardStats for consistency check failed: %v", err)
+		}
 
 		// Verify against direct database counts
 		var dbOrderCount, dbCustomerCount, dbBreadCount, dbMakerCount int
@@ -388,6 +412,10 @@ func TestAdminDashboardFlow(t *testing.T) {
 func TestAuthFlow(t *testing.T) {
 	seedIntegrationAccounts(t)
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -445,6 +473,10 @@ func TestAuthFlow(t *testing.T) {
 // TestInvoiceGenerationFlow tests the invoice creation flow
 func TestInvoiceGenerationFlow(t *testing.T) {
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -511,6 +543,10 @@ func TestInvoiceGenerationFlow(t *testing.T) {
 // TestConcurrentBuyOrders tests handling multiple concurrent buy orders
 func TestConcurrentBuyOrders(t *testing.T) {
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -588,7 +624,12 @@ func TestConcurrentBuyOrders(t *testing.T) {
 
 // TestGetAllEndpoints tests the 'GetAll' endpoints for completeness
 func TestGetAllEndpoints(t *testing.T) {
+	seedIntegrationAccounts(t)
 	fixture := NewE2EFixture(t)
+	if fixture == nil {
+		t.Skip("E2E fixture could not connect to gRPC server")
+		return
+	}
 	defer fixture.Cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

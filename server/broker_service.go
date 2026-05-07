@@ -139,6 +139,9 @@ func (s *BrokerServiceServer) ReportMatchingResults(ctx context.Context, req *pb
 			return nil, status.Error(codes.Internal, "repository does not support raw DB access")
 		}
 	}
+	if db == nil {
+		return nil, status.Error(codes.Internal, "repository does not expose raw DB")
+	}
 	tx, err := db.BeginTx(ctx2, nil)
 	if err != nil {
 		log.Errorf("broker: failed to begin transaction for matching results: %v", err)

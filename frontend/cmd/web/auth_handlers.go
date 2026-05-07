@@ -12,6 +12,7 @@ import (
 	pb "github.com/calvarado2004/bakery-go/proto"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 )
@@ -498,8 +499,8 @@ func CustomerOrderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderIDStr := r.URL.Path[len("/portal/orders/"):]
-	orderID, err := strconv.Atoi(orderIDStr)
+	vars := mux.Vars(r)
+	orderID, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		http.Error(w, "Invalid order ID", http.StatusBadRequest)
 		return
@@ -598,8 +599,8 @@ func CustomerInvoiceDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invoiceIDStr := r.URL.Path[len("/portal/invoices/"):]
-	invoiceID, err := strconv.Atoi(invoiceIDStr)
+	vars := mux.Vars(r)
+	invoiceID, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		http.Error(w, "Invalid invoice ID", http.StatusBadRequest)
 		return

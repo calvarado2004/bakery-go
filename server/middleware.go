@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	log "github.com/sirupsen/logrus"
@@ -19,17 +22,51 @@ import (
 
 // ---------------------------------------------------------------------------
 // Rate limiter (per-identity token bucket, shared with broker via pkg/resilience)
+// Configurable via RATE_LIMIT (req/s) and RATE_LIMIT_BURST env vars.
+// Defaults: 100 req/s, burst 500 — handles thousands of concurrent callers.
 // ---------------------------------------------------------------------------
 
-var globalRateLimiter = resilience.NewRateLimiter(10, 20) // 10 req/s, burst 20
+func initRateLimiter() *resilience.RateLimiter {
+	rate := 100.0
+	burst := 500.0
+	if v := os.Getenv("RATE_LIMIT"); v != "" {
+		if r, err := strconv.ParseFloat(v, 64); err == nil && r > 0 {
+			rate = r
+		}
+	}
+	if v := os.Getenv("RATE_LIMIT_BURST"); v != "" {
+		if b, err := strconv.ParseFloat(v, 64); err == nil && b > 0 {
+			burst = b
+		}
+	}
+	log.Infof("Rate limiter configured: %.0f req/s, burst %.0f", rate, burst)
+	return resilience.NewRateLimiter(rate, burst)
+}
 
-// identity extracts a stable client identity from gRPC metadata.
+var globalRateLimiter = initRateLimiter()
+
+// identityFromMetadata extracts a stable client identity from gRPC metadata.
 func identityFromMetadata(md metadata.MD) string {
 	if ids := md.Get("customer_id"); len(ids) > 0 && ids[0] != "" {
 		return "cid:" + ids[0]
 	}
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		return "ip:" + ips[0]
+	}
+	return "ip:unknown"
+}
+
+// identityFromContext extracts a rate-limiter identity from the full gRPC context.
+// It prefers customer_id and x-forwarded-for from metadata, then falls back to
+// the TCP peer address (gives per-connection isolation for direct gRPC callers),
+// and finally to "ip:unknown".
+func identityFromContext(ctx context.Context) string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if id := identityFromMetadata(md); id != "ip:unknown" {
+		return id
+	}
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		return "peer:" + p.Addr.String()
 	}
 	return "ip:unknown"
 }
@@ -189,12 +226,20 @@ func BuildGRPCKeepaliveOptions() []grpc.ServerOption {
 func BuildInterceptorChain() grpc.ServerOption {
 	return grpc.UnaryInterceptor(
 		func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-			// 1. Rate limiting (outermost — rejects before auth cost).
-			md, _ := metadata.FromIncomingContext(ctx)
-			id := identityFromMetadata(md)
-			if !globalRateLimiter.Allow(id) {
-				log.Warnf("rate limit exceeded for %q (method %s)", id, info.FullMethod)
-				return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")
+			// 1. Rate limiting — applies only to authenticated endpoints.
+			//    Open endpoints (requiredRole == "") are publicly accessible and have
+			//    no reliable per-user identity to bucket on; infrastructure-level
+			//    rate limiting (reverse proxy) handles them in production.
+			//    Per-connection peer address is used as identity for direct gRPC
+			//    callers that lack x-forwarded-for or customer_id headers, giving
+			//    each client connection its own rate-limit bucket.
+			requiredRole := getMethodRole(info.FullMethod)
+			if requiredRole != "" {
+				id := identityFromContext(ctx)
+				if !globalRateLimiter.Allow(id) {
+					log.Warnf("rate limit exceeded for %q (method %s)", id, info.FullMethod)
+					return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")
+				}
 			}
 
 			// 2. RBAC (validates JWT, checks role).

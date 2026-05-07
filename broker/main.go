@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/calvarado2004/bakery-go/data"
@@ -16,6 +18,17 @@ import (
 
 	"github.com/calvarado2004/bakery-go/pkg/resilience"
 )
+
+// RabbitMQDialer abstracts RabbitMQ connection creation.
+type RabbitMQDialer interface {
+	Dial() (*rabbitmq.Connection, error)
+}
+
+type realRabbitMQDialer struct{}
+
+func (realRabbitMQDialer) Dial() (*rabbitmq.Connection, error) {
+	return rabbitmq.Dial(os.Getenv("RABBITMQ_SERVICE_ADDR"))
+}
 
 // brokerClient wraps the gRPC BrokerService client with circuit-breaker
 // and exponential-backoff retry.
@@ -118,79 +131,68 @@ type brokerConfig struct {
 	Client *http.Client
 }
 
-// RabbitMQBakery is the broker service. It has NO database access —
+// BrokerService is the broker service. It has NO database access —
 // all data operations go through the server's gRPC BrokerService.
-type RabbitMQBakery struct {
-	brokerConfig
-	rabbitmqURL string
-	buffer      orderBuffer // incoming orders waiting for matching
-}
-
-// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
-func NewRabbitMQBakery(config brokerConfig, rabbitmqURL string) *RabbitMQBakery {
-	return &RabbitMQBakery{
-		brokerConfig: config,
-		rabbitmqURL:  rabbitmqURL,
-	}
-}
-
-var rabbitMQAddress = os.Getenv("RABBITMQ_SERVICE_ADDR")
-var serverGRPCAddr = os.Getenv("BAKERY_SERVICE_ADDR")
-
-func main() {
-	startBroker(rabbitMQAddress)
-}
-
-// startBroker initializes the broker service with the given RabbitMQ URL.
-// The broker NO LONGER connects to PostgreSQL — all data operations go
-// through the server's gRPC BrokerService.
 //
-// The broker now:
-//   - Connects ONLY to RabbitMQ (consume/publish)
-//   - Connects to the server's gRPC port for data operations
-//   - Declares its own queues (buy-bread-order, bread-bought)
-//   - Buffers orders and runs the matching engine
-func startBroker(rabbitmqURL string) {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-	})
+// This is the instance-based version that can be started/stopped for testing.
+type BrokerService struct {
+	brokerConfig
+	rabbitmqURL     string
+	rabbitmqDialer  RabbitMQDialer
+	grpcConn        *grpc.ClientConn
+	bc              brokerClienter
+	buffer          orderBuffer // incoming orders waiting for matching
+	stopCh          chan struct{}
+	stopped         atomic.Bool
+	consumeTag      string // unique consumer tag for reconnection
+}
 
-	// Connect to the server's gRPC service.
-	log.Infof("Connecting to server gRPC at %s", serverGRPCAddr)
-	conn, err := grpc.Dial(serverGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Failed to connect to server gRPC: %v", err)
+// NewBrokerService creates a new BrokerService with the given config.
+// If dialer is nil, a realRabbitMQDialer is used.
+// grpcConn is required and must be connected to the server's gRPC port.
+func NewBrokerService(config brokerConfig, rabbitmqURL string, grpcConn *grpc.ClientConn, dialer RabbitMQDialer) *BrokerService {
+	if dialer == nil {
+		dialer = realRabbitMQDialer{}
 	}
-	defer conn.Close()
+	bc := newBrokerClient(grpcConn)
+	return &BrokerService{
+		brokerConfig:   config,
+		rabbitmqURL:    rabbitmqURL,
+		rabbitmqDialer: dialer,
+		grpcConn:       grpcConn,
+		bc:             bc,
+		stopCh:         make(chan struct{}),
+		consumeTag:     "broker", // auto-generated; fine for tests since broker is short-lived
+	}
+}
 
-	bc := newBrokerClient(conn)
-
-	// Create a new RabbitMQBakery instance (no DB connection needed).
-	rabbitMQBakery := NewRabbitMQBakery(brokerConfig{}, rabbitmqURL)
-
-	// Start the order-matching goroutine (buffered, batched).
-	go startMatchingEngine(rabbitMQBakery, bc)
-
-	// Start the outbox publisher — REMOVED. The server now handles
-	// outbox publishing via its own settlement dispatcher.
-	// The broker no longer writes to or reads from the outbox.
-
+// Start declares queues, starts the matching engine, and begins consuming buy orders.
+// The goroutines run until Stop() is called or the context is cancelled.
+func (s *BrokerService) Start(ctx context.Context, wg *sync.WaitGroup) {
 	// Declare broker-owned queues (buy-bread-order, bread-bought).
-	if err := rabbitMQBakery.declareQueues(conn); err != nil {
+	if err := s.declareQueues(); err != nil {
 		log.Fatalf("Failed to declare broker queues: %v", err)
 	}
 
-	// Start circuit breaker state logger (Phase 10.10).
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go logCircuitStates(ctx, bc)
+	// Start circuit breaker state logger.
+	go s.logCircuitStates(ctx)
 
-	select {}
+	// Start the order-matching goroutine (buffered, batched).
+	go s.startMatchingEngine(ctx)
+
+	log.Println("Broker service started: listening for buy-bread-order messages")
+}
+
+// Stop signals all background goroutines to stop.
+func (s *BrokerService) Stop() {
+	if s.stopped.Swap(true) {
+		return
+	}
+	close(s.stopCh)
 }
 
 // logCircuitStates logs all circuit breaker states at a fixed interval.
-func logCircuitStates(ctx context.Context, bc *brokerClient) {
+func (s *BrokerService) logCircuitStates(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -198,8 +200,10 @@ func logCircuitStates(ctx context.Context, bc *brokerClient) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.stopCh:
+			return
 		case <-ticker.C:
-			for name, cb := range bc.breakers() {
+			for name, cb := range s.bc.(*brokerClient).breakers() {
 				if state := cb.State(); state != resilience.StateClosed {
 					log.WithField("breaker", name).
 						WithField("state", state).
@@ -211,14 +215,8 @@ func logCircuitStates(ctx context.Context, bc *brokerClient) {
 }
 
 // declareQueues declares the RabbitMQ queues owned by the broker.
-// In the external/internal boundary design (ARCHITECTURE_AUDIT §10.1),
-// each service declares the queues it owns:
-//   - Broker owns: buy-bread-order, bread-bought
-//   - Server owns: bread-made (for maker confirmations)
-//   - Makers own: make-bread-order
-func (app *RabbitMQBakery) declareQueues(grpcConn *grpc.ClientConn) error {
-	// We need a RabbitMQ connection, not the gRPC connection.
-	rabbitConn, err := rabbitmq.Dial(app.rabbitmqURL)
+func (s *BrokerService) declareQueues() error {
+	rabbitConn, err := s.rabbitmqDialer.Dial()
 	if err != nil {
 		return err
 	}
@@ -232,24 +230,14 @@ func (app *RabbitMQBakery) declareQueues(grpcConn *grpc.ClientConn) error {
 
 	// buy-bread-order: where the server publishes incoming buy orders.
 	if _, err := channel.QueueDeclare(
-		"buy-bread-order", // name
-		true,              // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // args
+		"buy-bread-order", true, false, false, false, nil,
 	); err != nil {
 		return err
 	}
 
 	// bread-bought: where matching results are published.
 	if _, err := channel.QueueDeclare(
-		"bread-bought", // name
-		true,           // durable
-		false,          // delete when unused
-		false,          // exclusive
-		false,          // no-wait
-		nil,            // args
+		"bread-bought", true, false, false, false, nil,
 	); err != nil {
 		return err
 	}
@@ -259,57 +247,88 @@ func (app *RabbitMQBakery) declareQueues(grpcConn *grpc.ClientConn) error {
 }
 
 // startMatchingEngine runs the order ingestion and matching pipeline.
-// It connects to the server's gRPC service for all data operations,
-// and consumes from RabbitMQ for order ingestion.
-func startMatchingEngine(rabbitMQBakery *RabbitMQBakery, bc brokerClienter) {
+func (s *BrokerService) startMatchingEngine(ctx context.Context) {
 	// Connect to RabbitMQ once for the matchLoop (batch timer).
-	conn, err := rabbitmq.Dial(rabbitMQBakery.rabbitmqURL)
+	conn, err := s.rabbitmqDialer.Dial()
 	if err != nil {
 		log.Errorf("Failed to connect to RabbitMQ for matchLoop: %v", err)
 		return
 	}
-	channel, err := conn.Channel()
+
+	ch, err := conn.Channel()
 	if err != nil {
 		log.Errorf("Failed to open channel for matchLoop: %v", err)
 		conn.Close()
 		return
 	}
-	go rabbitMQBakery.matchLoop(conn, channel, bc)
 
-	for {
-		err := rabbitMQBakery.performBuyBread(bc)
-		if err != nil {
-			log.Errorf("Failed to perform buy bread (main), sleeping 20 seconds...: %v", err)
-			time.Sleep(20 * time.Second)
-			continue
-		}
-		log.Printf("Disconnected from RabbitMQ, reconnecting in 20 seconds...")
-		time.Sleep(20 * time.Second)
-	}
+	// matchLoop runs until ctx is cancelled or stopCh is closed.
+	go s.matchLoop(ctx, conn, ch)
+
+	// performBuyBread runs in a reconnect loop.
+	s.runBuyBreadConsumer(ctx)
 }
 
 // matchLoop buffers incoming orders and processes them in batches.
-// Each order is ACKed immediately upon ingestion. Matching happens
-// in batches collected over matchBatchWindow or when matchBatchSize is reached.
-func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitmq.Channel, bc brokerClienter) {
+func (s *BrokerService) matchLoop(ctx context.Context, conn *rabbitmq.Connection, ch *rabbitmq.Channel) {
 	ticker := time.NewTicker(matchBatchWindow)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			log.Println("[broker] matchLoop: context cancelled, stopping")
+			return
+		case <-s.stopCh:
+			log.Println("[broker] matchLoop: stop signal received, stopping")
+			return
 		case <-ticker.C:
-			batch := app.buffer.drain()
+			batch := s.buffer.drain()
 			if len(batch) > 0 {
 				log.Infof("matchLoop: batch timer fired, processing %d orders", len(batch))
-				app.processMatchingBatch(batch, channel, bc)
+				s.processMatchingBatch(batch, ch, s.bc)
 			}
 		default:
-			if app.buffer.len() >= matchBatchSize {
-				batch := app.buffer.drain()
+			if s.buffer.len() >= matchBatchSize {
+				batch := s.buffer.drain()
 				log.Infof("matchLoop: batch size reached (%d), processing", len(batch))
-				app.processMatchingBatch(batch, channel, bc)
+				s.processMatchingBatch(batch, ch, s.bc)
 			}
 			time.Sleep(50 * time.Millisecond)
+		}
+	}
+}
+
+// runBuyBreadConsumer runs the buy-bread-order consumer in a reconnect loop.
+func (s *BrokerService) runBuyBreadConsumer(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.stopCh:
+			return
+		default:
+		}
+
+		if err := s.performBuyBread(); err != nil {
+			log.Errorf("[broker] performBuyBread error: %v, reconnecting in 20s", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.stopCh:
+				return
+			case <-time.After(20 * time.Second):
+				continue
+			}
+		}
+
+		log.Println("[broker] Disconnected from RabbitMQ, reconnecting in 20s")
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.stopCh:
+			return
+		case <-time.After(20 * time.Second):
 		}
 	}
 }
@@ -317,29 +336,20 @@ func (app *RabbitMQBakery) matchLoop(conn *rabbitmq.Connection, channel *rabbitm
 // performBuyBread listens for buy bread orders from RabbitMQ and buffers
 // them for batch matching. Orders are persisted via the server's gRPC
 // BrokerService.ReportOrder instead of direct database access.
-func (rabbit *RabbitMQBakery) performBuyBread(bc brokerClienter) error {
-
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+func (s *BrokerService) performBuyBread() error {
+	connection, err := s.rabbitmqDialer.Dial()
 	if err != nil {
 		log.Errorf("Failed to connect to RabbitMQ: %v", err)
 		return err
 	}
-	defer func(conn *rabbitmq.Connection) {
-		if err := conn.Close(); err != nil {
-			log.Errorf("Failed to close connection: %v", err)
-		}
-	}(connection)
+	defer connection.Close()
 
 	channel, err := connection.Channel()
 	if err != nil {
 		log.Errorf("Failed to open a channel: %v", err)
 		return err
 	}
-	defer func(ch *rabbitmq.Channel) {
-		if err := ch.Close(); err != nil {
-			log.Errorf("Failed to close channel: %v", err)
-		}
-	}(channel)
+	defer channel.Close()
 
 	// Limit prefetch to 1 — RabbitMQ delivers one message at a time.
 	if err := channel.Qos(1, 0, false); err != nil {
@@ -348,8 +358,8 @@ func (rabbit *RabbitMQBakery) performBuyBread(bc brokerClienter) error {
 
 	buyOrderMessages, err := channel.Consume(
 		"buy-bread-order", // queue
-		"",                // consumer tag (auto-generated)
-		false,             // auto-ack — we ack manually after processing
+		s.consumeTag,       // consumer tag
+		false,             // auto-ack
 		false,             // exclusive
 		false,             // no-local
 		false,             // no-wait
@@ -359,10 +369,10 @@ func (rabbit *RabbitMQBakery) performBuyBread(bc brokerClienter) error {
 		log.Fatalf("Failed to register a consumer: %v", err)
 	}
 
-	log.Printf("Listening for buy bread orders on RabbitMQ queue...")
+	log.Printf("[broker] Listening for buy bread orders on RabbitMQ queue...")
 
 	for delivery := range buyOrderMessages {
-		rabbit.processOneOrder(delivery, bc)
+		s.processOneOrder(delivery, s.bc)
 	}
 
 	return nil
@@ -372,30 +382,29 @@ func (rabbit *RabbitMQBakery) performBuyBread(bc brokerClienter) error {
 // reports the order to the server via gRPC (for dedup + persistence),
 // and buffers it for batch matching.
 // The delivery is ACKed immediately upon successful buffering.
-func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery, bc brokerClienter) {
+func (s *BrokerService) processOneOrder(delivery rabbitmq.Delivery, bc brokerClienter) {
 	var order data.BuyOrder
 	if err := json.Unmarshal(delivery.Body, &order); err != nil {
-		log.Errorf("Failed to unmarshal buy order: %v", err)
+		log.Errorf("[broker] Failed to unmarshal buy order: %v", err)
 		delivery.Ack(false) //nolint:errcheck
 		return
 	}
 
-	log.WithField("order_uuid", order.BuyOrderUUID).Info("Received buy order")
+	log.WithField("order_uuid", order.BuyOrderUUID).Info("[broker] Received buy order")
 
 	// --- Report to server (dedup + insert) ---
-	// Convert data.BuyOrder → proto.BuyOrder for gRPC call.
 	protoOrder := dataToProtoBuyOrder(order)
 
 	result, err := bc.ReportOrder(*protoOrder)
 	if err != nil {
-		log.Errorf("Failed to report order to server: %v", err)
+		log.Errorf("[broker] Failed to report order to server: %v", err)
 		delivery.Nack(false, true) //nolint:errcheck
 		return
 	}
 
 	if !result.Accepted {
 		log.WithField("order_uuid", order.BuyOrderUUID).
-			Warn("Duplicate order detected (server returned duplicate), skipping")
+			Warn("[broker] Duplicate order detected (server returned duplicate), skipping")
 		delivery.Ack(false) //nolint:errcheck
 		return
 	}
@@ -405,15 +414,15 @@ func (rabbit *RabbitMQBakery) processOneOrder(delivery rabbitmq.Delivery, bc bro
 	}
 
 	// --- Buffer for matching engine ---
-	rabbit.buffer.add(order)
+	s.buffer.add(order)
 
 	delivery.Ack(false) //nolint:errcheck
-	log.WithField("order_uuid", order.BuyOrderUUID).Info("Order buffered for matching")
+	log.WithField("order_uuid", order.BuyOrderUUID).Info("[broker] Order buffered for matching")
 }
 
 // failOrder marks an order as Failed via the server's gRPC BrokerService.
-func (rabbit *RabbitMQBakery) failOrder(uuid string, status string) {
-	log.Warnf("failOrder: no longer needed — broker reports matching results via gRPC")
+func (s *BrokerService) failOrder(uuid string, status string) {
+	log.Warnf("[broker] failOrder: no longer needed — broker reports matching results via gRPC")
 }
 
 // --- Data → Proto conversion helpers ---
@@ -441,4 +450,33 @@ func dataToProtoBuyOrder(order data.BuyOrder) *pb.BuyOrder {
 		SkipUnavailableItems: order.SkipUnavailableItems,
 		Items:                items,
 	}
+}
+
+// main is the production entry point.
+func main() {
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
+	rabbitMQAddr := os.Getenv("RABBITMQ_SERVICE_ADDR")
+	serverGRPCAddr := os.Getenv("BAKERY_SERVICE_ADDR")
+
+	log.Infof("Connecting to server gRPC at %s", serverGRPCAddr)
+	grpcConn, err := grpc.Dial(serverGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to server gRPC: %v", err)
+	}
+	defer grpcConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	svc := NewBrokerService(brokerConfig{}, rabbitMQAddr, grpcConn, nil)
+
+	var wg sync.WaitGroup
+	svc.Start(ctx, &wg)
+
+	// Wait for shutdown (in production, this would be a signal handler)
+	select {}
 }

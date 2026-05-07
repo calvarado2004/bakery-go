@@ -130,6 +130,7 @@ func main() {
 		csrf.Secure(false), // Set to true when serving over HTTPS in production
 		csrf.Path("/"),
 		csrf.SameSite(csrf.SameSiteStrictMode),
+		csrf.FieldName("gorilla.csrf.Token"),
 	)
 	router.Use(csrfProtect)
 
@@ -296,6 +297,11 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	if sharedGRPCConn == nil {
+		fmt.Fprintf(w, "data: {\"error\": \"service unavailable\"}\n\n")
+		return
+	}
+
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 
@@ -368,6 +374,11 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	if sharedGRPCConn == nil {
+		fmt.Fprintf(w, "data: {\"error\": \"service unavailable\"}\n\n")
+		return
+	}
+
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewBuyOrderServiceClient(sharedGRPCConn)
 
@@ -436,9 +447,12 @@ func orderStreamHandler(w http.ResponseWriter, r *http.Request) {
 func initTemplates() {
 	templates = make(map[string]*template.Template)
 
-	adminTemplates := []string{
-		"base.html",
-		"dashboard.html",
+	adminBase := getTemplatePath("./cmd/web/templates/admin/base.html")
+
+	// Admin content templates are rendered inside base.html via {{template "content" .}}.
+	// Parse each content file together with base.html so that "base", "content", and
+	// "scripts" are all available in the same template set.
+	adminContentTemplates := []string{
 		"bread/list.html",
 		"bread/form.html",
 		"orders/list.html",
@@ -447,36 +461,68 @@ func initTemplates() {
 		"makers/list.html",
 		"makers/detail.html",
 		"alerts.html",
-		"login.html",
 	}
-	for _, t := range adminTemplates {
-		path := getTemplatePath("./cmd/web/templates/admin/" + t)
-		tmpl, err := template.ParseFiles(path)
+	for _, t := range adminContentTemplates {
+		contentPath := getTemplatePath("./cmd/web/templates/admin/" + t)
+		tmpl, err := template.ParseFiles(adminBase, contentPath)
 		if err != nil {
 			log.Fatalf("Failed to parse admin template %s: %v", t, err)
 		}
-		// Use "admin/" prefix to avoid collision with portal templates
 		templates["admin/"+t] = tmpl
 	}
 
-	portalTemplates := []string{
-		"base.html",
-		"dashboard.html",
+	// AdminDashboardHandler uses templates["admin/base.html"]; parse base+dashboard together.
+	dashPath := getTemplatePath("./cmd/web/templates/admin/dashboard.html")
+	dashTmpl, err := template.ParseFiles(adminBase, dashPath)
+	if err != nil {
+		log.Fatalf("Failed to parse admin template base+dashboard: %v", err)
+	}
+	templates["admin/base.html"] = dashTmpl
+	// Keep "admin/dashboard.html" in the map for template coverage tests.
+	templates["admin/dashboard.html"] = dashTmpl
+
+	// Admin login is a standalone page — no base layout.
+	loginPath := getTemplatePath("./cmd/web/templates/admin/login.html")
+	loginTmpl, err := template.ParseFiles(loginPath)
+	if err != nil {
+		log.Fatalf("Failed to parse admin login template: %v", err)
+	}
+	templates["admin/login.html"] = loginTmpl
+
+	portalBase := getTemplatePath("./cmd/web/templates/portal/base.html")
+
+	// Portal content templates follow the same base+content pattern.
+	portalContentTemplates := []string{
 		"orders.html",
 		"order_detail.html",
 		"invoices.html",
 		"invoice_detail.html",
-		"login.html",
 	}
-	for _, t := range portalTemplates {
-		path := getTemplatePath("./cmd/web/templates/portal/" + t)
-		tmpl, err := template.ParseFiles(path)
+	for _, t := range portalContentTemplates {
+		contentPath := getTemplatePath("./cmd/web/templates/portal/" + t)
+		tmpl, err := template.ParseFiles(portalBase, contentPath)
 		if err != nil {
 			log.Fatalf("Failed to parse portal template %s: %v", t, err)
 		}
-		// Use "portal/" prefix to avoid collision with admin templates
 		templates["portal/"+t] = tmpl
 	}
+
+	// CustomerPortalDashboardHandler uses templates["portal/base.html"]; parse base+dashboard.
+	portalDashPath := getTemplatePath("./cmd/web/templates/portal/dashboard.html")
+	portalDashTmpl, err := template.ParseFiles(portalBase, portalDashPath)
+	if err != nil {
+		log.Fatalf("Failed to parse portal template base+dashboard: %v", err)
+	}
+	templates["portal/base.html"] = portalDashTmpl
+	templates["portal/dashboard.html"] = portalDashTmpl
+
+	// Portal login is a standalone page — no base layout.
+	portalLoginPath := getTemplatePath("./cmd/web/templates/portal/login.html")
+	portalLoginTmpl, err := template.ParseFiles(portalLoginPath)
+	if err != nil {
+		log.Fatalf("Failed to parse portal login template: %v", err)
+	}
+	templates["portal/login.html"] = portalLoginTmpl
 
 	// Public page templates
 	publicTemplates := map[string]string{

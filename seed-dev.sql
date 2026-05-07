@@ -37,3 +37,13 @@ INSERT INTO public.admin_users (username, email, password, role, created_at, upd
     now(),
     now()
     );
+
+-- Insert seed bread items for testing (required for integration and e2e tests)
+INSERT INTO public.bread (name, price, quantity, description, type, status, image, created_at, updated_at) VALUES
+    ('Sourdough', 6.99, 50, 'Classic sourdough bread', 'Bread', 'available', '/images/sourdough.png', now(), now()),
+    ('Croissant', 3.49, 100, 'Buttery French croissant', 'Pastry', 'available', '/images/croissant.png', now(), now()),
+    ('Baguette', 4.99, 75, 'Traditional French baguette', 'Bread', 'available', '/images/baguette.png', now(), now()),
+    ('Chocolate Cake', 12.99, 20, 'Rich chocolate layer cake', 'Cake', 'available', '/images/chocolate_cake.png', now(), now()),
+    ('Blueberry Muffin', 3.99, 60, 'Fresh blueberry muffin', 'Pastry', 'available', '/images/muffin.png', now(), now()),
+    ('Rye Bread', 5.49, 40, 'Dense rye bread', 'Bread', 'available', '/images/rye.png', now(), now()),
+    ('Bagel', 2.99, 80, 'Toasted sesame bagel', 'Bread', 'available', '/images/bagel.png', now(), now());

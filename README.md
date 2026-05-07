@@ -331,7 +331,7 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 | `server` | `bakery_extra_test.go` | `CheckBreadInventory`, `BuyOrderStream`, `initializeBakery` |
 | `server` | `integration_test.go` | Real PostgreSQL integration — end-to-end order flow, invoice creation |
 | `broker` | `broker_test.go` | `canFulfillOrder` (7 cases), `processOrderItems`, `NewRabbitMQBakery`, map concurrency |
-| `broker` | `integration_test.go` | Real PostgreSQL + RabbitMQ integration — order processing, outbox messages, concurrent operations, DB/RabbitMQ connectivity |
+| `broker` | `broker_integration_test.go` | Real PostgreSQL + RabbitMQ integration — order processing, outbox messages, concurrent operations |
 | `makers` | `makers_test.go` | `processMakeBreadMessage` — valid JSON, invalid JSON, repo error, all 7 bread types, concurrent |
 | `buyers` | `buyers_test.go` | `buySomeBread` and `buyBreadStream` with mock `pb.BuyBreadClient` — success, error, EOF, multi-response |
 | `data` | `models_test.go` | `PostgresTestRepository` stub methods, `ErrNoRows` propagation, null total cost |
@@ -339,6 +339,13 @@ go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=c
 | `data` | `integration_test.go` | Full PostgreSQL integration — CRUD operations, transactions, query builders, price adjustments |
 | `frontend` | `main_test.go` | `staticPageHandler` — all routes, missing template, nav/footer links |
 | `frontend` | `integration_test.go` | Real HTTP handler tests — template rendering, auth flow, gRPC integration |
+| `frontend` | `server_test.go` | Full server integration — CSRF middleware, router, cookie jar, login flows, SSE endpoints |
+| `frontend` | `admin_handlers_test.go` | Admin handler tests — bread CRUD, orders, customers, makers, alerts, gRPC error paths |
+| `frontend` | `portal_handlers_test.go` | Customer portal tests — orders, invoices, ownership checks, expired tokens |
+| `frontend` | `auth_handlers_test.go` | Auth handler tests — login/logout, JWT validation, token extraction, middleware redirects |
+| `frontend` | `auth_test.go` | Auth context tests — admin/customer gRPC context, metadata extraction |
+| `frontend` | `public_handlers_test.go` | Public handler tests — home, orders, SSE streams, gRPC error paths |
+| `frontend` | `template_test.go` | Template loading, key registration, handler-to-template mapping |
 
 ### Coverage summary
 

@@ -18,36 +18,79 @@ import (
 )
 
 func init() {
-	os.Setenv("JWT_SECRET", "test-secret-for-unit-tests-only")
-	os.Setenv("CSRF_KEY", "test-csrf-key-for-unit-tests-only")
+	// Use the docker-compose default so integration tests work against the local stack
+	// without extra setup. Override via JWT_SECRET env var for custom deployments.
+	// The CSRF_KEY only needs to be set; its value doesn't affect handler routing.
+	if os.Getenv("JWT_SECRET") == "" {
+		os.Setenv("JWT_SECRET", "change-in-production")
+	}
+	if os.Getenv("CSRF_KEY") == "" {
+		os.Setenv("CSRF_KEY", "test-csrf-key-for-unit-tests-only")
+	}
 }
 
+// sharedTestConns holds one authenticated connection per user type.
+// Tests reuse these to avoid exhausting the server's login rate limiter.
+var (
+	sharedAdminConn     *grpc.ClientConn
+	sharedAdminToken    string
+	sharedCustomerConn  *grpc.ClientConn
+	sharedCustomerToken string
+)
+
 func TestMain(m *testing.M) {
-	// Initialize templates so handlers don't panic on nil map
 	initTemplates()
-	os.Exit(m.Run())
+
+	// Authenticate once for admin so every adminTestConn call reuses this token.
+	addr := testutils.GetGRPCAddress()
+	if conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials())); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		resp, loginErr := pb.NewAuthServiceClient(conn).AdminLogin(ctx, &pb.LoginRequest{
+			Username: "admin", Password: "admin123",
+		})
+		cancel()
+		if loginErr == nil && resp.Success {
+			sharedAdminConn = conn
+			sharedAdminToken = resp.Token
+			SetSharedGRPCConn(conn)
+		}
+	}
+
+	// Authenticate once for customer.
+	if conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials())); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		resp, loginErr := pb.NewAuthServiceClient(conn).CustomerLogin(ctx, &pb.CustomerLoginRequest{
+			Email: "john@doe.com", Password: "password123",
+		})
+		cancel()
+		if loginErr == nil && resp.Success && validateToken(resp.Token, "customer") {
+			sharedCustomerConn = conn
+			sharedCustomerToken = resp.Token
+		}
+	}
+
+	code := m.Run()
+
+	if sharedAdminConn != nil {
+		sharedAdminConn.Close()
+	}
+	if sharedCustomerConn != nil {
+		sharedCustomerConn.Close()
+	}
+	os.Exit(code)
 }
 
 // TestFrontend_HomeHandler_Integration tests the home handler with real gRPC
 func TestFrontend_HomeHandler_Integration(t *testing.T) {
-	// Skip if gRPC server is not running
-	addr := testutils.GetGRPCAddress()
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithTimeout(10*time.Second),
-	)
-	if err != nil {
-		t.Skipf("Could not connect to gRPC server: %v", err)
+	if sharedAdminConn == nil {
+		t.Skip("gRPC server not available")
 	}
-	defer conn.Close()
+	SetSharedGRPCConn(sharedAdminConn)
 
 	t.Run("HomeHandlerConnectsToGRPC", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		rr := httptest.NewRecorder()
 
-		// homeHandler calls gRPC to get inventory
-		// May panic if templates are not found, which is expected in integration test
 		defer func() {
 			if r := recover(); r != nil {
 				t.Logf("HomeHandler panicked (expected): %v", r)
@@ -55,18 +98,14 @@ func TestFrontend_HomeHandler_Integration(t *testing.T) {
 		}()
 
 		homeHandler(rr, req)
-
-		// The handler should complete (may fail if gRPC returns error)
 		t.Logf("Response status: %d", rr.Code)
 	})
 }
 
-// TestFrontend_AdminRoutes_Integration tests admin routes
+// TestFrontend_AdminRoutes_Integration tests admin routes using shared connection.
+// Using shared connections avoids extra AdminLogin calls that would exhaust the
+// server-side rate limiter (burst=20 for "ip:unknown" identity).
 func TestFrontend_AdminRoutes_Integration(t *testing.T) {
-	// Set JWT secret for testing
-	// Ensure JWT_SECRET is set for middleware tests that follow.
-	os.Setenv("JWT_SECRET", "test-secret-for-integration")
-
 	t.Run("AdminLoginPageHandler", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/admin/login", nil)
 		rr := httptest.NewRecorder()
@@ -84,93 +123,36 @@ func TestFrontend_AdminRoutes_Integration(t *testing.T) {
 	})
 
 	t.Run("AdminDashboardHandler", func(t *testing.T) {
-		// First get a valid admin token
-		addr := testutils.GetGRPCAddress()
-		conn, err := grpc.NewClient(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(10*time.Second),
-		)
-		if err != nil {
-			t.Skipf("Could not connect to gRPC server: %v", err)
+		if sharedAdminConn == nil || sharedAdminToken == "" {
+			t.Skip("gRPC server not available or admin login failed at startup")
 		}
-		defer conn.Close()
+		SetSharedGRPCConn(sharedAdminConn)
 
-		// Set shared connection so handlers can use it
-		SetSharedGRPCConn(conn)
-
-		authClient := pb.NewAuthServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		loginReq := &pb.LoginRequest{
-			Username: "admin",
-			Password: "admin123",
-		}
-		loginResp, err := authClient.AdminLogin(ctx, loginReq)
-		if err != nil {
-			t.Skipf("Could not get admin token: %v", err)
-		}
-
-		// Set cookie with correct name (admin_token, not admin_jwt)
 		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-		req.AddCookie(&http.Cookie{
-			Name:  "admin_token",
-			Value: loginResp.Token,
-		})
+		req.AddCookie(&http.Cookie{Name: "admin_token", Value: sharedAdminToken})
 		rr := httptest.NewRecorder()
 
 		AdminDashboardHandler(rr, req)
-
 		t.Logf("Admin dashboard response status: %d", rr.Code)
 	})
 
 	t.Run("AdminBreadListHandler", func(t *testing.T) {
-		addr := testutils.GetGRPCAddress()
-		conn, err := grpc.NewClient(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(10*time.Second),
-		)
-		if err != nil {
-			t.Skipf("Could not connect to gRPC server: %v", err)
+		if sharedAdminConn == nil || sharedAdminToken == "" {
+			t.Skip("gRPC server not available or admin login failed at startup")
 		}
-		defer conn.Close()
-
-		// Set shared connection so handlers can use it
-		SetSharedGRPCConn(conn)
-
-		authClient := pb.NewAuthServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		loginReq := &pb.LoginRequest{
-			Username: "admin",
-			Password: "admin123",
-		}
-		loginResp, err := authClient.AdminLogin(ctx, loginReq)
-		if err != nil {
-			t.Skipf("Could not login: %v", err)
-		}
+		SetSharedGRPCConn(sharedAdminConn)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/bread", nil)
-		req.AddCookie(&http.Cookie{
-			Name:  "admin_token",
-			Value: loginResp.Token,
-		})
+		req.AddCookie(&http.Cookie{Name: "admin_token", Value: sharedAdminToken})
 		rr := httptest.NewRecorder()
 
 		AdminBreadListHandler(rr, req)
-
 		t.Logf("Admin bread list response status: %d", rr.Code)
 	})
 }
 
-// TestFrontend_CustomerRoutes_Integration tests customer portal routes
+// TestFrontend_CustomerRoutes_Integration tests customer portal routes.
 func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
-	// Ensure JWT_SECRET is set for middleware tests that follow.
-	os.Setenv("JWT_SECRET", "test-secret-for-integration")
-
 	t.Run("CustomerLoginPageHandler", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/portal/login", nil)
 		rr := httptest.NewRecorder()
@@ -183,83 +165,37 @@ func TestFrontend_CustomerRoutes_Integration(t *testing.T) {
 	})
 
 	t.Run("CustomerLoginHandler", func(t *testing.T) {
-		addr := testutils.GetGRPCAddress()
-		conn, err := grpc.NewClient(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(10*time.Second),
-		)
-		if err != nil {
-			t.Skipf("Could not connect to gRPC server: %v", err)
+		// Use shared connection — avoids a redundant CustomerLogin pre-check call
+		// that would contribute to rate-limiter exhaustion.
+		if sharedCustomerConn == nil {
+			t.Skip("gRPC server not available or customer login failed at startup")
 		}
-		defer conn.Close()
+		SetSharedGRPCConn(sharedCustomerConn)
 
-		authClient := pb.NewAuthServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		loginReq := &pb.CustomerLoginRequest{
-			Email:    "john@doe.com",
-			Password: "password123",
-		}
-		_, err = authClient.CustomerLogin(ctx, loginReq)
-		if err != nil {
-			t.Skipf("Could not login: %v", err)
-		}
-
-		// Make POST request with form data
 		formData := strings.NewReader("email=john@doe.com&password=password123")
 		req := httptest.NewRequest(http.MethodPost, "/portal/login", formData)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
 
 		CustomerLoginHandler(rr, req)
-
 		t.Logf("Customer login response status: %d", rr.Code)
-		
-		// Check for redirect or cookie
+
 		if len(rr.Result().Cookies()) > 0 {
 			t.Log("Customer login set cookie")
 		}
 	})
 
 	t.Run("CustomerPortalDashboardHandler", func(t *testing.T) {
-		addr := testutils.GetGRPCAddress()
-		conn, err := grpc.NewClient(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(10*time.Second),
-		)
-		if err != nil {
-			t.Skipf("Could not connect to gRPC server: %v", err)
+		if sharedCustomerConn == nil || sharedCustomerToken == "" {
+			t.Skip("gRPC server not available or customer login failed at startup")
 		}
-		defer conn.Close()
-
-		// Set shared connection so handlers can use it
-		SetSharedGRPCConn(conn)
-
-		authClient := pb.NewAuthServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		loginReq := &pb.CustomerLoginRequest{
-			Email:    "john@doe.com",
-			Password: "password123",
-		}
-		loginResp, err := authClient.CustomerLogin(ctx, loginReq)
-		if err != nil {
-			t.Skipf("Could not login: %v", err)
-		}
+		SetSharedGRPCConn(sharedCustomerConn)
 
 		req := httptest.NewRequest(http.MethodGet, "/portal", nil)
-		req.AddCookie(&http.Cookie{
-			Name:  "customer_token",
-			Value: loginResp.Token,
-		})
+		req.AddCookie(&http.Cookie{Name: "customer_token", Value: sharedCustomerToken})
 		rr := httptest.NewRecorder()
 
 		CustomerPortalDashboardHandler(rr, req)
-
 		t.Logf("Customer portal dashboard response status: %d", rr.Code)
 	})
 }
@@ -344,6 +280,7 @@ func TestFrontend_InventoryHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("OrderDetailsHandler", func(t *testing.T) {
+		// No admin cookie — handler redirects without making gRPC calls.
 		req := httptest.NewRequest(http.MethodGet, "/orders", nil)
 		rr := httptest.NewRecorder()
 
@@ -356,44 +293,16 @@ func TestFrontend_InventoryHandler_Integration(t *testing.T) {
 // TestFrontend_JSONResponse_Integration tests JSON response handlers
 func TestFrontend_JSONResponse_Integration(t *testing.T) {
 	t.Run("AdminAlertsHandler", func(t *testing.T) {
-		os.Setenv("JWT_SECRET", "test-secret")
-
-		addr := testutils.GetGRPCAddress()
-		conn, err := grpc.NewClient(
-			addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(10*time.Second),
-		)
-		if err != nil {
-			t.Skipf("Could not connect to gRPC server: %v", err)
+		if sharedAdminConn == nil || sharedAdminToken == "" {
+			t.Skip("gRPC server not available or admin login failed at startup")
 		}
-		defer conn.Close()
-
-		// Set shared connection so handlers can use it
-		SetSharedGRPCConn(conn)
-
-		authClient := pb.NewAuthServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		loginReq := &pb.LoginRequest{
-			Username: "admin",
-			Password: "admin123",
-		}
-		loginResp, err := authClient.AdminLogin(ctx, loginReq)
-		if err != nil {
-			t.Skipf("Could not login: %v", err)
-		}
+		SetSharedGRPCConn(sharedAdminConn)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/alerts", nil)
-		req.AddCookie(&http.Cookie{
-			Name:  "admin_token",
-			Value: loginResp.Token,
-		})
+		req.AddCookie(&http.Cookie{Name: "admin_token", Value: sharedAdminToken})
 		rr := httptest.NewRecorder()
 
 		AdminAlertsHandler(rr, req)
-
 		t.Logf("Admin alerts response status: %d", rr.Code)
 	})
 }
@@ -402,7 +311,7 @@ func TestFrontend_JSONResponse_Integration(t *testing.T) {
 func TestFrontend_GRPCConnection_Integration(t *testing.T) {
 	t.Run("ConnectAndClose", func(t *testing.T) {
 		addr := testutils.GetGRPCAddress()
-		
+
 		conn, err := grpc.NewClient(
 			addr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -444,10 +353,7 @@ func TestFrontend_GRPCConnection_Integration(t *testing.T) {
 // TestFrontend_TemplateRendering_Integration tests template rendering
 func TestFrontend_TemplateRendering_Integration(t *testing.T) {
 	t.Run("StaticPageHandler", func(t *testing.T) {
-		// Use the same relative path pattern as main.go for consistency
-		templatePath := "./templates/service.html"
-
-		handler := staticPageHandler(templatePath)
+		handler := staticPageHandler("service")
 
 		req := httptest.NewRequest(http.MethodGet, "/service", nil)
 		rr := httptest.NewRecorder()

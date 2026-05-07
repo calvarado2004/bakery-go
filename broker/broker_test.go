@@ -186,7 +186,7 @@ func TestProcessOneOrder_ValidOrderBuffersAndAcks(t *testing.T) {
 			return &pb.BrokerOrderResult{Accepted: true, OrderId: 1, Message: "accepted"}, nil
 		},
 	}
-	broker := &RabbitMQBakery{
+	broker := &BrokerService{
 		brokerConfig: brokerConfig{},
 	}
 
@@ -226,7 +226,7 @@ func TestProcessOneOrder_DuplicateUUIDSkipsBuffering(t *testing.T) {
 			return &pb.BrokerOrderResult{Accepted: false, Message: "duplicate"}, nil
 		},
 	}
-	broker := &RabbitMQBakery{}
+	broker := &BrokerService{}
 
 	order := data.BuyOrder{BuyOrderUUID: "uuid-dup-1"}
 	body, _ := json.Marshal(order)
@@ -254,7 +254,7 @@ func TestProcessOneOrder_DuplicateUUIDSkipsBuffering(t *testing.T) {
 // messages are ACKed (not requeued) to prevent infinite requeue loops.
 func TestProcessOneOrder_InvalidJSONAcksDelivery(t *testing.T) {
 	mockClient := &mockBrokerClient{}
-	broker := &RabbitMQBakery{}
+	broker := &BrokerService{}
 
 	acked := false
 	delivery := rabbitmq.Delivery{
@@ -290,7 +290,7 @@ func TestProcessMatchingBatch_ReportsResults(t *testing.T) {
 		},
 	}
 
-	broker := &RabbitMQBakery{}
+	broker := &BrokerService{}
 	order := data.BuyOrder{
 		BuyOrderUUID: "uuid-match-1",
 		Breads:       []data.Bread{{ID: 1, Quantity: 5, Price: 2.50}},
@@ -303,21 +303,24 @@ func TestProcessMatchingBatch_ReportsResults(t *testing.T) {
 	}
 }
 
-// --- NewRabbitMQBakery tests ---
+// --- NewBrokerService tests ---
 
-func TestNewRabbitMQBakery_SetsFields(t *testing.T) {
+func TestNewBrokerService_SetsFields(t *testing.T) {
 	cfg := brokerConfig{}
-	b := NewRabbitMQBakery(cfg, "amqp://localhost:5672")
+	b := NewBrokerService(cfg, "amqp://localhost:5672", nil, nil)
 
+	if b == nil {
+		t.Fatal("expected non-nil BrokerService")
+	}
 	if b.rabbitmqURL != "amqp://localhost:5672" {
 		t.Errorf("unexpected rabbitmqURL: %s", b.rabbitmqURL)
 	}
 }
 
-func TestNewRabbitMQBakery_EmptyURL(t *testing.T) {
-	b := NewRabbitMQBakery(brokerConfig{}, "")
+func TestNewBrokerService_EmptyURL(t *testing.T) {
+	b := NewBrokerService(brokerConfig{}, "", nil, nil)
 	if b == nil {
-		t.Fatal("expected non-nil RabbitMQBakery")
+		t.Fatal("expected non-nil BrokerService")
 	}
 	if b.rabbitmqURL != "" {
 		t.Errorf("expected empty URL, got %s", b.rabbitmqURL)

@@ -350,7 +350,7 @@ func (r *insertBreadErrorRepo) InsertBread(data.Bread) (int, error) {
 // --- NewRabbitMQBakery and server-package construction ---
 
 func TestServerNewRabbitMQBakery_Created(t *testing.T) {
-	b := NewRabbitMQBakery(Config{Repo: &stubRepo{}}, "amqp://test:5672")
+	b := NewRabbitMQBakery(Config{Repo: &stubRepo{}}, "amqp://test:5672", nil)
 	if b == nil {
 		t.Fatal("expected non-nil RabbitMQBakery")
 	}

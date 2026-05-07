@@ -16,7 +16,7 @@ import (
 //   - Makers own: make-bread-order
 func (rabbit *RabbitMQBakery) init() {
 
-	connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+	connection, err := rabbit.rabbitmqDialer.Dial()
 	if err != nil {
 		log.Errorf("Failed to connect to RabbitMQ: %v", err)
 		return
@@ -104,7 +104,7 @@ func (rabbit *RabbitMQBakery) checkBread() error {
 				continue
 			}
 
-			conn, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+			conn, err := rabbit.rabbitmqDialer.Dial()
 			if err != nil {
 				log.Errorf("Failed to connect to RabbitMQ for make-bread publish: %v", err)
 				continue
@@ -249,7 +249,7 @@ func (rabbit *RabbitMQBakery) listenForBreadMade() {
 	reconnectDelay := 10 * time.Second
 
 	for {
-		connection, err := rabbitmq.Dial(rabbit.rabbitmqURL)
+		connection, err := rabbit.rabbitmqDialer.Dial()
 		if err != nil {
 			log.Errorf("Failed to connect to RabbitMQ for bread-made listener: %v", err)
 			time.Sleep(reconnectDelay)

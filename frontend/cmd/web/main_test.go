@@ -7,23 +7,23 @@ import (
 	"testing"
 )
 
-// staticPageHandler uses "./cmd/web/templates/..." relative to the project root
-// when running as an app. In tests the CWD is the package dir (frontend/cmd/web),
-// so we pass "./templates/..." directly to the handler under test.
+// staticPageHandler uses the pre-parsed template map (keyed by simple names
+// like "service", "product", etc.) which is populated by initTemplates at
+// package init time.
 
 func TestStaticPageHandler_AllRoutes(t *testing.T) {
 	routes := []struct {
 		name     string
 		path     string
-		template string
+		key      string
 		wantText string
 	}{
-		{"service", "/service", "./templates/service.html", "Our Services"},
-		{"product", "/product", "./templates/product.html", "Our Products"},
-		{"team", "/team", "./templates/team.html", "Our Team"},
-		{"testimonial", "/testimonial", "./templates/testimonial.html", "Testimonials"},
-		{"contact", "/contact", "./templates/contact.html", "Contact Us"},
-		{"404", "/404", "./templates/404.html", "404"},
+		{"service", "/service", "service", "Our Services"},
+		{"product", "/product", "product", "Our Products"},
+		{"team", "/team", "team", "Our Team"},
+		{"testimonial", "/testimonial", "testimonial", "Testimonials"},
+		{"contact", "/contact", "contact", "Contact Us"},
+		{"404", "/404", "404", "404"},
 	}
 
 	for _, tc := range routes {
@@ -31,7 +31,7 @@ func TestStaticPageHandler_AllRoutes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			rr := httptest.NewRecorder()
 
-			handler := staticPageHandler(tc.template)
+			handler := staticPageHandler(tc.key)
 			handler(rr, req)
 
 			if rr.Code != http.StatusOK {
@@ -49,7 +49,7 @@ func TestStaticPageHandler_MissingTemplate(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 	rr := httptest.NewRecorder()
 
-	handler := staticPageHandler("./templates/nonexistent.html")
+	handler := staticPageHandler("nonexistent-key")
 	handler(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
@@ -59,16 +59,17 @@ func TestStaticPageHandler_MissingTemplate(t *testing.T) {
 
 func TestStaticPageHandler_NavLinksPresent(t *testing.T) {
 	pages := []struct {
-		template string
+		key   string
+		name  string
 	}{
-		{"./templates/service.html"},
-		{"./templates/product.html"},
-		{"./templates/team.html"},
-		{"./templates/testimonial.html"},
-		{"./templates/contact.html"},
-		{"./templates/404.html"},
-		{"./templates/index.html"},
-		{"./templates/order-details.html"},
+		{"service", "service"},
+		{"product", "product"},
+		{"team", "team"},
+		{"testimonial", "testimonial"},
+		{"contact", "contact"},
+		{"404", "404"},
+		{"index", "index"},
+		{"order-details", "order-details"},
 	}
 
 	navLinks := []string{
@@ -82,17 +83,17 @@ func TestStaticPageHandler_NavLinksPresent(t *testing.T) {
 	}
 
 	for _, pg := range pages {
-		t.Run(pg.template, func(t *testing.T) {
+		t.Run(pg.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rr := httptest.NewRecorder()
 
-			handler := staticPageHandler(pg.template)
+			handler := staticPageHandler(pg.key)
 			handler(rr, req)
 
 			body := rr.Body.String()
 			for _, link := range navLinks {
 				if !strings.Contains(body, link) {
-					t.Errorf("%s: missing nav link %q", pg.template, link)
+					t.Errorf("%s: missing nav link %q", pg.name, link)
 				}
 			}
 		})
@@ -101,16 +102,17 @@ func TestStaticPageHandler_NavLinksPresent(t *testing.T) {
 
 func TestStaticPageHandler_FooterLinksPresent(t *testing.T) {
 	pages := []struct {
-		template string
+		key  string
+		name string
 	}{
-		{"./templates/service.html"},
-		{"./templates/product.html"},
-		{"./templates/team.html"},
-		{"./templates/testimonial.html"},
-		{"./templates/contact.html"},
-		{"./templates/404.html"},
-		{"./templates/index.html"},
-		{"./templates/order-details.html"},
+		{"service", "service"},
+		{"product", "product"},
+		{"team", "team"},
+		{"testimonial", "testimonial"},
+		{"contact", "contact"},
+		{"404", "404"},
+		{"index", "index"},
+		{"order-details", "order-details"},
 	}
 
 	footerLinks := []string{
@@ -122,23 +124,23 @@ func TestStaticPageHandler_FooterLinksPresent(t *testing.T) {
 	}
 
 	for _, pg := range pages {
-		t.Run(pg.template, func(t *testing.T) {
+		t.Run(pg.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rr := httptest.NewRecorder()
 
-			handler := staticPageHandler(pg.template)
+			handler := staticPageHandler(pg.key)
 			handler(rr, req)
 
 			body := rr.Body.String()
 			for _, link := range footerLinks {
 				if !strings.Contains(body, link) {
-					t.Errorf("%s: missing footer link %q", pg.template, link)
+					t.Errorf("%s: missing footer link %q", pg.name, link)
 				}
 			}
 
 			// No footer link should have an empty href
 			if strings.Contains(body, `btn-link" href=""`) {
-				t.Errorf("%s: footer contains btn-link with empty href", pg.template)
+				t.Errorf("%s: footer contains btn-link with empty href", pg.name)
 			}
 		})
 	}

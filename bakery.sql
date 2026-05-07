@@ -61,7 +61,7 @@ CREATE TABLE public.bread (
     status character varying(50),
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    image character varying(255),
+    image character varying(255) DEFAULT '/images/default.png',
     PRIMARY KEY (id),
     CONSTRAINT bread_quantity_non_negative CHECK (quantity >= 0),
     CONSTRAINT bread_status_valid CHECK (status IN ('available', 'unavailable', 'discontinued', 'out_of_stock', 'processing'))

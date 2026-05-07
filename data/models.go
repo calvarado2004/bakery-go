@@ -646,6 +646,7 @@ func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 
 	for rows.Next() {
 		var bread Bread
+		var image sql.NullString
 		err := rows.Scan(
 			&bread.ID,
 			&bread.Name,
@@ -656,11 +657,16 @@ func (u *PostgresRepository) GetAvailableBread() ([]Bread, error) {
 			&bread.Status,
 			&bread.CreatedAt,
 			&bread.UpdatedAt,
-			&bread.Image,
+			&image,
 		)
 		if err != nil {
 			log.Errorf("Error scanning bread: %v", err)
 			return nil, err
+		}
+		if image.Valid {
+			bread.Image = image.String
+		} else {
+			bread.Image = "/images/default.png"
 		}
 
 		breads = append(breads, bread)
@@ -676,6 +682,7 @@ func (u *PostgresRepository) GetBreadByID(breadID int) (bread Bread, err error) 
 
 	stmt := `SELECT * FROM bread WHERE id = $1`
 
+	var image sql.NullString
 	err = db.QueryRowContext(ctx, stmt, breadID).Scan(
 		&bread.ID,
 		&bread.Name,
@@ -686,11 +693,16 @@ func (u *PostgresRepository) GetBreadByID(breadID int) (bread Bread, err error) 
 		&bread.Status,
 		&bread.CreatedAt,
 		&bread.UpdatedAt,
-		&bread.Image,
+		&image,
 	)
 	if err != nil {
 		log.Errorf("Error scanning bread by ID: %v", err)
 		return bread, err
+	}
+	if image.Valid {
+		bread.Image = image.String
+	} else {
+		bread.Image = "/images/default.png"
 	}
 
 	return bread, err

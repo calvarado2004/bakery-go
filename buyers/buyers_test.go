@@ -314,6 +314,37 @@ func TestBuyBreadStream_MultipleResponses(t *testing.T) {
 	}
 }
 
+// TestBuyBreadStream_ContextCancelledBeforeSignal exercises the ctx.Done() branch
+// inside the for-select loop when context is cancelled before breadBoughtChan fires.
+func TestBuyBreadStream_ContextCancelledBeforeSignal(t *testing.T) {
+	client := &mockBuyBreadClient{
+		streamClient: newMockStream(), // dial succeeds, enters the for-select loop
+	}
+	cfg := newConfig(client)
+
+	breadBoughtChan := make(chan bool) // unbuffered — no one sends
+	doneStream      := make(chan bool, 1)
+	errChan         := make(chan error, 2)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go cfg.buyBreadStream(ctx, breadBoughtChan, doneStream, "uuid-ctx-done", errChan)
+
+	// Give the goroutine time to reach the select, then cancel.
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	// The goroutine must exit within a short window via ctx.Done().
+	select {
+	case <-doneStream:
+		t.Error("expected ctx.Done exit, not doneStream")
+	case <-errChan:
+		t.Error("expected ctx.Done exit, not errChan")
+	case <-time.After(500 * time.Millisecond):
+		// Goroutine exited silently — correct behaviour.
+	}
+}
+
 // --- Config construction ---
 
 func TestConfig_BuyBreadClientSet(t *testing.T) {

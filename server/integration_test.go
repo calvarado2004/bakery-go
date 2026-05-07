@@ -12,11 +12,12 @@ import (
 	"github.com/calvarado2004/bakery-go/testutils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // seedIntegrationAccounts ensures the admin and customer accounts needed by the
-// server integration tests exist in the database. It is idempotent (safe to call
-// multiple times) and registers cleanup to remove only what it inserted.
+// server integration tests exist in the database with the correct password hashes.
+// It is idempotent (safe to call multiple times).
 func seedIntegrationAccounts(t *testing.T) {
 	t.Helper()
 	db, err := sql.Open("pgx", testutils.GetDBDSNFromT(t))
@@ -30,40 +31,23 @@ func seedIntegrationAccounts(t *testing.T) {
 	// john@doe.com password = "password123" (bcrypt, cost 10)
 	const customerHash = "$2a$10$lWlfcAs2n8hT4z9PV/90EehZ5J04JQjz9B1fFO.GDUuVjyE/OlIr2"
 
-	// Use INSERT … ON CONFLICT DO NOTHING so we don't fail if the row already exists.
-	// admin_users has no unique constraint on email/username in the schema, so we
-	// check first and insert only if missing.
-	var adminExists bool
-	db.QueryRow(`SELECT EXISTS(SELECT 1 FROM admin_users WHERE username='admin')`).Scan(&adminExists) //nolint:errcheck
-	if !adminExists {
-		if _, err := db.Exec(`INSERT INTO admin_users (username, email, password, role, created_at, updated_at)
-			VALUES ('admin','admin@bakery.com',$1,'admin',NOW(),NOW())`, adminHash); err != nil {
-			t.Fatalf("seedIntegrationAccounts: insert admin: %v", err)
-		}
-		t.Cleanup(func() {
-			db2, _ := sql.Open("pgx", testutils.GetDBDSNFromT(t))
-			if db2 != nil {
-				db2.Exec("DELETE FROM admin_users WHERE username='admin'") //nolint:errcheck
-				db2.Close()
-			}
-		})
+	// Use INSERT ... ON CONFLICT DO UPDATE to ensure correct hash exists.
+	if _, err := db.Exec(`INSERT INTO admin_users (username, email, password, role, created_at, updated_at)
+		VALUES ('admin','admin@bakery.com',$1,'admin',NOW(),NOW())
+		ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password, email = EXCLUDED.email, role = EXCLUDED.role`, adminHash); err != nil {
+		t.Logf("seedIntegrationAccounts: upsert admin: %v", err)
 	}
 
-	var customerExists bool
-	db.QueryRow(`SELECT EXISTS(SELECT 1 FROM customer WHERE email='john@doe.com')`).Scan(&customerExists) //nolint:errcheck
-	if !customerExists {
-		if _, err := db.Exec(`INSERT INTO customer (name, email, password, created_at, updated_at)
-			VALUES ('John Doe','john@doe.com',$1,NOW(),NOW())`, customerHash); err != nil {
-			t.Fatalf("seedIntegrationAccounts: insert customer: %v", err)
-		}
-		t.Cleanup(func() {
-			db2, _ := sql.Open("pgx", testutils.GetDBDSNFromT(t))
-			if db2 != nil {
-				db2.Exec("DELETE FROM customer WHERE email='john@doe.com'") //nolint:errcheck
-				db2.Close()
-			}
-		})
+	if _, err := db.Exec(`INSERT INTO customer (name, email, password, created_at, updated_at)
+		VALUES ('John Doe','john@doe.com',$1,NOW(),NOW())
+		ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password`, customerHash); err != nil {
+		t.Logf("seedIntegrationAccounts: upsert customer: %v", err)
 	}
+}
+
+// authedContext returns a context with the admin JWT attached as gRPC metadata.
+func authedContext(ctx context.Context, token string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
 }
 
 // TestGRPCServer_Integration tests gRPC server endpoints with real connections
@@ -81,6 +65,10 @@ func TestGRPCServer_Integration(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// Wait for the rate limiter to refill (burst=20, rate=10/s).
+	// This prevents "rate limit exceeded" errors when tests run after other packages.
+	time.Sleep(2 * time.Second)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -88,10 +76,24 @@ func TestGRPCServer_Integration(t *testing.T) {
 	authClient := pb.NewAuthServiceClient(conn)
 	inventoryClient := pb.NewCheckInventoryClient(conn)
 	buyClient := pb.NewBuyBreadClient(conn)
+	invoiceClient := pb.NewInvoiceServiceClient(conn)
+
+	// Login as admin to get auth token for AdminService calls.
+	loginResp, err := authClient.AdminLogin(ctx, &pb.LoginRequest{
+		Username: "admin",
+		Password: "admin123",
+	})
+	if err != nil {
+		t.Fatalf("AdminLogin failed: %v", err)
+	}
+	if loginResp.Token == "" {
+		t.Fatal("Expected JWT token from AdminLogin")
+	}
+	adminCtx := authedContext(ctx, loginResp.Token)
 
 	t.Run("GetDashboardStats", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetDashboardStats(ctx, req)
+		resp, err := adminClient.GetDashboardStats(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetDashboardStats failed: %v", err)
 		}
@@ -101,7 +103,7 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetAllBread", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetAllBread(ctx, req)
+		resp, err := adminClient.GetAllBread(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllBread failed: %v", err)
 		}
@@ -110,7 +112,7 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetAllCustomers", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetAllCustomers(ctx, req)
+		resp, err := adminClient.GetAllCustomers(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllCustomers failed: %v", err)
 		}
@@ -119,7 +121,7 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetAllBreadMakers", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetAllBreadMakers(ctx, req)
+		resp, err := adminClient.GetAllBreadMakers(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllBreadMakers failed: %v", err)
 		}
@@ -190,7 +192,7 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetLowStockAlerts", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetLowStockAlerts(ctx, req)
+		resp, err := adminClient.GetLowStockAlerts(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetLowStockAlerts failed: %v", err)
 		}
@@ -199,7 +201,7 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetAllOrders", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetAllOrders(ctx, req)
+		resp, err := adminClient.GetAllOrders(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllOrders failed: %v", err)
 		}
@@ -208,11 +210,21 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 	t.Run("GetAllMakeOrders", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := adminClient.GetAllMakeOrders(ctx, req)
+		resp, err := adminClient.GetAllMakeOrders(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllMakeOrders failed: %v", err)
 		}
 		t.Logf("Found %d make orders", len(resp.MakeOrders))
+	})
+
+	t.Run("GetAllInvoices", func(t *testing.T) {
+		req := &pb.Empty{}
+		resp, err := invoiceClient.GetAllInvoices(adminCtx, req)
+		if err != nil {
+			t.Logf("GetAllInvoices error (may have no invoices): %v", err)
+		} else {
+			t.Logf("Found %d invoices", len(resp.Invoices))
+		}
 	})
 
 	t.Run("BuyBread", func(t *testing.T) {
@@ -247,6 +259,8 @@ func TestGRPCServer_Integration(t *testing.T) {
 
 // TestAdminBreadCRUD_Integration tests bread CRUD operations via gRPC
 func TestAdminBreadCRUD_Integration(t *testing.T) {
+	seedIntegrationAccounts(t)
+
 	addr := testutils.GetGRPCAddress()
 	conn, err := grpc.NewClient(
 		addr,
@@ -258,10 +272,24 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// Wait for the rate limiter to refill
+	time.Sleep(2 * time.Second)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	adminClient := pb.NewAdminServiceClient(conn)
+	authClient := pb.NewAuthServiceClient(conn)
+
+	// Login as admin
+	loginResp, err := authClient.AdminLogin(ctx, &pb.LoginRequest{
+		Username: "admin",
+		Password: "admin123",
+	})
+	if err != nil {
+		t.Fatalf("AdminLogin failed: %v", err)
+	}
+	adminCtx := authedContext(ctx, loginResp.Token)
 
 	t.Run("CreateBread", func(t *testing.T) {
 		req := &pb.CreateBreadRequest{
@@ -273,7 +301,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 			Image:       "/images/test.png",
 		}
 
-		resp, err := adminClient.CreateBread(ctx, req)
+		resp, err := adminClient.CreateBread(adminCtx, req)
 		if err != nil {
 			t.Fatalf("CreateBread failed: %v", err)
 		}
@@ -281,7 +309,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 
 		// Clean up
 		deleteReq := &pb.DeleteBreadRequest{Id: resp.Id}
-		_, err = adminClient.DeleteBread(ctx, deleteReq)
+		_, err = adminClient.DeleteBread(adminCtx, deleteReq)
 		if err != nil {
 			t.Logf("DeleteBread warning: %v", err)
 		}
@@ -290,7 +318,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 	t.Run("UpdateBread", func(t *testing.T) {
 		// Get bread to update
 		allReq := &pb.Empty{}
-		allResp, err := adminClient.GetAllBread(ctx, allReq)
+		allResp, err := adminClient.GetAllBread(adminCtx, allReq)
 		if err != nil || len(allResp.Breads) == 0 {
 			t.Skip("No bread available to update")
 		}
@@ -307,7 +335,7 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 			Image:    bread.Image,
 		}
 
-		resp, err := adminClient.UpdateBread(ctx, req)
+		resp, err := adminClient.UpdateBread(adminCtx, req)
 		if err != nil {
 			t.Fatalf("UpdateBread failed: %v", err)
 		}
@@ -324,12 +352,14 @@ func TestAdminBreadCRUD_Integration(t *testing.T) {
 			Type:     bread.Type,
 			Image:    bread.Image,
 		}
-		_, _ = adminClient.UpdateBread(ctx, resetReq)
+		_, _ = adminClient.UpdateBread(adminCtx, resetReq)
 	})
 }
 
 // TestInvoiceService_Integration tests invoice operations
 func TestInvoiceService_Integration(t *testing.T) {
+	seedIntegrationAccounts(t)
+
 	addr := testutils.GetGRPCAddress()
 	conn, err := grpc.NewClient(
 		addr,
@@ -341,16 +371,30 @@ func TestInvoiceService_Integration(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// Wait for the rate limiter to refill
+	time.Sleep(2 * time.Second)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	adminClient := pb.NewAdminServiceClient(conn)
 	invoiceClient := pb.NewInvoiceServiceClient(conn)
+	authClient := pb.NewAuthServiceClient(conn)
+
+	// Login as admin
+	loginResp, err := authClient.AdminLogin(ctx, &pb.LoginRequest{
+		Username: "admin",
+		Password: "admin123",
+	})
+	if err != nil {
+		t.Fatalf("AdminLogin failed: %v", err)
+	}
+	adminCtx := authedContext(ctx, loginResp.Token)
 
 	t.Run("CreateInvoice", func(t *testing.T) {
 		// Get an order first
 		ordersReq := &pb.Empty{}
-		ordersResp, err := adminClient.GetAllOrders(ctx, ordersReq)
+		ordersResp, err := adminClient.GetAllOrders(adminCtx, ordersReq)
 		if err != nil || len(ordersResp.BuyOrders) == 0 {
 			t.Skip("No orders available")
 		}
@@ -360,7 +404,7 @@ func TestInvoiceService_Integration(t *testing.T) {
 			BuyOrderId: order.Id,
 		}
 
-		resp, err := invoiceClient.CreateInvoice(ctx, req)
+		resp, err := invoiceClient.CreateInvoice(adminCtx, req)
 		if err != nil {
 			t.Fatalf("CreateInvoice failed: %v", err)
 		}
@@ -369,7 +413,7 @@ func TestInvoiceService_Integration(t *testing.T) {
 
 	t.Run("GetAllInvoices", func(t *testing.T) {
 		req := &pb.Empty{}
-		resp, err := invoiceClient.GetAllInvoices(ctx, req)
+		resp, err := invoiceClient.GetAllInvoices(adminCtx, req)
 		if err != nil {
 			t.Fatalf("GetAllInvoices failed: %v", err)
 		}

@@ -22,6 +22,7 @@ import (
 type RabbitMQBakery struct {
 	Config
 	rabbitmqURL            string
+	rabbitmqDialer         RabbitMQDialer
 	settlementDispatcher   settlementDispatcher
 }
 
@@ -114,11 +115,16 @@ func (app *Config) setupRepo(conn *sql.DB) {
 	app.Repo = db
 }
 
-// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config
-func NewRabbitMQBakery(config Config, rabbitmqURL string) *RabbitMQBakery {
+// NewRabbitMQBakery creates a new RabbitMQBakery instance with the provided config.
+// If rabbitmqDialer is nil, a realRabbitMQDialer is used.
+func NewRabbitMQBakery(config Config, rabbitmqURL string, dialer RabbitMQDialer) *RabbitMQBakery {
+	if dialer == nil {
+		dialer = realRabbitMQDialer{}
+	}
 	return &RabbitMQBakery{
-		Config:      config,
-		rabbitmqURL: rabbitmqURL,
+		Config:       config,
+		rabbitmqURL:  rabbitmqURL,
+		rabbitmqDialer: dialer,
 	}
 }
 
@@ -142,7 +148,7 @@ func main() {
 	}
 
 	// Create a new RabbitMQBakery instance
-	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitMQAddress)
+	rabbitMQBakery := NewRabbitMQBakery(Config{}, rabbitMQAddress, nil)
 
 	// Setup Postgres Repository for RabbitMQ Bakery
 	rabbitMQBakery.setupRepo(pgConn)

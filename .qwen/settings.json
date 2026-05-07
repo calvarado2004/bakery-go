@@ -51,7 +51,18 @@
       "Bash(timeout *)",
       "Bash(oc *)",
       "Bash(cp *)",
-      "Bash(docker push *)"
+      "Bash(docker push *)",
+      "Bash(docker image *)",
+      "Bash(ls *)",
+      "Bash(nc *)",
+      "Bash(rm *)",
+      "Bash(tail *)",
+      "Bash(podman-compose *)",
+      "Bash(tr *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(docker compose *)",
+      "Bash(file *)"
     ]
   },
   "$version": 3

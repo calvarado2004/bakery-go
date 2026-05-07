@@ -237,6 +237,10 @@ func TestPostgresRepository_AdminOperations_Integration(t *testing.T) {
 	if err := dbHelper.ClearAllTables(); err != nil {
 		t.Fatalf("Failed to clear tables: %v", err)
 	}
+	// Re-seed bread data (AdminOperations needs bread for dashboard stats and low stock)
+	if err := dbHelper.SeedTestBread(); err != nil {
+		t.Fatalf("Failed to seed test bread: %v", err)
+	}
 
 	t.Run("GetDashboardStats", func(t *testing.T) {
 		stats, err := repo.GetDashboardStats()
@@ -293,6 +297,10 @@ func TestPostgresRepository_BuyOrder_Integration(t *testing.T) {
 	// Clear tables before test
 	if err := dbHelper.ClearAllTables(); err != nil {
 		t.Fatalf("Failed to clear tables: %v", err)
+	}
+	// Re-seed bread and customer data
+	if err := dbHelper.SeedTestBread(); err != nil {
+		t.Fatalf("Failed to seed test bread: %v", err)
 	}
 
 	t.Run("InsertBuyOrder and GetBuyOrderByUUID", func(t *testing.T) {
@@ -382,6 +390,10 @@ func TestPostgresRepository_MakeOrder_Integration(t *testing.T) {
 	// Clear tables before test
 	if err := dbHelper.ClearAllTables(); err != nil {
 		t.Fatalf("Failed to clear tables: %v", err)
+	}
+	// Re-seed bread data (MakeOrder needs bread)
+	if err := dbHelper.SeedTestBread(); err != nil {
+		t.Fatalf("Failed to seed test bread: %v", err)
 	}
 
 	t.Run("InsertMakeOrder and GetMakeOrderByID", func(t *testing.T) {
@@ -526,6 +538,10 @@ func TestPostgresRepository_Invoice_Integration(t *testing.T) {
 	// Clear tables before test
 	if err := dbHelper.ClearAllTables(); err != nil {
 		t.Fatalf("Failed to clear tables: %v", err)
+	}
+	// Re-seed bread data (Invoice needs bread to create buy orders)
+	if err := dbHelper.SeedTestBread(); err != nil {
+		t.Fatalf("Failed to seed test bread: %v", err)
 	}
 
 	t.Run("InsertInvoice and GetInvoiceByID", func(t *testing.T) {
@@ -788,6 +804,10 @@ func TestPostgresRepository_CustomerOrders_Integration(t *testing.T) {
 	if err := dbHelper.ClearAllTables(); err != nil {
 		t.Fatalf("Failed to clear tables: %v", err)
 	}
+	// Re-seed bread data (CustomerOrders needs bread)
+	if err := dbHelper.SeedTestBread(); err != nil {
+		t.Fatalf("Failed to seed test bread: %v", err)
+	}
 
 	t.Run("GetCustomerOrders", func(t *testing.T) {
 		breads, err := repo.GetAvailableBread()
@@ -965,8 +985,8 @@ func TestPasswordMatches_Integration(t *testing.T) {
 	}
 }
 
-// TestAdjustBreadQuantity_CheckConstraint verifies that trying to set quantity below 0
-// via AdjustBreadQuantity returns ErrInsufficientStock.
+// TestAdjustBreadQuantity_CheckConstraint verifies that trying to reduce
+// a bread's quantity below 0 returns ErrInsufficientStock.
 func TestAdjustBreadQuantity_CheckConstraint(t *testing.T) {
 	fixture := testutils.NewIntegrationFixture(t)
 	defer fixture.Cleanup()
@@ -977,7 +997,6 @@ func TestAdjustBreadQuantity_CheckConstraint(t *testing.T) {
 	fixture.DB.Exec("DELETE FROM bread WHERE name = 'ConstraintTestBread'") //nolint:errcheck
 
 	// Create a bread with quantity=1 so we can drive it negative.
-	// Include a non-NULL image so GetAvailableBread scans won't break.
 	_, err := fixture.DB.Exec(`
 		INSERT INTO bread (name, price, quantity, description, type, status, image, created_at, updated_at)
 		VALUES ('ConstraintTestBread', 1.0, 1, 'test', 'test', 'available', 'https://example.com/bread.jpg', NOW(), NOW())
@@ -987,17 +1006,27 @@ func TestAdjustBreadQuantity_CheckConstraint(t *testing.T) {
 	}
 
 	var breadID int
-	err = fixture.DB.QueryRow(`SELECT id FROM bread WHERE name = 'ConstraintTestBread'`).Scan(&breadID)
+	var actualQty int
+	err = fixture.DB.QueryRow(`SELECT id, quantity FROM bread WHERE name = 'ConstraintTestBread'`).Scan(&breadID, &actualQty)
 	if err != nil {
 		t.Fatalf("failed to find test bread: %v", err)
 	}
-	t.Cleanup(func() {
-		fixture.DB.Exec("DELETE FROM bread WHERE id = $1", breadID) //nolint:errcheck
-	})
+
+	// Verify the test bread actually has quantity >= 1 (the value we inserted).
+	if actualQty < 1 {
+		t.Fatalf("test bread has quantity=%d, expected at least 1 to test negative deduction", actualQty)
+	}
 
 	// Deducting 5 from a bread with quantity=1 should return ErrInsufficientStock.
 	_, err = repo.AdjustBreadQuantity(breadID, -5)
 	if !errors.Is(err, data.ErrInsufficientStock) {
 		t.Errorf("expected ErrInsufficientStock, got: %v", err)
+	}
+
+	// Verify the quantity was NOT changed (deduction should have been rejected).
+	var remainingQty int
+	fixture.DB.QueryRow(`SELECT quantity FROM bread WHERE id = $1`, breadID).Scan(&remainingQty)
+	if remainingQty != actualQty {
+		t.Errorf("quantity was changed from %d to %d after rejected deduction", actualQty, remainingQty)
 	}
 }

@@ -72,7 +72,7 @@ type publisher interface {
 // processMatchingBatch takes a batch of pending orders and fulfills them
 // according to priority: highest bid first, then earliest sequence number.
 // All data operations go through the server's gRPC BrokerService.
-func (app *RabbitMQBakery) processMatchingBatch(orders []data.BuyOrder, pub publisher, bc brokerClienter) {
+func (svc *BrokerService) processMatchingBatch(orders []data.BuyOrder, pub publisher, bc brokerClienter) {
 	if len(orders) == 0 {
 		return
 	}
@@ -94,7 +94,7 @@ func (app *RabbitMQBakery) processMatchingBatch(orders []data.BuyOrder, pub publ
 
 	for idx := range orders {
 		order := &orders[idx]
-		result := app.fulfillOrder(order, pub, bc)
+		result := svc.fulfillOrder(order, pub, bc)
 		if result != nil {
 			batchResults = append(batchResults, result)
 		}
@@ -119,7 +119,7 @@ func (app *RabbitMQBakery) processMatchingBatch(orders []data.BuyOrder, pub publ
 // fulfillOrder processes a single order within a matched batch.
 // It calls the server's gRPC ReserveInventory for each item (atomic stock check + deduction),
 // then builds the matching result. Returns nil if the order was skipped (no items to fulfill).
-func (app *RabbitMQBakery) fulfillOrder(order *data.BuyOrder, pub publisher, bc brokerClienter) *pb.MatchingBatchResult {
+func (svc *BrokerService) fulfillOrder(order *data.BuyOrder, pub publisher, bc brokerClienter) *pb.MatchingBatchResult {
 	uuid := order.BuyOrderUUID
 	log.WithField("order_uuid", uuid).Info("matching: processing order")
 
