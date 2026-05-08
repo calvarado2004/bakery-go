@@ -27,6 +27,29 @@ type E2EFixture struct {
 	Cleanup         func()
 }
 
+func seedE2EAccounts(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	// admin password = "admin123" (bcrypt, cost 10)
+	const adminHash = "$2a$10$PHZBNmARXoZUa4WAHRbYpePNJiYGQPUTkeKWdzq28E8it2BfypDyq"
+	// john@doe.com password = "password123" (bcrypt, cost 10)
+	const customerHash = "$2a$10$lWlfcAs2n8hT4z9PV/90EehZ5J04JQjz9B1fFO.GDUuVjyE/OlIr2"
+
+	if _, err := db.Exec(`INSERT INTO admin_users (username, email, password, role, created_at, updated_at)
+		VALUES ('admin','admin@bakery.com',$1,'admin',NOW(),NOW())
+		ON CONFLICT (username) DO UPDATE
+		SET email = EXCLUDED.email, password = EXCLUDED.password, role = EXCLUDED.role, updated_at = NOW()`, adminHash); err != nil {
+		t.Fatalf("seedE2EAccounts: upsert admin: %v", err)
+	}
+
+	if _, err := db.Exec(`INSERT INTO customer (name, email, password, created_at, updated_at)
+		VALUES ('John Doe','john@doe.com',$1,NOW(),NOW())
+		ON CONFLICT (email) DO UPDATE
+		SET password = EXCLUDED.password, updated_at = NOW()`, customerHash); err != nil {
+		t.Fatalf("seedE2EAccounts: upsert customer: %v", err)
+	}
+}
+
 // NewE2EFixture sets up the full end-to-end test environment.
 // If the gRPC server is not available, it logs a skip message and returns nil.
 func NewE2EFixture(t *testing.T) *E2EFixture {
@@ -39,6 +62,7 @@ func NewE2EFixture(t *testing.T) *E2EFixture {
 		t.Fatalf("Failed to connect to database: %v", err)
 	}
 	fixture.DB = db
+	seedE2EAccounts(t, db)
 
 	// Connect to gRPC server
 	grpcAddr := testutils.GetGRPCAddress()
@@ -74,6 +98,10 @@ func NewE2EFixture(t *testing.T) *E2EFixture {
 	})
 	if err == nil && loginResp != nil && loginResp.Success {
 		fixture.AdminToken = loginResp.Token
+	}
+	if fixture.AdminToken == "" {
+		t.Skip("admin login unavailable for E2E fixture")
+		return nil
 	}
 
 	// Set up cleanup

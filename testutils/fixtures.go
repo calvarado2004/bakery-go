@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,7 +52,8 @@ func NewIntegrationFixture(t *testing.T) *IntegrationFixture {
 
 	weStarted := false
 
-	if !isContainerRunning("bakery-postgres") || !isContainerRunning("bakery-rabbitmq") {
+	useExistingInfra := os.Getenv("BAKERY_TEST_USE_EXISTING_INFRA") == "1"
+	if !useExistingInfra && (!isContainerRunning("bakery-postgres") || !isContainerRunning("bakery-rabbitmq")) {
 		weStarted = true
 		if err := startInfrastructure(projectDir); err != nil {
 			t.Fatalf("Failed to start infrastructure containers: %v", err)
@@ -185,13 +187,12 @@ func waitForPort(addr string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		out, err := exec.Command("docker", "exec", "bakery-rabbitmq",
-			"rabbitmq-diagnostics", "-q", "ping").CombinedOutput()
+		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 		if err == nil {
-			_ = out
+			conn.Close() //nolint:errcheck
 			return nil
 		}
-		lastErr = fmt.Errorf("rabbitmq ping: %v", err)
+		lastErr = err
 		time.Sleep(2 * time.Second)
 	}
 	return fmt.Errorf("timed out waiting for %s: %w", addr, lastErr)

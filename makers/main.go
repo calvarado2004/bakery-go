@@ -156,23 +156,20 @@ func (s *MakersService) consumeMessages(ctx context.Context) error {
 		return fmt.Errorf("consume: %w", err)
 	}
 
-	var wg sync.WaitGroup
-
 	for d := range breadsBought {
-		wg.Add(1)
-		go func(delivery rabbitmq.Delivery) {
-			defer wg.Done()
-			if err := s.processMakeBreadMessage(ch, delivery.Body); err != nil {
-				log.Errorf("[makers] process error: %v", err)
-				if nackErr := delivery.Nack(false, true); nackErr != nil {
-					log.Errorf("[makers] nack error: %v", nackErr)
-				}
-			} else {
-				if ackErr := delivery.Ack(false); ackErr != nil {
-					log.Errorf("[makers] ack error: %v", ackErr)
-				}
+		// Keep consume/publish/ack on a single goroutine.
+		// RabbitMQ channels are not safe for broad concurrent use, and running
+		// this path serially avoids dropped confirmations in CI integration tests.
+		if err := s.processMakeBreadMessage(ch, d.Body); err != nil {
+			log.Errorf("[makers] process error: %v", err)
+			if nackErr := d.Nack(false, true); nackErr != nil {
+				log.Errorf("[makers] nack error: %v", nackErr)
 			}
-		}(d)
+		} else {
+			if ackErr := d.Ack(false); ackErr != nil {
+				log.Errorf("[makers] ack error: %v", ackErr)
+			}
+		}
 
 		select {
 		case <-ctx.Done():
@@ -180,8 +177,6 @@ func (s *MakersService) consumeMessages(ctx context.Context) error {
 		default:
 		}
 	}
-
-	wg.Wait()
 	return nil
 }
 

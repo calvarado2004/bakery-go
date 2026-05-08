@@ -68,7 +68,8 @@ func NewTestHarness(t *testing.T) *TestHarness {
 	}
 
 	// Ensure infrastructure is running
-	if !isContainerRunning("bakery-postgres") || !isContainerRunning("bakery-rabbitmq") {
+	useExistingInfra := os.Getenv("BAKERY_TEST_USE_EXISTING_INFRA") == "1"
+	if !useExistingInfra && (!isContainerRunning("bakery-postgres") || !isContainerRunning("bakery-rabbitmq")) {
 		projectDir := findProjectDir(t)
 		if err := startInfraContainers(projectDir); err != nil {
 			t.Fatalf("Failed to start infrastructure containers: %v", err)

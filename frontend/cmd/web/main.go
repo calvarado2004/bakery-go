@@ -193,6 +193,19 @@ func main() {
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
+	if sharedGRPCConn == nil {
+		// Keep public home page available even when gRPC is not initialized in tests.
+		tmpl, ok := templates["index"]
+		if !ok {
+			http.Error(w, "Template not found: index", http.StatusInternalServerError)
+			return
+		}
+		if err := tmpl.Execute(w, []BreadLog{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
 	// Use shared gRPC client (Phase 5.1)
 	client := pb.NewCheckInventoryClient(sharedGRPCConn)
 

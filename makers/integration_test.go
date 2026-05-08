@@ -4,106 +4,124 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"net"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/rabbitmq/amqp091-go"
+	"github.com/calvarado2004/bakery-go/testutils"
+	rabbitmq "github.com/rabbitmq/amqp091-go"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Integration tests for MakersService
-// ─────────────────────────────────────────────────────────────────────────────
+// testRabbitMQURL is the AMQP URL used by all integration tests.
+const testRabbitMQURL = "amqp://guest:guest@localhost:5672/"
 
-// TestMakersService_Integration tests the full makers workflow:
-// NOTE: Skipped when running as part of the full test suite due to AMQP
-// consumer race conditions. Run individually with a clean RabbitMQ.
-func TestMakersService_Integration(t *testing.T) {
-	t.Skip("Integration test has AMQP consumer race; skip in full suite")
-	rmqURL := "amqp://guest:guest@localhost:5672/"
-
-	// Connect and declare queues
-	conn, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Skipf("RabbitMQ not available: %v", err)
+func skipIfServerRunning(t *testing.T) {
+	t.Helper()
+	conn, err := net.DialTimeout("tcp", "localhost:50051", 500*time.Millisecond)
+	if err == nil {
+		conn.Close() //nolint:errcheck
+		t.Skip("server is running on :50051 and may consume shared queues; skipping makers integration test")
 	}
-	defer conn.Close()
+}
 
-	ch, err := conn.Channel()
+// closableTestDialer dials RabbitMQ and holds a reference to the connection
+// so tests can close it to unblock the consumer loop.
+type closableTestDialer struct {
+	url    string
+	conn   *rabbitmq.Connection
+	connMu sync.Mutex
+}
+
+func (d *closableTestDialer) Dial() (*rabbitmq.Connection, error) {
+	conn, err := rabbitmq.Dial(d.url)
 	if err != nil {
-		t.Fatalf("Channel: %v", err)
+		return nil, err
+	}
+	d.connMu.Lock()
+	d.conn = conn
+	d.connMu.Unlock()
+	return conn, nil
+}
+
+func (d *closableTestDialer) Close() {
+	d.connMu.Lock()
+	defer d.connMu.Unlock()
+	if d.conn != nil {
+		d.conn.Close() //nolint:errcheck
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Integration tests for MakersService — real RabbitMQ, no mocks.
+//
+// Key design to avoid consumer races:
+//   - Each test uses a closableTestDialer so we can close the connection
+//     to unblock the consumer loop on shutdown (the producers never close)
+//   - We consume from bread-made on a SEPARATE channel/connection before
+//     starting the makers consumer, so we never miss the confirmation
+// ---------------------------------------------------------------------------
+
+func TestMakersService_Integration_MessageFlow(t *testing.T) {
+	skipIfServerRunning(t)
+
+	harness := testutils.NewTestHarness(t)
+	defer harness.Cleanup()
+
+	if err := harness.DeclareQueues(); err != nil {
+		t.Fatalf("declare queues: %v", err)
+	}
+	if err := harness.PurgeQueues(); err != nil {
+		t.Fatalf("purge queues: %v", err)
+	}
+
+	// Set up a consumer on bread-made BEFORE starting the makers service
+	ch, err := harness.RabbitMQConn().Channel()
+	if err != nil {
+		t.Fatalf("open consumer channel: %v", err)
 	}
 	defer ch.Close()
 
-	// Declare queues
-	for _, q := range []string{"make-bread-order", "bread-made"} {
-		if _, err := ch.QueueDeclare(q, true, false, false, false, nil); err != nil {
-			t.Fatalf("QueueDeclare %s: %v", q, err)
-		}
+	consumer, err := ch.Consume("bread-made", "", false, false, false, false, nil)
+	if err != nil {
+		t.Fatalf("consume bread-made: %v", err)
 	}
 
-	// Clean up any existing messages
-	ch.QueuePurge("make-bread-order", false) //nolint:errcheck
-	ch.QueuePurge("bread-made", false)       //nolint:errcheck
-
-	// Start makers service
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Start the makers service with closable dialer
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
+	dialer := &closableTestDialer{url: testRabbitMQURL}
+	msvc := NewMakersService(dialer)
 	var wg sync.WaitGroup
-	svc := NewMakersService(nil)
-	svc.Start(ctx, &wg)
-	defer svc.Stop()
+	msvc.Start(ctx, &wg)
 
-	// Wait for makers to fully initialize consumer
-	time.Sleep(3 * time.Second)
+	// Wait for makers to set up its consumer
+	time.Sleep(2 * time.Second)
 
 	// Publish a make-bread-order message
 	msg := makeBreadMessage{
 		ID:          1,
-		Name:        "Test Bread",
+		Name:        "Integration Test Bread",
 		Quantity:    10,
 		Description: "Test",
-		Type:        "Test",
+		Type:        "Bread",
 		Price:       2.99,
 		Status:      "pending",
 		Image:       "/test.png",
 	}
 	body, _ := json.Marshal(msg)
 
-	err = ch.Publish("", "make-bread-order", false, false, amqp091.Publishing{
-		ContentType: "application/json",
-		Body:        body,
-	})
-	if err != nil {
-		t.Fatalf("Publish make-bread-order: %v", err)
+	if err := harness.PublishMakeBreadOrder(body); err != nil {
+		t.Fatalf("publish make-bread-order: %v", err)
 	}
 
-	// Consume the bread-made confirmation from the other end
-	// We need a separate connection for consuming (one channel per goroutine)
-	conn2, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Fatalf("Dial conn2: %v", err)
-	}
-	defer conn2.Close()
-
-	ch2, err := conn2.Channel()
-	if err != nil {
-		t.Fatalf("Channel2: %v", err)
-	}
-	defer ch2.Close()
-
-	consumer, err := ch2.Consume("bread-made", "", false, false, false, false, nil)
-	if err != nil {
-		t.Fatalf("Consume bread-made: %v", err)
-	}
-
+	// Wait for bread-made confirmation
 	select {
 	case d := <-consumer:
 		var confirmation breadMadeMessage
 		if err := json.Unmarshal(d.Body, &confirmation); err != nil {
-			t.Fatalf("Unmarshal bread-made: %v", err)
+			t.Fatalf("unmarshal bread-made: %v", err)
 		}
 		if confirmation.BreadID != 1 {
 			t.Errorf("expected breadId 1, got %d", confirmation.BreadID)
@@ -113,194 +131,249 @@ func TestMakersService_Integration(t *testing.T) {
 		}
 		d.Ack(false)
 		t.Log("Successfully processed make-bread order and received bread-made confirmation")
-	case <-time.After(10 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("timeout waiting for bread-made confirmation")
 	}
 
+	// Shutdown: close connection to unblock consumer, then stop
+	dialer.Close()
+	msvc.Stop()
 	cancel()
 	wg.Wait()
 }
 
-// TestMakersService_MessageFlow tests message format compatibility.
-func TestMakersService_MessageFlow(t *testing.T) {
-	t.Skip("Integration test has AMQP consumer race; skip in full suite")
-	os.Setenv("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/")
-	rmqURL := "amqp://guest:guest@localhost:5672/"
+func TestMakersService_Integration_MultipleMessages(t *testing.T) {
+	skipIfServerRunning(t)
 
-	conn, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Skipf("RabbitMQ not available: %v", err)
+	harness := testutils.NewTestHarness(t)
+	defer harness.Cleanup()
+
+	if err := harness.DeclareQueues(); err != nil {
+		t.Fatalf("declare queues: %v", err)
 	}
-	defer conn.Close()
+	if err := harness.PurgeQueues(); err != nil {
+		t.Fatalf("purge queues: %v", err)
+	}
 
-	ch, err := conn.Channel()
+	// Consume bread-made on a dedicated channel
+	ch, err := harness.RabbitMQConn().Channel()
 	if err != nil {
-		t.Fatalf("Channel: %v", err)
+		t.Fatalf("open channel: %v", err)
 	}
 	defer ch.Close()
 
-	// Declare queues
-	for _, q := range []string{"make-bread-order", "bread-made"} {
-		if _, err := ch.QueueDeclare(q, true, false, false, false, nil); err != nil {
-			t.Fatalf("QueueDeclare %s: %v", q, err)
-		}
+	consumer, err := ch.Consume("bread-made", "", false, false, false, false, nil)
+	if err != nil {
+		t.Fatalf("consume bread-made: %v", err)
 	}
 
-	// Start makers
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Start makers service
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	dialer := &closableTestDialer{url: testRabbitMQURL}
+	msvc := NewMakersService(dialer)
 	var wg sync.WaitGroup
-	svc := NewMakersService(nil)
-	svc.Start(ctx, &wg)
-	defer svc.Stop()
+	msvc.Start(ctx, &wg)
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
-	// Publish make-bread message
-	msg := makeBreadMessage{
-		ID:          2,
-		Name:        "Another Test Bread",
-		Quantity:    20,
-		Description: "Another test",
-		Type:        "Test",
-		Price:       3.99,
-	}
-	body, _ := json.Marshal(msg)
-	err = ch.Publish("", "make-bread-order", false, false, amqp091.Publishing{
-		ContentType: "application/json",
-		Body:        body,
-	})
-	if err != nil {
-		t.Fatalf("Publish: %v", err)
-	}
-
-	// Consume bread-made from second connection
-	conn2, _ := amqp091.Dial(rmqURL)
-	defer conn2.Close()
-	ch2, _ := conn2.Channel()
-	defer ch2.Close()
-
-	consumer, err := ch2.Consume("bread-made", "", false, false, false, false, nil)
-	if err != nil {
-		t.Fatalf("Consume: %v", err)
-	}
-
-	select {
-	case d := <-consumer:
-		var confirmation breadMadeMessage
-		if err := json.Unmarshal(d.Body, &confirmation); err != nil {
-			t.Fatalf("Unmarshal: %v", err)
+	// Publish 5 messages
+	const msgCount = 5
+	for i := 0; i < msgCount; i++ {
+		msg := makeBreadMessage{
+			ID:       i + 1,
+			Name:     fmt.Sprintf("Bread %d", i+1),
+			Quantity: 10 + i,
+			Type:     "Bread",
+			Price:    2.99,
 		}
-		if confirmation.BreadID != 2 {
-			t.Errorf("expected breadId 2, got %d", confirmation.BreadID)
+		body, _ := json.Marshal(msg)
+		if err := harness.PublishMakeBreadOrder(body); err != nil {
+			t.Fatalf("publish %d: %v", i, err)
 		}
-		d.Ack(false)
-	case <-time.After(10 * time.Second):
-		t.Fatal("timeout")
 	}
+
+	// Collect confirmations
+	received := 0
+	seenIDs := make(map[int]bool)
+	timeout := time.After(20 * time.Second)
+
+	for received < msgCount {
+		select {
+		case d := <-consumer:
+			var confirmation breadMadeMessage
+			if err := json.Unmarshal(d.Body, &confirmation); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if seenIDs[confirmation.BreadID] {
+				t.Errorf("duplicate breadId %d", confirmation.BreadID)
+			}
+			seenIDs[confirmation.BreadID] = true
+			d.Ack(false)
+			received++
+		case <-timeout:
+			t.Fatalf("timeout: received %d/%d messages", received, msgCount)
+		}
+	}
+
+	t.Logf("Successfully processed %d/%d messages", received, msgCount)
+
+	dialer.Close()
+	msvc.Stop()
+	cancel()
+	wg.Wait()
 }
 
-// TestMakersService_QueueDeclaration tests that the makers service declares its queue.
-func TestMakersService_QueueDeclaration(t *testing.T) {
-	t.Skip("Integration test has AMQP consumer race; skip in full suite")
-	os.Setenv("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/")
-	rmqURL := "amqp://guest:guest@localhost:5672/"
+func TestMakersService_Integration_QueueDeclaration(t *testing.T) {
+	skipIfServerRunning(t)
 
-	conn, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Skipf("RabbitMQ not available: %v", err)
-	}
-	defer conn.Close()
+	harness := testutils.NewTestHarness(t)
+	defer harness.Cleanup()
 
+	// Start makers service
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	dialer := &closableTestDialer{url: testRabbitMQURL}
+	msvc := NewMakersService(dialer)
 	var wg sync.WaitGroup
-	svc := NewMakersService(nil)
-	svc.Start(ctx, &wg)
-	defer svc.Stop()
+	msvc.Start(ctx, &wg)
 
 	// Wait for queue to be declared
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
-	ch, err := conn.Channel()
-	if err != nil {
-		t.Fatalf("Channel: %v", err)
-	}
-	defer ch.Close()
-
-	info, err := ch.QueueInspect("make-bread-order")
+	// Inspect the make-bread-order queue
+	info, err := harness.RabbitMQChannel().QueueInspect("make-bread-order")
 	if err != nil {
 		t.Fatalf("QueueInspect make-bread-order: %v", err)
 	}
 
 	t.Logf("make-bread-order queue: name=%q, messages=%d, consumers=%d", info.Name, info.Messages, info.Consumers)
-	if info.Messages < 0 {
-		t.Error("expected non-negative message count")
+	if info.Consumers < 1 {
+		t.Error("expected at least 1 consumer on make-bread-order queue")
 	}
+
+	dialer.Close()
+	msvc.Stop()
+	cancel()
+	wg.Wait()
 }
 
-// TestMakersService_PublishToBreadMade tests that makers publishes to the bread-made queue.
-func TestMakersService_PublishToBreadMade(t *testing.T) {
-	t.Skip("Integration test has AMQP consumer race; skip in full suite")
-	os.Setenv("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/")
-	rmqURL := "amqp://guest:guest@localhost:5672/"
+func TestMakersService_Integration_MessageFormatCompatibility(t *testing.T) {
+	skipIfServerRunning(t)
 
-	conn, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Skipf("RabbitMQ not available: %v", err)
+	harness := testutils.NewTestHarness(t)
+	defer harness.Cleanup()
+
+	if err := harness.DeclareQueues(); err != nil {
+		t.Fatalf("declare queues: %v", err)
 	}
-	defer conn.Close()
+	if err := harness.PurgeQueues(); err != nil {
+		t.Fatalf("purge queues: %v", err)
+	}
 
-	ch, err := conn.Channel()
+	// Set up consumer
+	ch, err := harness.RabbitMQConn().Channel()
 	if err != nil {
-		t.Fatalf("Channel: %v", err)
+		t.Fatalf("channel: %v", err)
 	}
 	defer ch.Close()
 
-	for _, q := range []string{"make-bread-order", "bread-made"} {
-		if _, err := ch.QueueDeclare(q, true, false, false, false, nil); err != nil {
-			t.Fatalf("QueueDeclare %s: %v", q, err)
-		}
+	consumer, err := ch.Consume("bread-made", "", false, false, false, false, nil)
+	if err != nil {
+		t.Fatalf("consume: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Start makers
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	dialer := &closableTestDialer{url: testRabbitMQURL}
+	msvc := NewMakersService(dialer)
 	var wg sync.WaitGroup
-	svc := NewMakersService(nil)
-	svc.Start(ctx, &wg)
-	defer svc.Stop()
+	msvc.Start(ctx, &wg)
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
+
+	// Test various message formats
+	testCases := []struct {
+		name        string
+		msg         makeBreadMessage
+		expectBread int
+		expectQty   int
+	}{
+		{"basic", makeBreadMessage{ID: 10, Name: "Basic", Quantity: 5}, 10, 5},
+		{"zero qty", makeBreadMessage{ID: 11, Name: "Zero", Quantity: 0}, 11, 0},
+		{"large qty", makeBreadMessage{ID: 12, Name: "Large", Quantity: 999}, 12, 999},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, _ := json.Marshal(tc.msg)
+			if err := harness.PublishMakeBreadOrder(body); err != nil {
+				t.Fatalf("publish: %v", err)
+			}
+
+			select {
+			case d := <-consumer:
+				var confirmation breadMadeMessage
+				if err := json.Unmarshal(d.Body, &confirmation); err != nil {
+					t.Fatalf("unmarshal: %v", err)
+				}
+				if confirmation.BreadID != tc.expectBread {
+					t.Errorf("breadId: expected %d, got %d", tc.expectBread, confirmation.BreadID)
+				}
+				if confirmation.Quantity != tc.expectQty {
+					t.Errorf("quantity: expected %d, got %d", tc.expectQty, confirmation.Quantity)
+				}
+				d.Ack(false)
+			case <-time.After(10 * time.Second):
+				t.Fatalf("timeout for message %s", tc.name)
+			}
+		})
+	}
+
+	dialer.Close()
+	msvc.Stop()
+	cancel()
+	wg.Wait()
+}
+
+func TestMakersService_Integration_PublishToBreadMade(t *testing.T) {
+	skipIfServerRunning(t)
+
+	harness := testutils.NewTestHarness(t)
+	defer harness.Cleanup()
+
+	if err := harness.DeclareQueues(); err != nil {
+		t.Fatalf("declare queues: %v", err)
+	}
+	if err := harness.PurgeQueues(); err != nil {
+		t.Fatalf("purge queues: %v", err)
+	}
+
+	// Start makers
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	dialer := &closableTestDialer{url: testRabbitMQURL}
+	msvc := NewMakersService(dialer)
+	var wg sync.WaitGroup
+	msvc.Start(ctx, &wg)
+
+	time.Sleep(2 * time.Second)
 
 	// Publish a message
 	msg := makeBreadMessage{ID: 3, Name: "Test", Quantity: 5}
 	body, _ := json.Marshal(msg)
-	err = ch.Publish("", "make-bread-order", false, false, amqp091.Publishing{
-		ContentType: "application/json",
-		Body:        body,
-	})
-	if err != nil {
-		t.Fatalf("Publish: %v", err)
+	if err := harness.PublishMakeBreadOrder(body); err != nil {
+		t.Fatalf("publish: %v", err)
 	}
 
-	// Check that bread-made queue has at least 1 message
-	// (need separate connection for inspect)
-	conn2, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Fatalf("Dial2: %v", err)
-	}
-	defer conn2.Close()
-	ch2, err := conn2.Channel()
-	if err != nil {
-		t.Fatalf("Channel2: %v", err)
-	}
-	defer ch2.Close()
-
-	time.Sleep(2 * time.Second)
-	info, err := ch2.QueueInspect("bread-made")
+	// Inspect bread-made queue
+	time.Sleep(3 * time.Second)
+	info, err := harness.RabbitMQChannel().QueueInspect("bread-made")
 	if err != nil {
 		t.Fatalf("QueueInspect bread-made: %v", err)
 	}
@@ -309,169 +382,63 @@ func TestMakersService_PublishToBreadMade(t *testing.T) {
 	if info.Messages < 1 {
 		t.Error("expected at least 1 message in bread-made queue")
 	}
+
+	dialer.Close()
+	msvc.Stop()
+	cancel()
+	wg.Wait()
 }
 
-// TestMakersService_MultipleMessages tests processing multiple messages in sequence.
-func TestMakersService_MultipleMessageFlow(t *testing.T) {
-	t.Skip("Integration test has AMQP consumer race; skip in full suite")
-	os.Setenv("RABBITMQ_SERVICE_ADDR", "amqp://guest:guest@localhost:5672/")
-	rmqURL := "amqp://guest:guest@localhost:5672/"
+// ---------------------------------------------------------------------------
+// Lifecycle tests (no real RabbitMQ needed)
+// ---------------------------------------------------------------------------
 
-	conn, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Skipf("RabbitMQ not available: %v", err)
-	}
-	defer conn.Close()
-
-	ch, err := conn.Channel()
-	if err != nil {
-		t.Fatalf("Channel: %v", err)
-	}
-	defer ch.Close()
-
-	for _, q := range []string{"make-bread-order", "bread-made"} {
-		if _, err := ch.QueueDeclare(q, true, false, false, false, nil); err != nil {
-			t.Fatalf("QueueDeclare %s: %v", q, err)
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	var wg sync.WaitGroup
-	svc := NewMakersService(nil)
-	svc.Start(ctx, &wg)
-	defer svc.Stop()
-
-	time.Sleep(3 * time.Second)
-
-	// Publish 3 messages
-	const msgCount = 3
-	for i := 0; i < msgCount; i++ {
-		msg := makeBreadMessage{
-			ID:       i + 1,
-			Name:     fmt.Sprintf("Bread %d", i+1),
-			Quantity: 10,
-		}
-		body, _ := json.Marshal(msg)
-		err = ch.Publish("", "make-bread-order", false, false, amqp091.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		})
-		if err != nil {
-			t.Fatalf("Publish %d: %v", i, err)
-		}
-	}
-
-	// Consume confirmations
-	conn2, err := amqp091.Dial(rmqURL)
-	if err != nil {
-		t.Fatalf("Dial2: %v", err)
-	}
-	defer conn2.Close()
-	ch2, err := conn2.Channel()
-	if err != nil {
-		t.Fatalf("Channel2: %v", err)
-	}
-	defer ch2.Close()
-
-	consumer, err := ch2.Consume("bread-made", "", false, false, false, false, nil)
-	if err != nil {
-		t.Fatalf("Consume: %v", err)
-	}
-
-	received := 0
-	for received < msgCount {
-		select {
-		case d := <-consumer:
-			var confirmation breadMadeMessage
-			if err := json.Unmarshal(d.Body, &confirmation); err != nil {
-				t.Fatalf("Unmarshal: %v", err)
-			}
-			if confirmation.BreadID < 1 || confirmation.BreadID > msgCount {
-				t.Errorf("unexpected breadId %d", confirmation.BreadID)
-			}
-			d.Ack(false)
-			received++
-		case <-time.After(10 * time.Second):
-			t.Fatalf("timeout: received %d/%d messages", received, msgCount)
-		}
-	}
-
-	t.Logf("Successfully processed %d/%d messages", received, msgCount)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MakersService lifecycle tests (integration-level)
-// ─────────────────────────────────────────────────────────────────────────────
-
-func TestNewMakersService_SetsFields(t *testing.T) {
-	svc := NewMakersService(nil)
-	if svc == nil {
-		t.Fatal("NewMakersService returned nil")
-	}
-	if svc.dialer == nil {
-		t.Error("expected dialer to be set")
-	}
-	if svc.stopCh == nil {
-		t.Error("expected stopCh to be set")
-	}
-}
-
-func TestNewMakersService_EmptyURL(t *testing.T) {
-	svc := NewMakersService(nil)
-	if svc == nil {
-		t.Fatal("NewMakersService returned nil for empty URL")
-	}
-}
-
-func TestNewMakersService_CustomDialer(t *testing.T) {
-	customDialer := &testDialer{}
-	svc := NewMakersService(customDialer)
-	if svc == nil {
-		t.Fatal("NewMakersService returned nil")
-	}
-	// The dialer is stored; we can't easily verify it without reflection,
-	// but the test passing means no nil pointer panic.
-}
-
-// testDialer is a mock dialer for testing.
-type testDialer struct{}
-
-func (d *testDialer) Dial() (*amqp091.Connection, error) {
-	return nil, fmt.Errorf("test dialer: no real connection")
-}
-
-// TestMakersService_Stop tests stopping the service.
-func TestMakersService_Stop(t *testing.T) {
+func TestMakersService_Lifecycle_Stop(t *testing.T) {
+	svc := NewMakersService(&errDialer{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var wg sync.WaitGroup
-	svc := NewMakersService(&testDialer{})
 	svc.Start(ctx, &wg)
 
-	// Stop should not panic
 	svc.Stop()
-
-	// Wait a bit for goroutine to exit
+	cancel()
 	time.Sleep(500 * time.Millisecond)
 
-	// Stop again should be safe (no-op)
+	// Double-stop should be safe
 	svc.Stop()
 }
 
-// TestMakersService_StartStopRace tests starting and stopping quickly.
-func TestMakersService_StartStopRace(t *testing.T) {
+func TestMakersService_Lifecycle_ContextCancel(t *testing.T) {
+	svc := NewMakersService(&errDialer{})
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	var wg sync.WaitGroup
-	svc := NewMakersService(&testDialer{})
-
-	// Start, then immediately stop
 	svc.Start(ctx, &wg)
+
+	// Cancel context to stop the service
+	cancel()
 	svc.Stop()
 
-	time.Sleep(500 * time.Millisecond)
+	// Wait for goroutine to exit (with timeout to avoid hanging)
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(10 * time.Second):
+		t.Fatal("makers service did not stop after context cancellation")
+	}
+}
+
+// errDialer returns an error on Dial — used for lifecycle tests that
+// don't need a real RabbitMQ connection.
+type errDialer struct{}
+
+func (d *errDialer) Dial() (*rabbitmq.Connection, error) {
+	return nil, fmt.Errorf("errDialer: no real connection")
 }

@@ -306,6 +306,37 @@ The broker now implements a batch-processing matching engine:
 
 ## Testing
 
+### Deterministic policy (team standard)
+
+From now on, all local validation and CI/Jenkins runs must use the deterministic path below:
+
+```bash
+./scripts/test-ci.sh
+```
+
+This is the canonical test command for the project. It enforces:
+- deterministic package execution (`-p 1`, `-count=1`)
+- controlled Docker Compose startup for integration dependencies
+- stable global coverage generation (`cover.out`)
+
+Do not treat ad-hoc `go test ./...` runs as pipeline-equivalent unless they follow the same deterministic setup.
+
+### CI/CD enforcement (required)
+
+This repository enforces deterministic testing for delivery quality and pipeline stability.
+
+- CI/CD pipelines must run `./scripts/test-ci.sh` as the canonical test command.
+- Pull requests are expected to be validated with the same command before review/merge.
+- Any failing run from ad-hoc test commands is non-authoritative unless reproduced through `./scripts/test-ci.sh`.
+
+### AI-assisted iteration enforcement
+
+For all future iterations using any AI tool (Codex, ChatGPT, Claude, Copilot, or similar):
+
+- The AI-produced change is not considered validated until `./scripts/test-ci.sh` passes.
+- AI workflows must preserve deterministic behavior (no hidden environment assumptions, no non-deterministic test orchestration).
+- If an AI proposes test changes, they must keep CI parity with this deterministic runner.
+
 Run the full test suite:
 
 ```bash
@@ -317,6 +348,19 @@ Run with coverage:
 ```bash
 go test ./... -coverprofile=cover.out -covermode=atomic && go tool cover -func=cover.out
 ```
+
+CI/Jenkins deterministic run (compose + full suite + global coverage):
+
+```bash
+./scripts/test-ci.sh
+```
+
+### Coverage growth policy
+
+We still need to substantially increase total coverage. Going forward:
+- every new feature or bugfix must include tests
+- priority is deterministic unit and integration tests in touched packages
+- coverage increases should not weaken determinism or introduce flaky shared-state tests
 
 ### Test structure
 

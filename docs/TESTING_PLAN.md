@@ -31,6 +31,7 @@ The testing strategy for the Bakery Service is guided by the following principle
 - **Testability over retrofitting.** All new code must be written with testability as a first-class concern — interfaces, dependency injection, and small functions.
 - **Speed at the base, confidence at the top.** Unit tests should be fast and numerous; integration and E2E tests should be fewer but comprehensive.
 - **No shared mutable state.** Each test must be self-contained and must not depend on execution order.
+- **Deterministic execution is mandatory.** CI and local pre-merge validation must run through `./scripts/test-ci.sh`.
 - **Real infrastructure for integration and E2E.** Integration tests use real PostgreSQL and RabbitMQ instances (via Docker containers managed by `testcontainers-go`). No mocked infrastructure at the integration level.
 - **Explicit, readable assertions.** Use `testify/assert` and `testify/require` for clear failure messages.
 
@@ -202,6 +203,26 @@ Run with:
 ```bash
 go test -tags=integration ./tests/integration/... -v
 ```
+
+Deterministic CI baseline:
+```bash
+./scripts/test-ci.sh
+```
+This is the required pipeline-equivalent path for Jenkins and should be treated as the source of truth for pass/fail and global coverage.
+
+## CI Pipeline Integration
+
+From now on, Jenkins should execute only the deterministic runner:
+
+```bash
+./scripts/test-ci.sh
+```
+
+Key expectations:
+- Uses controlled compose startup for infra dependencies
+- Uses deterministic test execution (`-p 1`, `-count=1`)
+- Produces canonical global coverage file (`cover.out`)
+- Prevents flaky cross-package interference from non-deterministic parallel runs
 
 ### Infrastructure via `testcontainers-go`
 
