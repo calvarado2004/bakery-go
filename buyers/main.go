@@ -19,12 +19,57 @@ var gRPCAddress = os.Getenv("BAKERY_SERVICE_ADDR")
 type Config struct {
 	conn           *grpc.ClientConn
 	buyBreadClient pb.BuyBreadClient
+	cycleDelay     time.Duration // delay between successful buy cycles (default 35s)
 }
 
 type buyOrder struct {
 	orderId      int
 	buyChan      chan bool
 	buyOrderUUID string
+}
+
+// runBuyCycle executes a single buy cycle: it starts buySomeBread and
+// buyBreadStream goroutines, waits for both to complete (or an error),
+// and returns whether the cycle succeeded.
+//
+// This function is the primary testable unit in the buyers package — it
+// encapsulates the full orchestration logic that main() loops over.
+func (config *Config) runBuyCycle(ctx context.Context, buyOrderUUID string) (success bool, err error) {
+	log.Println("Sending a signal to buy bread")
+
+	buyBreadChan := make(chan bool)
+	breadBoughtChan := make(chan bool)
+	doneBuy := make(chan bool)
+	doneStream := make(chan bool)
+	log.Printf("Generated a new buy order id: %v", buyOrderUUID)
+
+	errChan := make(chan error, 2) // Buffered channel to avoid blocking goroutines
+
+	go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, doneBuy, buyOrderUUID, errChan)
+	go config.buyBreadStream(ctx, breadBoughtChan, doneStream, buyOrderUUID, errChan)
+
+	buyBreadChan <- true
+	log.Println("Done sending a signal to buy bread and waiting for completion...")
+
+	// Wait for both doneBuy and doneStream to be true, or context cancellation.
+	globalDone := make(chan bool)
+	go func() {
+		<-doneBuy
+		<-doneStream
+		globalDone <- true
+	}()
+
+	select {
+	case <-globalDone:
+		log.Println("Successfully bought bread")
+		return true, nil
+	case err := <-errChan:
+		log.Errorf("Error buying bread: %v", err)
+		return false, err
+	case <-ctx.Done():
+		log.Printf("Buy cycle %s cancelled: %v", buyOrderUUID, ctx.Err())
+		return false, ctx.Err()
+	}
 }
 
 // main is the entry point of the program
@@ -54,47 +99,26 @@ func main() {
 	}(grpcConn)
 
 	for {
-		log.Println("Sending a signal to buy bread")
-
-		buyBreadChan := make(chan bool)
-		breadBoughtChan := make(chan bool)
-		doneBuy := make(chan bool)
-		doneStream := make(chan bool)
-		buyOrderuuid := uuid.NewString()
-		log.Printf("Generated a new buy order id: %v", buyOrderuuid)
-
+		buyOrderUUID := uuid.NewString()
 		ctx, cancel := context.WithCancel(context.Background())
 
-		errChan := make(chan error, 2) // Buffered channel to avoid blocking goroutines
+		_, err := config.runBuyCycle(ctx, buyOrderUUID)
+		cancel() // Cancel context to clean up any running goroutines
 
-		go config.buySomeBread(ctx, buyBreadChan, breadBoughtChan, doneBuy, buyOrderuuid, errChan)
-		go config.buyBreadStream(ctx, breadBoughtChan, doneStream, buyOrderuuid, errChan)
-
-		buyBreadChan <- true
-		log.Println("Done sending a signal to buy bread and waiting for 35 seconds...")
-
-		// Wait for both doneBuy and doneStream to be true
-		globalDone := make(chan bool)
-		go func() {
-			<-doneBuy
-			<-doneStream
-			globalDone <- true
-		}()
-
-		select {
-		case <-globalDone:
-			log.Println("Successfully bought bread, sleeping for 35 seconds...")
-			time.Sleep(35 * time.Second)
-			log.Println("Done sleeping for 35 seconds...")
-			cancel() // Cancel the previous context
-			// Start new iteration
+		if err != nil {
+			// Start new iteration on error
 			log.Println("Iterating again to buy bread, creating a new context...")
-		case err := <-errChan:
-			time.Sleep(35 * time.Second)
-			log.Errorf("Error buying bread: %v", err)
-			cancel() // This will cancel the context, ending all operations using it
-			// Start new iteration
+			continue
 		}
+
+		// Default 35s delay between successful purchase cycles
+		delay := config.cycleDelay
+		if delay == 0 {
+			delay = 35 * time.Second
+		}
+		log.Printf("Sleeping for %v before next cycle...", delay)
+		time.Sleep(delay)
+		log.Println("Done sleeping, starting next cycle...")
 	}
 }
 

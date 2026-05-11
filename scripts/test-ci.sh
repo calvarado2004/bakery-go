@@ -41,7 +41,8 @@ docker compose down --remove-orphans >/dev/null 2>&1 || true
 docker compose up -d postgres rabbitmq server
 wait_for_port localhost 5432 90
 wait_for_port localhost 5672 90
-wait_for_port localhost 50051 120
+# Server container needs time to build image and initialize (DB + RabbitMQ ready).
+wait_for_port localhost 50051 180
 
 # Deterministic run: no test cache and single package at a time.
 go test -p 1 -count=1 ./... -covermode=atomic -coverprofile=cover.out

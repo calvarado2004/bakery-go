@@ -11,6 +11,8 @@ import (
 
 	"github.com/calvarado2004/bakery-go/testutils"
 	rabbitmq "github.com/rabbitmq/amqp091-go"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // testRabbitMQURL is the AMQP URL used by all integration tests.
@@ -68,6 +70,9 @@ func TestMakersService_Integration_MessageFlow(t *testing.T) {
 	harness := testutils.NewTestHarness(t)
 	defer harness.Cleanup()
 
+	// Ensure log level is visible for debugging
+	log.SetLevel(log.DebugLevel)
+
 	if err := harness.DeclareQueues(); err != nil {
 		t.Fatalf("declare queues: %v", err)
 	}
@@ -92,7 +97,16 @@ func TestMakersService_Integration_MessageFlow(t *testing.T) {
 	defer cancel()
 
 	dialer := &closableTestDialer{url: testRabbitMQURL}
-	msvc := NewMakersService(dialer)
+
+	// Create a publisher on the harness's connection so the test's
+	// consumer can see published confirmations.
+	harnessCh, err := harness.RabbitMQConn().Channel()
+	if err != nil {
+		t.Fatalf("open publisher channel: %v", err)
+	}
+	defer harnessCh.Close()
+
+	msvc := NewMakersService(dialer, NewRabbitMQPublisher(harnessCh), 1)
 	var wg sync.WaitGroup
 	msvc.Start(ctx, &wg)
 
@@ -172,7 +186,8 @@ func TestMakersService_Integration_MultipleMessages(t *testing.T) {
 	defer cancel()
 
 	dialer := &closableTestDialer{url: testRabbitMQURL}
-	msvc := NewMakersService(dialer)
+	// Use harness's channel as publisher so the consumer sees confirmations
+	msvc := NewMakersService(dialer, NewRabbitMQPublisher(ch), 1)
 	var wg sync.WaitGroup
 	msvc.Start(ctx, &wg)
 
@@ -236,7 +251,7 @@ func TestMakersService_Integration_QueueDeclaration(t *testing.T) {
 	defer cancel()
 
 	dialer := &closableTestDialer{url: testRabbitMQURL}
-	msvc := NewMakersService(dialer)
+	msvc := NewMakersService(dialer, nil, 1)
 	var wg sync.WaitGroup
 	msvc.Start(ctx, &wg)
 
@@ -290,7 +305,13 @@ func TestMakersService_Integration_MessageFormatCompatibility(t *testing.T) {
 	defer cancel()
 
 	dialer := &closableTestDialer{url: testRabbitMQURL}
-	msvc := NewMakersService(dialer)
+	pubCh, err := harness.RabbitMQConn().Channel()
+	if err != nil {
+		t.Fatalf("open publisher channel: %v", err)
+	}
+	defer pubCh.Close()
+
+	msvc := NewMakersService(dialer, NewRabbitMQPublisher(pubCh), 1)
 	var wg sync.WaitGroup
 	msvc.Start(ctx, &wg)
 
@@ -358,7 +379,13 @@ func TestMakersService_Integration_PublishToBreadMade(t *testing.T) {
 	defer cancel()
 
 	dialer := &closableTestDialer{url: testRabbitMQURL}
-	msvc := NewMakersService(dialer)
+	pubCh, err := harness.RabbitMQConn().Channel()
+	if err != nil {
+		t.Fatalf("open publisher channel: %v", err)
+	}
+	defer pubCh.Close()
+
+	msvc := NewMakersService(dialer, NewRabbitMQPublisher(pubCh), 1)
 	var wg sync.WaitGroup
 	msvc.Start(ctx, &wg)
 
@@ -394,7 +421,7 @@ func TestMakersService_Integration_PublishToBreadMade(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMakersService_Lifecycle_Stop(t *testing.T) {
-	svc := NewMakersService(&errDialer{})
+	svc := NewMakersService(&errDialer{}, nil, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -410,7 +437,7 @@ func TestMakersService_Lifecycle_Stop(t *testing.T) {
 }
 
 func TestMakersService_Lifecycle_ContextCancel(t *testing.T) {
-	svc := NewMakersService(&errDialer{})
+	svc := NewMakersService(&errDialer{}, nil, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var wg sync.WaitGroup

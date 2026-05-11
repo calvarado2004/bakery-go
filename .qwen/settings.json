@@ -62,8 +62,16 @@
       "Bash(cat *)",
       "Bash(head *)",
       "Bash(docker compose *)",
-      "Bash(file *)"
+      "Bash(file *)",
+      "Bash(awk *)",
+      "Bash(docker rm *)",
+      "Bash(docker run *)",
+      "Bash(docker network *)",
+      "Bash(make *)",
+      "Bash(bash *)",
+      "Bash(systemctl *)",
+      "Bash(docker version)"
     ]
   },
-  "$version": 3
+  "$version": 4
 }

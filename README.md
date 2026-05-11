@@ -304,7 +304,19 @@ The broker now implements a batch-processing matching engine:
 - **InvoiceService** — invoice creation with 8% tax, idempotent lookup, customer invoice history.
 - **CustomerPortalService** — customer-scoped order and invoice queries.
 
-## Testing
+## Testable Abstractions
+
+The codebase now uses interface-based abstractions to enable unit testing without live infrastructure:
+
+- **`AdminService`** — interface abstracting gRPC admin operations (GetDashboardStats, CreateBread, UpdateBread, etc.)
+- **`CustomerService`** — interface abstracting customer-facing gRPC operations (GetMyOrders, GetMyInvoices, GetOrderDetails)
+- **`Publisher`** — interface abstracting RabbitMQ publish operations (PublishConfirm)
+- **`AMQPChannel`** — interface abstracting RabbitMQ channel operations (Qos, QueueDeclare, Consume)
+- **`deliveryAckNack`** — interface abstracting delivery Ack/Nack for mockable acknowledgment
+- **`SSEFetchFunc`** / **`WriteSSEResponse`** — extracted SSE streaming logic for testable Server-Sent-Events
+- **`Worker`** / **`workerPool`** — concurrent message processing abstraction for the makers service
+
+Handlers receive a `HandlersConfig` struct that injects these dependencies, allowing tests to use mock implementations (`mockAdminService`, `mockCustomerService`, `noopAdminService`, `noopCustomerService`) without a running gRPC server.
 
 ### Deterministic policy (team standard)
 
@@ -376,7 +388,7 @@ We still need to substantially increase total coverage. Going forward:
 | `server` | `integration_test.go` | Real PostgreSQL integration — end-to-end order flow, invoice creation |
 | `broker` | `broker_test.go` | `canFulfillOrder` (7 cases), `processOrderItems`, `NewRabbitMQBakery`, map concurrency |
 | `broker` | `broker_integration_test.go` | Real PostgreSQL + RabbitMQ integration — order processing, outbox messages, concurrent operations |
-| `makers` | `makers_test.go` | `processMakeBreadMessage` — valid JSON, invalid JSON, repo error, all 7 bread types, concurrent |
+| `makers` | `makers_test.go` | `processOrder` — valid JSON, invalid JSON, empty bytes, all bread types, concurrent worker pool, Publisher mock, nackDelivery, ackDelivery, SSE helper |
 | `buyers` | `buyers_test.go` | `buySomeBread` and `buyBreadStream` with mock `pb.BuyBreadClient` — success, error, EOF, multi-response |
 | `data` | `models_test.go` | `PostgresTestRepository` stub methods, `ErrNoRows` propagation, null total cost |
 | `data` | `test_models_test.go` | All 17 `PostgresTestRepository` methods, struct field coverage |
@@ -385,6 +397,7 @@ We still need to substantially increase total coverage. Going forward:
 | `frontend` | `integration_test.go` | Real HTTP handler tests — template rendering, auth flow, gRPC integration |
 | `frontend` | `server_test.go` | Full server integration — CSRF middleware, router, cookie jar, login flows, SSE endpoints |
 | `frontend` | `admin_handlers_test.go` | Admin handler tests — bread CRUD, orders, customers, makers, alerts, gRPC error paths |
+| `frontend` | `handlers_test.go` | Interface-based mock tests — AdminService, CustomerService, SSEFetchFunc, WriteSSEResponse, noopAdminService |
 | `frontend` | `portal_handlers_test.go` | Customer portal tests — orders, invoices, ownership checks, expired tokens |
 | `frontend` | `auth_handlers_test.go` | Auth handler tests — login/logout, JWT validation, token extraction, middleware redirects |
 | `frontend` | `auth_test.go` | Auth context tests — admin/customer gRPC context, metadata extraction |
@@ -404,8 +417,8 @@ We still need to substantially increase total coverage. Going forward:
 | `makers` integration | — | **~75%** | — |
 | `data/test_models.go` | **~90%** | — | — |
 | `data/models.go` | **~10%** (40 SQL functions) | ~85% | — |
-| `frontend` (web handlers) | **~5%** (main_test.go) | **~45%** (integration_test.go added) | ~65% |
-| **Total (all packages)** | **17.4%** | **~27%** | ~37% |
+| `frontend` (web handlers) | **~35%** (main_test.go + handlers_test.go with mock AdminService/CustomerService) | **~45%** (integration_test.go added) | ~70% |
+| **Total (all packages)** | **~22%** | **~30%** | ~40% |
 
 > **Note on coverage tiers**:
 > - **Unit-test coverage**: Tests with mocked dependencies (no live DB/RabbitMQ).
