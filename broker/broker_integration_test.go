@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -604,9 +605,11 @@ func TestBrokerIntegration_OrderDetailsVerification(t *testing.T) {
 
 // getEnvOrDefault is a helper since os.Getenv is not imported in this file.
 func getEnvOrDefault(key, fallback string) string {
-	// We use a simple approach — this mirrors os.Getenv behavior.
-	// The test harness already imports os, so we leverage it.
-	return fallback // The test harness infrastructure sets this via docker-compose
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	return v
 }
 
 // TestBrokerIntegration_StockDeduction verifies that the matching engine

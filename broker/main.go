@@ -420,13 +420,6 @@ func (s *BrokerService) processOneOrder(delivery rabbitmq.Delivery, bc brokerCli
 	log.WithField("order_uuid", order.BuyOrderUUID).Info("[broker] Order buffered for matching")
 }
 
-// failOrder marks an order as Failed via the server's gRPC BrokerService.
-func (s *BrokerService) failOrder(uuid string, status string) {
-	log.Warnf("[broker] failOrder: no longer needed — broker reports matching results via gRPC")
-}
-
-// --- Data → Proto conversion helpers ---
-
 // dataToProtoBuyOrder converts a data.BuyOrder to a proto.BuyOrder.
 func dataToProtoBuyOrder(order data.BuyOrder) *pb.BuyOrder {
 	items := make([]*pb.BuyOrderItem, len(order.Breads))

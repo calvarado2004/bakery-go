@@ -1030,3 +1030,363 @@ func TestAdjustBreadQuantity_CheckConstraint(t *testing.T) {
 		t.Errorf("quantity was changed from %d to %d after rejected deduction", actualQty, remainingQty)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Invoice e2e — full flow: insert order → insert invoice → retrieve
+// ---------------------------------------------------------------------------
+
+func TestInvoice_E2E_FullFlow(t *testing.T) {
+	fixture := testutils.NewIntegrationFixture(t)
+	defer fixture.Cleanup()
+
+	repo := data.NewPostgresRepository(fixture.DB)
+	dbHelper := testutils.NewDBHelper(fixture.DB)
+	if err := dbHelper.ClearAllTables(); err != nil {
+		t.Fatalf("clear tables: %v", err)
+	}
+
+	// --- Step 1: Create customer ---
+	customer := data.Customer{Name: "InvoiceE2E", Email: "invoicee2e@test.com", Password: "pass"}
+	customerID, err := repo.InsertCustomer(customer)
+	if err != nil {
+		t.Fatalf("InsertCustomer: %v", err)
+	}
+
+	// --- Step 2: Create bread ---
+	bread := data.Bread{Name: "E2EBread", Price: 10.00, Quantity: 50, Type: "Bread", Status: "available"}
+	breadID, err := repo.InsertBread(bread)
+	if err != nil {
+		t.Fatalf("InsertBread: %v", err)
+	}
+
+	// --- Step 3: Create buy order ---
+	order := data.BuyOrder{
+		CustomerID:   customerID,
+		BuyOrderUUID: "invoice-e2e-order",
+		Status:       "pending",
+		Breads:       []data.Bread{{ID: breadID, Quantity: 3, Price: 10.00}},
+	}
+	orderID, err := repo.InsertBuyOrder(order, order.Breads)
+	if err != nil {
+		t.Fatalf("InsertBuyOrder: %v", err)
+	}
+
+	// --- Step 4: Create invoice ---
+	invoice := data.Invoice{
+		BuyOrderID:    orderID,
+		CustomerID:    customerID,
+		InvoiceNumber: "INV-E2E-001",
+		Subtotal:      30.00,
+		Tax:           2.40,
+		Total:         32.40,
+		Status:        "pending",
+	}
+	invoiceID, err := repo.InsertInvoice(invoice)
+	if err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	if invoiceID <= 0 {
+		t.Fatal("expected positive invoice ID")
+	}
+
+	// --- Step 5: Retrieve by ID ---
+	fetched, err := repo.GetInvoiceByID(invoiceID)
+	if err != nil {
+		t.Fatalf("GetInvoiceByID: %v", err)
+	}
+	if fetched.InvoiceNumber != "INV-E2E-001" {
+		t.Errorf("expected invoice number INV-E2E-001, got %s", fetched.InvoiceNumber)
+	}
+	if fetched.Total != 32.40 {
+		t.Errorf("expected total 32.40, got %f", fetched.Total)
+	}
+	if fetched.CustomerID != customerID {
+		t.Errorf("expected customer ID %d, got %d", customerID, fetched.CustomerID)
+	}
+
+	// --- Step 6: Retrieve by customer ID ---
+	customerInvoices, err := repo.GetInvoicesByCustomerID(customerID)
+	if err != nil {
+		t.Fatalf("GetInvoicesByCustomerID: %v", err)
+	}
+	if len(customerInvoices) != 1 {
+		t.Errorf("expected 1 invoice for customer, got %d", len(customerInvoices))
+	}
+
+	// --- Step 7: Retrieve by order ID ---
+	orderInvoice, err := repo.GetInvoiceByOrderID(orderID)
+	if err != nil {
+		t.Fatalf("GetInvoiceByOrderID: %v", err)
+	}
+	if orderInvoice.ID != invoiceID {
+		t.Errorf("expected invoice ID %d, got %d", invoiceID, orderInvoice.ID)
+	}
+
+	// --- Step 8: Get all invoices ---
+	allInvoices, err := repo.GetAllInvoices()
+	if err != nil {
+		t.Fatalf("GetAllInvoices: %v", err)
+	}
+	if len(allInvoices) != 1 {
+		t.Errorf("expected 1 total invoice, got %d", len(allInvoices))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AdminUser e2e — full flow: insert → retrieve by username → retrieve by ID
+// ---------------------------------------------------------------------------
+
+func TestAdminUser_E2E_FullFlow(t *testing.T) {
+	fixture := testutils.NewIntegrationFixture(t)
+	defer fixture.Cleanup()
+
+	repo := data.NewPostgresRepository(fixture.DB)
+	dbHelper := testutils.NewDBHelper(fixture.DB)
+	if err := dbHelper.ClearAllTables(); err != nil {
+		t.Fatalf("clear tables: %v", err)
+	}
+
+	// --- Step 1: Insert admin user ---
+	admin := data.AdminUser{
+		Username: "e2eadmin",
+		Email:    "e2eadmin@bakery.com",
+		Password: "securepass123",
+		Role:     "superadmin",
+	}
+	adminID, err := repo.InsertAdminUser(admin)
+	if err != nil {
+		t.Fatalf("InsertAdminUser: %v", err)
+	}
+	if adminID <= 0 {
+		t.Fatal("expected positive admin ID")
+	}
+
+	// --- Step 2: Retrieve by username ---
+	fetchedByUsername, err := repo.GetAdminUserByUsername("e2eadmin")
+	if err != nil {
+		t.Fatalf("GetAdminUserByUsername: %v", err)
+	}
+	if fetchedByUsername.ID != adminID {
+		t.Errorf("expected ID %d, got %d", adminID, fetchedByUsername.ID)
+	}
+	if fetchedByUsername.Username != "e2eadmin" {
+		t.Errorf("expected username e2eadmin, got %s", fetchedByUsername.Username)
+	}
+	if fetchedByUsername.Role != "superadmin" {
+		t.Errorf("expected role superadmin, got %s", fetchedByUsername.Role)
+	}
+
+	// --- Step 3: Retrieve by ID ---
+	fetchedByID, err := repo.GetAdminUserByID(adminID)
+	if err != nil {
+		t.Fatalf("GetAdminUserByID: %v", err)
+	}
+	if fetchedByID.Username != "e2eadmin" {
+		t.Errorf("expected username e2eadmin, got %s", fetchedByID.Username)
+	}
+
+	// --- Step 4: Verify password hash is returned (needed for auth verification) ---
+	// The method intentionally returns the password hash for bcrypt comparison.
+	if fetchedByID.Password == "" {
+		t.Error("password hash should be returned for authentication")
+	}
+
+	// --- Step 5: Insert second admin and verify count ---
+	admin2 := data.AdminUser{
+		Username: "e2eadmin2",
+		Email:    "e2eadmin2@bakery.com",
+		Password: "anotherpass",
+		Role:     "admin",
+	}
+	_, err = repo.InsertAdminUser(admin2)
+	if err != nil {
+		t.Fatalf("InsertAdminUser #2: %v", err)
+	}
+
+	// Verify first admin is still retrievable (no collision)
+	fetched, err := repo.GetAdminUserByUsername("e2eadmin")
+	if err != nil {
+		t.Fatalf("GetAdminUserByUsername after insert: %v", err)
+	}
+	if fetched.Username != "e2eadmin" {
+		t.Error("first admin should still be retrievable")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Customer e2e — full flow: create → login (password match) → get orders
+// ---------------------------------------------------------------------------
+
+func TestCustomer_E2E_FullFlow(t *testing.T) {
+	fixture := testutils.NewIntegrationFixture(t)
+	defer fixture.Cleanup()
+
+	repo := data.NewPostgresRepository(fixture.DB)
+	dbHelper := testutils.NewDBHelper(fixture.DB)
+	if err := dbHelper.ClearAllTables(); err != nil {
+		t.Fatalf("clear tables: %v", err)
+	}
+
+	// --- Step 1: Create customer ---
+	customer := data.Customer{Name: "E2ECustomer", Email: "e2ecustomer@test.com", Password: "mypass123"}
+	customerID, err := repo.InsertCustomer(customer)
+	if err != nil {
+		t.Fatalf("InsertCustomer: %v", err)
+	}
+
+	// --- Step 2: Verify by email ---
+	fetchedByEmail, err := repo.GetCustomerByEmail("e2ecustomer@test.com")
+	if err != nil {
+		t.Fatalf("GetCustomerByEmail: %v", err)
+	}
+	if fetchedByEmail.ID != customerID {
+		t.Errorf("expected ID %d, got %d", customerID, fetchedByEmail.ID)
+	}
+	if fetchedByEmail.Name != "E2ECustomer" {
+		t.Errorf("expected name E2ECustomer, got %s", fetchedByEmail.Name)
+	}
+
+	// --- Step 3: Verify by ID ---
+	fetchedByID, err := repo.GetCustomerByID(customerID)
+	if err != nil {
+		t.Fatalf("GetCustomerByID: %v", err)
+	}
+	if fetchedByID.Email != "e2ecustomer@test.com" {
+		t.Errorf("expected email e2ecustomer@test.com, got %s", fetchedByID.Email)
+	}
+
+	// --- Step 4: Verify password matching (correct password) ---
+	matches, err := repo.PasswordMatches("mypass123", fetchedByEmail)
+	if err != nil {
+		t.Fatalf("PasswordMatches: %v", err)
+	}
+	if !matches {
+		t.Error("correct password should match")
+	}
+
+	// --- Step 5: Verify password matching (wrong password) ---
+	wrongMatches, err := repo.PasswordMatches("wrongpass", fetchedByEmail)
+	if err != nil {
+		t.Fatalf("PasswordMatches wrong: %v", err)
+	}
+	if wrongMatches {
+		t.Error("wrong password should NOT match")
+	}
+
+	// --- Step 6: Create bread and order for customer ---
+	bread := data.Bread{Name: "E2EBread", Price: 5.00, Quantity: 100, Type: "Bread", Status: "available"}
+	breadID, err := repo.InsertBread(bread)
+	if err != nil {
+		t.Fatalf("InsertBread: %v", err)
+	}
+
+	order := data.BuyOrder{
+		CustomerID:   customerID,
+		BuyOrderUUID: "customer-e2e-order",
+		Status:       "pending",
+		Breads:       []data.Bread{{ID: breadID, Quantity: 2, Price: 5.00}},
+	}
+	_, err = repo.InsertBuyOrder(order, order.Breads)
+	if err != nil {
+		t.Fatalf("InsertBuyOrder: %v", err)
+	}
+
+	// --- Step 7: Retrieve customer orders ---
+	customerOrders, err := repo.GetCustomerOrders(customerID)
+	if err != nil {
+		t.Fatalf("GetCustomerOrders: %v", err)
+	}
+	if len(customerOrders) != 1 {
+		t.Errorf("expected 1 order for customer, got %d", len(customerOrders))
+	}
+	if customerOrders[0].BuyOrderUUID != "customer-e2e-order" {
+		t.Errorf("expected order UUID customer-e2e-order, got %s", customerOrders[0].BuyOrderUUID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FulfillOrderTx with invoice creation — end-to-end order-to-invoice
+// ---------------------------------------------------------------------------
+
+func TestFulfillOrderTx_WithInvoice_E2E(t *testing.T) {
+	fixture := testutils.NewIntegrationFixture(t)
+	defer fixture.Cleanup()
+
+	repo := data.NewPostgresRepository(fixture.DB)
+	dbHelper := testutils.NewDBHelper(fixture.DB)
+	if err := dbHelper.ClearAllTables(); err != nil {
+		t.Fatalf("clear tables: %v", err)
+	}
+
+	// --- Create customer ---
+	customer := data.Customer{Name: "FulfillInv", Email: "fulfillinv@test.com", Password: "pass"}
+	customerID, _ := repo.InsertCustomer(customer)
+
+	// --- Create breads ---
+	breadA := data.Bread{Name: "Premium", Price: 12.50, Quantity: 50, Type: "Bread", Status: "available"}
+	idA, _ := repo.InsertBread(breadA)
+	breadB := data.Bread{Name: "Artisan", Price: 8.00, Quantity: 30, Type: "Bread", Status: "available"}
+	idB, _ := repo.InsertBread(breadB)
+
+	// --- Create buy order ---
+	order := data.BuyOrder{
+		CustomerID:   customerID,
+		BuyOrderUUID: "fulfill-inv-e2e",
+		Status:       "pending",
+		Breads: []data.Bread{
+			{ID: idA, Quantity: 4, Price: 12.50},
+			{ID: idB, Quantity: 2, Price: 8.00},
+		},
+	}
+	orderID, _ := repo.InsertBuyOrder(order, order.Breads)
+
+	// --- Fulfill via transaction ---
+	fulfillOrder := data.BuyOrder{
+		ID:     orderID,
+		Breads: order.Breads,
+	}
+	err := repo.FulfillOrderTx(fulfillOrder)
+	if err != nil {
+		t.Fatalf("FulfillOrderTx: %v", err)
+	}
+
+	// --- Verify order status ---
+	fetched, _ := repo.GetBuyOrderByID(orderID)
+	if fetched.Status != "processed" {
+		t.Errorf("expected status 'processed', got '%s'", fetched.Status)
+	}
+
+	// --- Create invoice for the order ---
+	invoice := data.Invoice{
+		BuyOrderID:    orderID,
+		CustomerID:    customerID,
+		InvoiceNumber: "INV-FE-001",
+		Subtotal:      66.00, // (4*12.50) + (2*8.00) = 50.00 + 16.00 = 66.00
+		Tax:           5.28,
+		Total:         71.28,
+		Status:        "pending",
+	}
+	invoiceID, err := repo.InsertInvoice(invoice)
+	if err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+
+	// --- Verify invoice ---
+	fetchedInv, _ := repo.GetInvoiceByOrderID(orderID)
+	if fetchedInv.ID != invoiceID {
+		t.Errorf("expected invoice ID %d, got %d", invoiceID, fetchedInv.ID)
+	}
+	if fetchedInv.Total != 71.28 {
+		t.Errorf("expected total 71.28, got %f", fetchedInv.Total)
+	}
+
+	// --- Verify stock was deducted ---
+	updatedA, _ := repo.GetBreadByID(idA)
+	if updatedA.Quantity != 46 {
+		t.Errorf("bread A qty: expected 46, got %d", updatedA.Quantity)
+	}
+	updatedB, _ := repo.GetBreadByID(idB)
+	if updatedB.Quantity != 28 {
+		t.Errorf("bread B qty: expected 28, got %d", updatedB.Quantity)
+	}
+}
